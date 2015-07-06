@@ -1,11 +1,29 @@
 #!/usr/bin/env python3
 
 import curses
-from time import sleep
 from datetime import datetime
 
-echoes = [ ["ii.14", "Обсуждение вопросов, связанных с ii"], ["pipe.2032", "Болталка"], ["mlp.15", "Уголок дружбомагии"], ["ii.test.15", "Тестовые сообщения"], ["younglinux.info.14", "Статьи с сайта younlinux.info"] ]
+node = ""
+auth = ""
+echoes = []
 echo_cursor = 0
+
+def load_config():
+    global node, auth, echoes
+    f = open("caesium.cfg", "r")
+    config = f.read().split("\n")
+    f.close()
+    for line in config:
+        param = line.split(" ")
+        if param[0] == "node":
+            node = param[1]
+        elif param[0] == "auth":
+            auth = param[1]
+        elif param[0] == "echo":
+            if len(param) > 2:
+                echoes.append([param[1], " ".join(param[2:])])
+            else:
+                echoes.append([param[1], ""])
 
 def get_term_size():
     global width, height
@@ -67,6 +85,7 @@ def echo_selector():
             if echo_cursor - start > height - 3 and start < len(echoes) - height + 2:
                 start = start + 1
 
+load_config()
 stdscr = curses.initscr()
 curses.start_color()
 curses.noecho()
@@ -78,8 +97,6 @@ curses.init_pair(3, 7, 4)
 curses.init_pair(4, 7, 0)
 get_term_size()
 echo_selector()
-
-#sleep(5)
 curses.echo()
 curses.curs_set(True)
 curses.endwin()
