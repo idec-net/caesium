@@ -2,28 +2,10 @@
 
 import curses
 from datetime import datetime
+import lib.base as base
+import lib.ii as ii
 
-node = ""
-auth = ""
-echoes = []
 echo_cursor = 0
-
-def load_config():
-    global node, auth, echoes
-    f = open("caesium.cfg", "r")
-    config = f.read().split("\n")
-    f.close()
-    for line in config:
-        param = line.split(" ")
-        if param[0] == "node":
-            node = param[1]
-        elif param[0] == "auth":
-            auth = param[1]
-        elif param[0] == "echo":
-            if len(param) > 2:
-                echoes.append([param[1], " ".join(param[2:])])
-            else:
-                echoes.append([param[1], ""])
 
 def get_term_size():
     global width, height
@@ -44,7 +26,7 @@ def draw_echo_selector(start):
     stdscr.border()
     draw_title(0, 1, "Выбор эхоконференции")
     y = 0
-    for echo in echoes:
+    for echo in ii.echoes:
         if y - start < height - 2:
             if y == echo_cursor:
                 if y >= start:
@@ -80,12 +62,13 @@ def echo_selector():
             echo_cursor = echo_cursor - 1
             if echo_cursor - start < 0 and start > 0:
                 start = start - 1
-        elif key == curses.KEY_DOWN and echo_cursor < len(echoes) - 1:
+        elif key == curses.KEY_DOWN and echo_cursor < len(ii.echoes) - 1:
             echo_cursor = echo_cursor + 1
-            if echo_cursor - start > height - 3 and start < len(echoes) - height + 2:
+            if echo_cursor - start > height - 3 and start < len(ii.echoes) - height + 2:
                 start = start + 1
 
-load_config()
+base.check_directories()
+ii.load_config()
 stdscr = curses.initscr()
 curses.start_color()
 curses.noecho()
