@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
-import curses, os, urllib.request, base64, codecs
+import curses, os, urllib.request, base64, codecs, pickle
 from datetime import datetime
 
 node = ""
 auth = ""
 echoes = []
+lasts = []
 
 def check_directories():
     if not os.path.exists("echo"):
@@ -74,6 +75,7 @@ def debundle(echo, bundle):
                 codecs.open("echo/" + echo[0], "a", "utf-8").write(msgid + "\n")
 
 def fetch_mail():
+    global lasts
     stdscr.clear()
     stdscr.attron(curses.color_pair(1))
     stdscr.attron(curses.A_BOLD)
@@ -84,6 +86,12 @@ def fetch_mail():
     log.scrollok(True)
     line = -1
     for echo in echoes:
+        find = False
+        for i in lasts:
+            if echo[0] in i:
+                find = True
+        if not find:
+            lasts.append([echo[0], 0])
         if line < height - 3:
             line = line + 1
         else:
@@ -178,7 +186,11 @@ def echo_selector():
         elif key == ord("g") or key == ord("G"):
             fetch_mail()
         elif key == 10:
-            echo_reader(echoes[echo_cursor][0])
+            last = 0
+            for i in lasts:
+                if i[0] == echoes[echo_cursor][0]:
+                    last = i[1]
+            echo_reader(echoes[echo_cursor][0], last)
 
 def read_msg(msgid):
     f = open("msg/" + msgid, "r")
@@ -221,12 +233,13 @@ def draw_reader(echo, msgid):
     for i in range(1, width - 1):
         stdscr.addstr(4, i, "─", curses.color_pair(1) + curses.A_BOLD)
 
-def echo_reader(echo):
+def echo_reader(echo, last):
+    global lasts
     stdscr.clear()
     stdscr.attron(curses.color_pair(1))
     stdscr.attron(curses.A_BOLD)
     y = 0
-    msgn = 0
+    msgn = last
     key = 0
     msgids = []
     if os.path.exists("echo/" + echo):
@@ -272,10 +285,20 @@ def echo_reader(echo):
             y = y - 1
         elif key == curses.KEY_DOWN and y + height - 6 < len(msgbody):
             y = y + 1
+    for i in range(0, len(lasts)):
+        if echo == lasts[i][0]:
+            lasts[i][1] = msgn
+    f = open("lasts.lst", "wb")
+    pickle.dump(lasts, f)
+    f.close()
     stdscr.clear()
 
 check_directories()
 load_config()
+if os.path.exists("lasts.lst"):
+    f = open("lasts.lst", "rb")
+    lasts = pickle.load(f)
+    f.close()
 stdscr = curses.initscr()
 curses.start_color()
 curses.noecho()
