@@ -193,9 +193,12 @@ def echo_selector():
             echo_reader(echoes[echo_cursor][0], last)
 
 def read_msg(msgid):
-    f = open("msg/" + msgid, "r")
-    msg = f.read().split("\n")
-    f.close
+    if os.path.exists("msg/" + msgid) and msgid != "":
+        f = open("msg/" + msgid, "r")
+        msg = f.read().split("\n")
+        f.close
+    else:
+        msg = ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"]
     return msg
 
 def body_render(tbody):
@@ -211,8 +214,15 @@ def body_render(tbody):
                     body = body + " "
             else:
                 body = body[:-1]
-                body = body + "\n" + word
-                n = len (word)
+                if len(word) < width - 2:
+                    body = body + "\n" + word
+                    n = len (word)
+                else:
+                    chunks, chunksize = len(word), width - 2
+                    chunk_list = [ word[i:i+chunksize] for i in range(0, chunks, chunksize) ]
+                    for line in chunk_list:
+                        body = body + "\n" + line
+                    n = len(chunk_list[-1])
                 if not word[-1:] == "\n":
                     n = n + 1
                     body = body + " "
