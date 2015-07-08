@@ -90,14 +90,14 @@ def fetch_mail():
         remote_msg_list = get_msg_list(echo)
         if len(remote_msg_list) > 1:
             local_msg_list = get_local_msg_list(echo)
-            msg_list = [x for x in remote_msg_list if x not in local_msg_list]
-            list_len = len (msg_list)
+            msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
+            list_len = len (msg_list) - 1
             n = 0
             for get_list in separate(msg_list):
                 debundle(echo, get_bundle("/".join(get_list)))
                 n = n + len(get_list)
                 time()
-                log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n) + "/" + str(list_len), curses.color_pair(4))
+                log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n - 1) + "/" + str(list_len), curses.color_pair(4))
                 log.refresh()
         else:
             codecs.open("echo/" + echo, "a", "utf-8").close()
