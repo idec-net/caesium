@@ -262,7 +262,7 @@ def echo_reader(echo, last):
     while not key == ord("q") or key == ord("Q"):
         if len(msgids) > 0:
             draw_reader(echo, msgids[msgn])
-            msg_string = str(msgn) + " / " + str(len(msgids) - 1)
+            msg_string = str(msgn + 1) + " / " + str(len(msgids))
             draw_title (0, width - len(msg_string) - 5, msg_string)
             stdscr.addstr(1, 7, msg[3], curses.color_pair(4))
             stdscr.addstr(2, 7, msg[5], curses.color_pair(4))
