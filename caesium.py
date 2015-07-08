@@ -79,6 +79,7 @@ def fetch_mail():
     stdscr.attron(curses.A_BOLD)
     stdscr.border()
     draw_title(0, 1, "Получение почты")
+    stdscr.refresh()
     log = curses.newwin(height - 2, width - 2, 1, 1)
     log.scrollok(True)
     line = -1
@@ -101,6 +102,9 @@ def fetch_mail():
                 log.refresh()
         else:
             codecs.open("echo/" + echo, "a", "utf-8").close()
+    log.addstr(line + 2, 1, "Загрузка завершена.", curses.color_pair(4))
+    log.addstr(line + 3, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
+    log.getch()
     stdscr.clear()
 
 #
@@ -126,7 +130,6 @@ def time():
     draw_title (height - 1, width - 10, datetime.now().strftime("%H:%M"))
 
 def draw_echo_selector(start):
-    stdscr.clear()
     stdscr.attron(curses.color_pair(1))
     stdscr.attron(curses.A_BOLD)
     stdscr.border()
@@ -225,41 +228,51 @@ def echo_reader(echo):
     y = 0
     msgn = 0
     key = 0
-    f = open("echo/" + echo, "r")
-    msgids = f.read().split("\n")[:-1]
-    f.close()
-    msg = read_msg(msgids[msgn])
-    msgbody = body_render(msg[8:])
+    msgids = []
+    if os.path.exists("echo/" + echo):
+        f = open("echo/" + echo, "r")
+        msgids = f.read().split("\n")[:-1]
+        f.close()
+    if len(msgids) > 0:
+        msg = read_msg(msgids[msgn])
+        msgbody = body_render(msg[8:])
     while not key == ord("q") or key == ord("Q"):
-        draw_reader(echo, msgids[msgn])
-        stdscr.addstr(1, 7, msg[3], curses.color_pair(4))
-        stdscr.addstr(2, 7, msg[5], curses.color_pair(4))
-        stdscr.addstr(3, 7, msg[6], curses.color_pair(4))
-        for i in range (0, height - 6):
-            draw_cursor(i + 4, 1)
-            if i < len(msgbody) - 1:
-                stdscr.addstr(i + 5, 1, msgbody[y + i], curses.color_pair(4))
+        if len(msgids) > 0:
+            draw_reader(echo, msgids[msgn])
+            stdscr.addstr(1, 7, msg[3], curses.color_pair(4))
+            stdscr.addstr(2, 7, msg[5], curses.color_pair(4))
+            stdscr.addstr(3, 7, msg[6], curses.color_pair(4))
+            for i in range (0, height - 6):
+                draw_cursor(i + 4, 1)
+                if i < len(msgbody) - 1:
+                    stdscr.addstr(i + 5, 1, msgbody[y + i], curses.color_pair(4))
+        else:
+            draw_reader(echo, "")
         stdscr.refresh()
         key = stdscr.getch()
         if key == curses.KEY_RESIZE:
             y = 0
             get_term_size()
-            msgbody = body_render(msg[8:])
+            if len(msgids) > 0:
+                msgbody = body_render(msg[8:])
             stdscr.clear()
         elif key == curses.KEY_LEFT and msgn > 0:
             y = 0
-            msgn = msgn - 1
-            msg = read_msg(msgids[msgn])
-            msgbody = body_render(msg[8:])
+            if len(msgids) > 0:
+                msgn = msgn - 1
+                msg = read_msg(msgids[msgn])
+                msgbody = body_render(msg[8:])
         elif key == curses.KEY_RIGHT and msgn < len(msgids) - 1:
             y = 0
-            msgn = msgn +1
-            msg = read_msg(msgids[msgn])
-            msgbody = body_render(msg[8:])
+            if len(msgids) > 0:
+                msgn = msgn +1
+                msg = read_msg(msgids[msgn])
+                msgbody = body_render(msg[8:])
         elif key == curses.KEY_UP and y > 0:
             y = y - 1
         elif key == curses.KEY_DOWN and y + height - 6 < len(msgbody):
             y = y + 1
+    stdscr.clear()
 
 check_directories()
 load_config()
