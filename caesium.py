@@ -203,8 +203,24 @@ def read_msg(msgid):
 
 def body_render(tbody):
     body = ""
+    code = ""
     for line in tbody:
         n = 0
+        if line.startswith(">>>>>>"):
+            code = chr(16)
+        elif line.startswith(">>>>>"):
+            code = chr(15)
+        elif line.startswith(">>>>"):
+            code = chr(16)
+        elif line.startswith(">>>"):
+            code = chr(15)
+        elif line.startswith(">>"):
+            code = chr(16)
+        elif line.startswith(">"):
+            code = chr (15)
+        else:
+            code = " "
+        body = body + code
         for word in line.split(" "):
             if n + len(word) + 1 <= width - 2:
                 n = n + len(word)
@@ -215,13 +231,13 @@ def body_render(tbody):
             else:
                 body = body[:-1]
                 if len(word) < width - 2:
-                    body = body + "\n" + word
+                    body = body + "\n" + code + word
                     n = len (word)
                 else:
                     chunks, chunksize = len(word), width - 2
                     chunk_list = [ word[i:i+chunksize] for i in range(0, chunks, chunksize) ]
                     for line in chunk_list:
-                        body = body + "\n" + line
+                        body = body + "\n" + code + line
                     n = len(chunk_list[-1])
                 if not word[-1:] == "\n":
                     n = n + 1
@@ -270,9 +286,18 @@ def echo_reader(echo, last):
             for i in range (0, height - 6):
                 draw_cursor(i + 4, 1)
                 if i < len(msgbody) - 1:
-                    stdscr.addstr(i + 5, 1, msgbody[y + i], curses.color_pair(4))
+                    if msgbody[y + i][0] == chr(15):
+                        stdscr.attron(curses.color_pair(2))
+                    elif msgbody[y + i][0] == chr(16):
+                        stdscr.attron(curses.color_pair(5))
+                    else:
+                        stdscr.attron(curses.color_pair(4))
+                    stdscr.attroff(curses.A_BOLD)
+                    stdscr.addstr(i + 5, 1, msgbody[y + i][1:])
         else:
             draw_reader(echo, "")
+        stdscr.attron(curses.color_pair(1))
+        stdscr.attron(curses.A_BOLD)
         stdscr.refresh()
         key = stdscr.getch()
         if key == curses.KEY_RESIZE:
@@ -330,6 +355,7 @@ curses.init_pair(1, 4, 0)
 curses.init_pair(2, 3, 0)
 curses.init_pair(3, 7, 4)
 curses.init_pair(4, 7, 0)
+curses.init_pair(5, 2, 0)
 get_term_size()
 echo_selector()
 curses.echo()
