@@ -79,9 +79,14 @@ def fetch_mail():
     stdscr.attron(curses.A_BOLD)
     stdscr.border()
     draw_title(0, 1, "Получение почты")
-    line = 0
+    log = curses.newwin(height - 2, width - 2, 1, 1)
+    log.scrollok(True)
+    line = -1
     for echo in echoes:
-        line = line + 1
+        if line < height - 3:
+            line = line + 1
+        else:
+            log.scroll()
         remote_msg_list = get_msg_list(echo)
         if len(remote_msg_list) > 1:
             local_msg_list = get_local_msg_list(echo)
@@ -91,8 +96,9 @@ def fetch_mail():
             for get_list in separate(msg_list):
                 debundle(echo, get_bundle("/".join(get_list)))
                 n = n + len(get_list)
-                stdscr.addstr(line, 1, "Получение сообщений из " + echo[0] + ": " + str(n) + "/" + str(list_len), curses.color_pair(4))
-                stdscr.refresh()
+                time()
+                log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n) + "/" + str(list_len), curses.color_pair(4))
+                log.refresh()
         else:
             codecs.open("echo/" + echo, "a", "utf-8").close()
     stdscr.clear()
@@ -115,6 +121,9 @@ def draw_title(y, x, title):
 def draw_cursor(y, color):
     for i in range (1, width - 1):
         stdscr.addstr(y + 1, i, " ", color)
+
+def time():
+    draw_title (height - 1, width - 10, datetime.now().strftime("%H:%M"))
 
 def draw_echo_selector(start):
     stdscr.attron(curses.color_pair(1))
@@ -141,7 +150,7 @@ def draw_echo_selector(start):
                     cut_index = width - 26 - len(echo[1])
                     stdscr.addstr(y + 1 - start, 25, echo[1][:cut_index])
         y = y + 1
-    draw_title (height - 1, width - 10, datetime.now().strftime("%H:%M"))
+    time()
     stdscr.refresh()
 
 def echo_selector():
