@@ -262,6 +262,8 @@ def echo_reader(echo, last):
     while not key == ord("q") or key == ord("Q"):
         if len(msgids) > 0:
             draw_reader(echo, msgids[msgn])
+            msg_string = str(msgn) + " / " + str(len(msgids) - 1)
+            draw_title (0, width - len(msg_string) - 5, msg_string)
             stdscr.addstr(1, 7, msg[3], curses.color_pair(4))
             stdscr.addstr(2, 7, msg[5], curses.color_pair(4))
             stdscr.addstr(3, 7, msg[6], curses.color_pair(4))
@@ -295,6 +297,16 @@ def echo_reader(echo, last):
             y = y - 1
         elif key == curses.KEY_DOWN and y + height - 6 < len(msgbody):
             y = y + 1
+        elif key == curses.KEY_HOME:
+            y = 0
+            msgn = 0
+            msg = read_msg(msgids[msgn])
+            msgbody = body_render(msg[8:])
+        elif key == curses.KEY_END:
+            y = 0
+            msgn = len(msgids) - 1
+            msg = read_msg(msgids[msgn])
+            msgbody = body_render(msg[8:])
     for i in range(0, len(lasts)):
         if echo == lasts[i][0]:
             lasts[i][1] = msgn
