@@ -106,6 +106,7 @@ def fetch_mail():
                 debundle(echo, get_bundle("/".join(get_list)))
                 n = n + len(get_list)
                 current_time()
+                stdscr.refresh()
                 log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n - 1) + "/" + str(list_len), curses.color_pair(4))
                 log.refresh()
         else:
@@ -165,6 +166,7 @@ def draw_echo_selector(start):
                 stdscr.attroff (curses.A_BOLD)
             if y + 1 >= start + 1:
                 echo_length = get_echo_length(echo[0])
+                last = 0
                 for i in lasts:
                     if echo[0] == i[0]:
                         last = i[1]
