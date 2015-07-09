@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import curses, os, urllib.request, base64, codecs, pickle
+import curses, os, urllib.request, base64, codecs, pickle, time
 from datetime import datetime
 
 node = ""
@@ -105,7 +105,7 @@ def fetch_mail():
             for get_list in separate(msg_list):
                 debundle(echo, get_bundle("/".join(get_list)))
                 n = n + len(get_list)
-                time()
+                current_time()
                 log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n - 1) + "/" + str(list_len), curses.color_pair(4))
                 log.refresh()
         else:
@@ -134,7 +134,7 @@ def draw_cursor(y, color):
     for i in range (1, width - 1):
         stdscr.addstr(y + 1, i, " ", color)
 
-def time():
+def current_time():
     draw_title (height - 1, width - 10, datetime.now().strftime("%H:%M"))
 
 def draw_echo_selector(start):
@@ -155,14 +155,25 @@ def draw_echo_selector(start):
                 stdscr.attron (curses.color_pair(4))
                 stdscr.attroff (curses.A_BOLD)
             if y + 1 >= start + 1:
-                stdscr.addstr(y + 1 - start, 2, echo[0])
+                if os.path.exists("echo/" + echo[0]):
+                    f = open ("echo/" + echo[0], "r")
+                    echo_length = len(f.read().split("\n")) - 2
+                    f.close()
+                else:
+                    echo_length = 0
+                for i in lasts:
+                    if echo[0] == i[0]:
+                        last = i[1]
+                if last < echo_length:
+                    stdscr.addstr(y + 1 - start, 1, "+")
+                stdscr.addstr(y + 1 - start, 3, echo[0])
                 if width - 26 >= len(echo[1]):
                     stdscr.addstr(y + 1 - start, 25, echo[1])
                 else:
                     cut_index = width - 26 - len(echo[1])
                     stdscr.addstr(y + 1 - start, 25, echo[1][:cut_index])
         y = y + 1
-    time()
+    current_time()
     stdscr.refresh()
 
 def echo_selector():
@@ -248,7 +259,7 @@ def body_render(tbody):
 def draw_reader(echo, msgid):
     stdscr.border()
     draw_title(0, 1, echo + " / " + msgid)
-    time()
+    current_time()
     for i in range(0, 3):
         draw_cursor(i, 1)
     stdscr.addstr(1, 1, "От:   ", curses.color_pair(2) + curses.A_BOLD)
@@ -280,20 +291,23 @@ def echo_reader(echo, last):
             draw_reader(echo, msgids[msgn])
             msg_string = str(msgn + 1) + " / " + str(len(msgids))
             draw_title (0, width - len(msg_string) - 5, msg_string)
-            stdscr.addstr(1, 7, msg[3], curses.color_pair(4))
+            msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
+            stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", curses.color_pair(4))
+            stdscr.addstr(1, width - len(msgtime) - 1, msgtime, curses.color_pair(4))
             stdscr.addstr(2, 7, msg[5], curses.color_pair(4))
-            stdscr.addstr(3, 7, msg[6], curses.color_pair(4))
+            stdscr.addstr(3, 7, msg[6][:width - 8], curses.color_pair(4))
             for i in range (0, height - 6):
                 draw_cursor(i + 4, 1)
                 if i < len(msgbody) - 1:
-                    if msgbody[y + i][0] == chr(15):
-                        stdscr.attron(curses.color_pair(2))
-                    elif msgbody[y + i][0] == chr(16):
-                        stdscr.attron(curses.color_pair(5))
-                    else:
-                        stdscr.attron(curses.color_pair(4))
-                    stdscr.attroff(curses.A_BOLD)
-                    stdscr.addstr(i + 5, 1, msgbody[y + i][1:])
+                    if len(msgbody[y+i]) > 0:
+                        if msgbody[y + i][0] == chr(15):
+                            stdscr.attron(curses.color_pair(2))
+                        elif msgbody[y + i][0] == chr(16):
+                            stdscr.attron(curses.color_pair(5))
+                        else:
+                            stdscr.attron(curses.color_pair(4))
+                        stdscr.attroff(curses.A_BOLD)
+                        stdscr.addstr(i + 5, 1, msgbody[y + i][1:])
         else:
             draw_reader(echo, "")
         stdscr.attron(curses.color_pair(1))
