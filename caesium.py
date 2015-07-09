@@ -137,6 +137,15 @@ def draw_cursor(y, color):
 def current_time():
     draw_title (height - 1, width - 10, datetime.now().strftime("%H:%M"))
 
+def get_echo_length(echo):
+    if os.path.exists("echo/" + echo):
+        f = open ("echo/" + echo, "r")
+        echo_length = len(f.read().split("\n")) - 2
+        f.close()
+    else:
+        echo_length = 0
+    return echo_length
+
 def draw_echo_selector(start):
     stdscr.attron(curses.color_pair(1))
     stdscr.attron(curses.A_BOLD)
@@ -155,12 +164,7 @@ def draw_echo_selector(start):
                 stdscr.attron (curses.color_pair(4))
                 stdscr.attroff (curses.A_BOLD)
             if y + 1 >= start + 1:
-                if os.path.exists("echo/" + echo[0]):
-                    f = open ("echo/" + echo[0], "r")
-                    echo_length = len(f.read().split("\n")) - 2
-                    f.close()
-                else:
-                    echo_length = 0
+                echo_length = get_echo_length(echo[0])
                 for i in lasts:
                     if echo[0] == i[0]:
                         last = i[1]
@@ -201,6 +205,9 @@ def echo_selector():
             for i in lasts:
                 if i[0] == echoes[echo_cursor][0]:
                     last = i[1]
+            echo_length = get_echo_length(echoes[echo_cursor][0])
+            if last > 0 and last < echo_length:
+                last = last + 1
             echo_reader(echoes[echo_cursor][0], last)
 
 def read_msg(msgid):
