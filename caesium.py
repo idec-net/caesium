@@ -208,6 +208,8 @@ def echo_selector():
                 start = start - height + 2
         elif key == curses.KEY_NPAGE:
             echo_cursor = echo_cursor + height - 2
+            if echo_cursor >= len(echoes):
+                echo_cursor = len(echoes) - 1
             if echo_cursor - start > height - 3 and start < len(echoes) - height + 2:
                 start = start + height - 2
         elif key == ord("g") or key == ord("G"):
