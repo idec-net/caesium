@@ -346,6 +346,14 @@ def echo_reader(echo, last):
             go = False
         elif key == curses.KEY_UP and y > 0:
             y = y - 1
+        elif key == curses.KEY_PPAGE:
+            y = y - height + 6
+            if y < 0:
+                y = 0
+        elif key == curses.KEY_NPAGE:
+            y = y + height - 6
+            if y + height - 6 >= len(msgbody):
+                y = len(msgbody) - height + 6
         elif key == curses.KEY_DOWN and y + height - 6 < len(msgbody):
             y = y + 1
         elif key == curses.KEY_HOME:
