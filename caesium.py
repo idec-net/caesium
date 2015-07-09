@@ -204,10 +204,12 @@ def echo_selector():
             echo_cursor = echo_cursor - height + 2
             if echo_cursor < 0:
                 echo_cursor = 0
+            if echo_cursor - start < 0 and start > 0:
+                start = start - height + 2
         elif key == curses.KEY_NPAGE:
             echo_cursor = echo_cursor + height - 2
-            if echo_cursor >= len(echoes):
-                echo_cursor = len(echoes) - 1
+            if echo_cursor - start > height - 3 and start < len(echoes) - height + 2:
+                start = start + height - 2
         elif key == ord("g") or key == ord("G"):
             fetch_mail()
         elif key == 10:
