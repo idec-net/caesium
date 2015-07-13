@@ -116,6 +116,34 @@ def fetch_mail():
     log.getch()
     stdscr.clear()
 
+def outcount():
+    if not os.path.exists("out/.outcount"):
+        codecs.open("out/.outcount", "w", "utf-8").write("0")
+    i = str(int(codecs.open("out/.outcount", "r", "utf-8").read()) + 1)
+    codecs.open("out/.outcount", "w", "utf-8").write(i)
+    return "out/%s.out" % i.zfill(5)
+
+def save_out():
+    new = codecs.open("temp", "r", "utf-8").read().split("\n")
+    if len(new) <= 6:
+        os.remove("temp")
+    else:
+        header = new.index("")
+        if header == 3:
+            buf = new
+        elif header == 4:
+            buf = new[1:5] + ["@repto:%s" % new[0]] + new[5:]
+            codecs.open(outcount(), "w", "utf-8").write("\n".join(buf))
+            os.remove("temp")
+
+def make_toss():
+    lst = [x for x in os.listdir("out") if x.endswith(".out")]
+    for msg in lst:
+        text = codecs.open("out/%s" % msg, "r", "utf-8").read()
+        coded_text = base64.urlsafe_b64encode(text.encode("utf-8"))
+        codecs.open("out/%s.toss" % msg, "w", "utf-8").write(coded_text.decode("utf-8"))
+        os.rename("out/%s" % msg, "out/%s%s" % (msg, "msg"))
+
 #
 # Пользовательский интерфейс
 #
@@ -221,6 +249,8 @@ def echo_selector():
                 start = len(echoes) - height + 2
         elif key == ord("g") or key == ord("G"):
             fetch_mail()
+        elif key == ord("s") or key == ord("S"):
+            make_toss()
         elif key == 10 or key == curses.KEY_RIGHT:
             last = 0
             for i in lasts:
@@ -306,6 +336,7 @@ def call_editor():
     curses.endwin()
     p = subprocess.Popen("mcedit ./temp", shell=True)
     p.wait()
+    save_out()
     stdscr = curses.initscr()
     curses.start_color()
     curses.noecho()
@@ -412,7 +443,20 @@ def echo_reader(echo, last):
             f.write("No subject\n\n")
             f.close()
             call_editor()
-        elif key == ord("q") or key == ord("Q"):
+        elif key == ord ("q") or key == ord("Q"):
+            f = open("temp", "w")
+            f.write(msgids[msgn] + "\n")
+            f.write(echo + "\n")
+            f.write(msg[5] + "\n")
+            f.write(msg[6] + "\n\n")
+            for line in msg[8:]:
+                if line.strip() != "":
+                    f.write("\n>" + line)
+                else:
+                    f.write("\n" + line)
+            f.close()
+            call_editor()
+        elif key == ord("e") or key == ord("E"):
             go = False
     for i in range(0, len(lasts)):
         if echo == lasts[i][0]:
