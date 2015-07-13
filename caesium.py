@@ -6,6 +6,7 @@ from datetime import datetime
 node = ""
 auth = ""
 echoes = []
+editor = ""
 lasts = []
 
 def check_directories():
@@ -25,7 +26,7 @@ def separate(l, step=20):
         yield l[x:x+step]
         
 def load_config():
-    global node, auth, echoes
+    global node, auth, echoes, editor
     f = open("caesium.cfg", "r")
     config = f.read().split("\n")
     f.close()
@@ -40,6 +41,11 @@ def load_config():
                 echoes.append([param[1], " ".join(param[2:])])
             else:
                 echoes.append([param[1], ""])
+        elif param[0] == "editor":
+            if len(param) > 2:
+                editor = " ".join(param[1:])
+            else:
+                editor = param[1]
 
 def get_msg_list(echo):
     msg_list = []
@@ -125,7 +131,7 @@ def outcount():
 
 def save_out():
     new = codecs.open("temp", "r", "utf-8").read().split("\n")
-    if len(new)  == 0:
+    if len(new) <= 1:
         os.remove("temp")
     else:
         header = new.index("")
@@ -351,7 +357,7 @@ def call_editor():
     curses.echo()
     curses.curs_set(True)
     curses.endwin()
-    p = subprocess.Popen("mcedit ./temp", shell=True)
+    p = subprocess.Popen(editor + " ./temp", shell=True)
     p.wait()
     save_out()
     stdscr = curses.initscr()
@@ -464,8 +470,11 @@ def echo_reader(echo, last):
             f = open("temp", "w")
             f.write(msgids[msgn] + "\n")
             f.write(echo + "\n")
-            f.write(msg[5] + "\n")
-            f.write(msg[6] + "\n")
+            f.write(msg[3] + "\n")
+            if not msg[6].startswith("Re:"):
+                f.write("Re: " + msg[6] + "\n")
+            else:
+                f.write(msg[6] + "\n")
             for line in msg[8:]:
                 if line.strip() != "":
                     f.write("\n>" + line)
