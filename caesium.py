@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import curses, os, urllib.request, base64, codecs, pickle, time
+import curses, os, urllib.request, base64, codecs, pickle, time, subprocess
 from datetime import datetime
 
 node = ""
@@ -221,7 +221,7 @@ def echo_selector():
                 start = len(echoes) - height + 2
         elif key == ord("g") or key == ord("G"):
             fetch_mail()
-        elif key == 10:
+        elif key == 10 or key == curses.KEY_RIGHT:
             last = 0
             for i in lasts:
                 if i[0] == echoes[echo_cursor][0]:
@@ -281,6 +281,8 @@ def body_render(tbody):
                 if not word[-1:] == "\n":
                     n = n + 1
                     body = body + " "
+        if body.endswith(" "):
+            body = body[:-1]
         body = body + "\n"
     return body.split("\n")
 
@@ -297,6 +299,24 @@ def draw_reader(echo, msgid):
     stdscr.addstr(4, width - 1, "┤", curses.color_pair(1) + curses.A_BOLD)
     for i in range(1, width - 1):
         stdscr.addstr(4, i, "─", curses.color_pair(1) + curses.A_BOLD)
+
+def call_editor():
+    curses.echo()
+    curses.curs_set(True)
+    curses.endwin()
+    p = subprocess.Popen("mcedit ./temp", shell=True)
+    p.wait()
+    stdscr = curses.initscr()
+    curses.start_color()
+    curses.noecho()
+    curses.curs_set(False)
+    stdscr.keypad(True)
+    curses.init_pair(1, 4, 0)
+    curses.init_pair(2, 3, 0)
+    curses.init_pair(3, 7, 4)
+    curses.init_pair(4, 7, 0)
+    curses.init_pair(5, 2, 0)
+    get_term_size()
 
 def echo_reader(echo, last):
     global lasts
@@ -385,6 +405,13 @@ def echo_reader(echo, last):
             msgn = len(msgids) - 1
             msg = read_msg(msgids[msgn])
             msgbody = body_render(msg[8:])
+        elif key == ord ("i") or key == ord("I"):
+            f = open("temp", "w")
+            f.write(echo + "\n")
+            f.write("All\n")
+            f.write("No subject\n\n")
+            f.close()
+            call_editor()
         elif key == ord("q") or key == ord("Q"):
             go = False
     for i in range(0, len(lasts)):
