@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import curses, os, urllib.request, base64, codecs, pickle, time, subprocess
+import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess
 from datetime import datetime
 
 node = ""
@@ -125,7 +125,7 @@ def outcount():
 
 def save_out():
     new = codecs.open("temp", "r", "utf-8").read().split("\n")
-    if len(new) <= 6:
+    if len(new)  == 0:
         os.remove("temp")
     else:
         header = new.index("")
@@ -133,16 +133,32 @@ def save_out():
             buf = new
         elif header == 4:
             buf = new[1:5] + ["@repto:%s" % new[0]] + new[5:]
-            codecs.open(outcount(), "w", "utf-8").write("\n".join(buf))
-            os.remove("temp")
+        codecs.open(outcount(), "w", "utf-8").write("\n".join(buf))
+        os.remove("temp")
 
 def make_toss():
     lst = [x for x in os.listdir("out") if x.endswith(".out")]
     for msg in lst:
         text = codecs.open("out/%s" % msg, "r", "utf-8").read()
-        coded_text = base64.urlsafe_b64encode(text.encode("utf-8"))
+        coded_text = base64.b64encode(text.encode("utf-8"))
         codecs.open("out/%s.toss" % msg, "w", "utf-8").write(coded_text.decode("utf-8"))
         os.rename("out/%s" % msg, "out/%s%s" % (msg, "msg"))
+
+def send_mail():
+    lst = [x for x in os.listdir("out") if x.endswith(".toss")]
+    for msg in lst:
+        text = codecs.open("out/%s" % msg, "r", "utf-8").read()
+        data = urllib.parse.urlencode({"tmsg": text,"pauth": auth}).encode("utf-8")
+        request = urllib.request.Request(node + "u/point")
+        result = urllib.request.urlopen(request, data).read().decode("utf-8")
+        if result.startswith("msg ok"):
+            os.remove("out/%s" % msg)
+        elif result == "msg big!":
+            print ("ERROR: very big message (limit 64K)!")
+        elif result == "auth error!":
+            print ("ERROR: unknown auth!")
+        else:
+            print ("ERROR: unknown error!")
 
 #
 # Пользовательский интерфейс
@@ -251,6 +267,7 @@ def echo_selector():
             fetch_mail()
         elif key == ord("s") or key == ord("S"):
             make_toss()
+            send_mail()
         elif key == 10 or key == curses.KEY_RIGHT:
             last = 0
             for i in lasts:
@@ -448,7 +465,7 @@ def echo_reader(echo, last):
             f.write(msgids[msgn] + "\n")
             f.write(echo + "\n")
             f.write(msg[5] + "\n")
-            f.write(msg[6] + "\n\n")
+            f.write(msg[6] + "\n")
             for line in msg[8:]:
                 if line.strip() != "":
                     f.write("\n>" + line)
