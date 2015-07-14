@@ -151,8 +151,17 @@ def make_toss():
         os.rename("out/%s" % msg, "out/%s%s" % (msg, "msg"))
 
 def send_mail():
+    stdscr.clear()
+    stdscr.attron(curses.color_pair(1))
+    stdscr.attron(curses.A_BOLD)
+    stdscr.border()
+    draw_title(0, 1, "Отправка почты")
+    stdscr.refresh()
     lst = [x for x in os.listdir("out") if x.endswith(".toss")]
+    max = len(lst)
+    n = 1
     for msg in lst:
+        stdscr.addstr(1, 1, "Отправка сообщения: " + str(n) + "/" + str(max), curses.color_pair(4))
         text = codecs.open("out/%s" % msg, "r", "utf-8").read()
         data = urllib.parse.urlencode({"tmsg": text,"pauth": auth}).encode("utf-8")
         request = urllib.request.Request(node + "u/point")
@@ -165,6 +174,10 @@ def send_mail():
             print ("ERROR: unknown auth!")
         else:
             print ("ERROR: unknown error!")
+    stdscr.addstr(3, 1, "Отправка завершена.", curses.color_pair(4))
+    stdscr.addstr(4, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
+    stdscr.getch()
+    stdscr.clear()
 
 #
 # Пользовательский интерфейс
