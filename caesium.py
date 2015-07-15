@@ -298,13 +298,19 @@ def echo_selector():
             echo_reader(echoes[echo_cursor][0], last)
 
 def read_msg(msgid):
+    size = "0b"
     if os.path.exists("msg/" + msgid) and msgid != "":
         f = open("msg/" + msgid, "r")
         msg = f.read().split("\n")
         f.close
+        size = os.stat("msg/" + msgid).st_size
+        if size < 1024:
+            size = str(size) + " B"
+        else:
+            size = str(int(size / 1024 * 10) / 10) + " KB"
     else:
         msg = ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"]
-    return msg
+    return msg, size
 
 def body_render(tbody):
     body = ""
@@ -399,7 +405,7 @@ def echo_reader(echo, last):
         msgids = f.read().split("\n")[:-1]
         f.close()
     if len(msgids) > 0:
-        msg = read_msg(msgids[msgn])
+        msg, size = read_msg(msgids[msgn])
         msgbody = body_render(msg[8:])
     go = True
     while go:
@@ -412,6 +418,7 @@ def echo_reader(echo, last):
             stdscr.addstr(1, width - len(msgtime) - 1, msgtime, curses.color_pair(4))
             stdscr.addstr(2, 7, msg[5], curses.color_pair(4))
             stdscr.addstr(3, 7, msg[6][:width - 8], curses.color_pair(4))
+            draw_title(4, 1, size)
             for i in range (0, height - 6):
                 draw_cursor(i + 4, 1)
                 if i < len(msgbody) - 1:
@@ -440,13 +447,13 @@ def echo_reader(echo, last):
             y = 0
             if len(msgids) > 0:
                 msgn = msgn - 1
-                msg = read_msg(msgids[msgn])
+                msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
         elif key == curses.KEY_RIGHT and msgn < len(msgids) - 1:
             y = 0
             if len(msgids) > 0:
                 msgn = msgn +1
-                msg = read_msg(msgids[msgn])
+                msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
         elif key == curses.KEY_RIGHT and msgn == len(msgids) - 1:
             go = False
@@ -465,12 +472,12 @@ def echo_reader(echo, last):
         elif key == curses.KEY_HOME:
             y = 0
             msgn = 0
-            msg = read_msg(msgids[msgn])
+            msg, size = read_msg(msgids[msgn])
             msgbody = body_render(msg[8:])
         elif key == curses.KEY_END:
             y = 0
             msgn = len(msgids) - 1
-            msg = read_msg(msgids[msgn])
+            msg, size = read_msg(msgids[msgn])
             msgbody = body_render(msg[8:])
         elif key == ord ("i") or key == ord("I"):
             f = open("temp", "w")
