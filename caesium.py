@@ -391,6 +391,27 @@ def call_editor():
     curses.init_pair(5, 2, 0)
     get_term_size()
 
+def save_message(msgid):
+    msg, size = read_msg(msgid)
+    f = open(msgid + ".txt", "w")
+    f.write("== " + msg[1] + " ==================== " + str(msgid) + "\n")
+    f.write("От:   " + msg[3] + " (" + msg[4] + ")\n")
+    f.write("Кому: " + msg[5] + "\n")
+    f.write("Тема: " + msg[6] + "'n")
+    f.write("\n".join(msg[7:]))
+    f.close
+    smsg = "Сообщение сохранено в файл"
+    msgwin = curses.newwin(5, len(smsg) + 2, int(height / 2 - 2) , int(width / 2 - len(smsg) / 2))
+    msgwin.attron(curses.color_pair(1))
+    msgwin.attron(curses.A_BOLD)
+    msgwin.border()
+    msgwin.addstr(1, 1, smsg, curses.color_pair(4))
+    msgwin.addstr(2, 2, str(msgid) + ".txt", curses.color_pair(4))
+    msgwin.addstr(3, 4, "Нажмите любую клавишу", curses.color_pair(2) + curses.A_BOLD)
+    msgwin.refresh()
+    msgwin.getch()
+    msgwin.clear()
+
 def echo_reader(echo, last):
     global lasts
     stdscr.clear()
@@ -486,6 +507,8 @@ def echo_reader(echo, last):
             f.write("No subject\n\n")
             f.close()
             call_editor()
+        elif key == ord("w") or key == ord("W"):
+            save_message(msgids[msgn])
         elif key == ord ("q") or key == ord("Q"):
             f = open("temp", "w")
             f.write(msgids[msgn] + "\n")
