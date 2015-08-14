@@ -397,7 +397,7 @@ def save_message(msgid):
     f.write("== " + msg[1] + " ==================== " + str(msgid) + "\n")
     f.write("От:   " + msg[3] + " (" + msg[4] + ")\n")
     f.write("Кому: " + msg[5] + "\n")
-    f.write("Тема: " + msg[6] + "'n")
+    f.write("Тема: " + msg[6] + "\n")
     f.write("\n".join(msg[7:]))
     f.close
     smsg = "Сообщение сохранено в файл"
