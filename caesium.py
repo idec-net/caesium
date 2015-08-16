@@ -168,6 +168,7 @@ def send_mail():
         result = urllib.request.urlopen(request, data).read().decode("utf-8")
         if result.startswith("msg ok"):
             os.remove("out/%s" % msg)
+            n = n + 1
         elif result == "msg big!":
             print ("ERROR: very big message (limit 64K)!")
         elif result == "auth error!":
