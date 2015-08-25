@@ -6,6 +6,7 @@ from datetime import datetime
 node = ""
 auth = ""
 echoes = []
+archives = []
 editor = ""
 lasts = []
 
@@ -41,6 +42,11 @@ def load_config():
                 echoes.append([param[1], " ".join(param[2:])])
             else:
                 echoes.append([param[1], ""])
+        elif param[0] == "archive":
+            if len(param) > 2:
+                archives.append([param[1], " ".join(param[2:])])
+            else:
+                archives.append([param[1], ""])
         elif param[0] == "editor":
             if len(param) > 2:
                 editor = " ".join(param[1:])
@@ -214,13 +220,18 @@ def get_echo_length(echo):
         echo_length = 0
     return echo_length
 
-def draw_echo_selector(start):
+def draw_echo_selector(start, archive):
     stdscr.attron(curses.color_pair(1))
     stdscr.attron(curses.A_BOLD)
     stdscr.border()
-    draw_title(0, 1, "Выбор эхоконференции")
+    if archive:
+        echoareas = archives
+        draw_title(0, 1, "Архив эхоконференций")
+    else:
+        echoareas = echoes
+        draw_title(0, 1, "Список эхоконференций")
     y = 0
-    for echo in echoes:
+    for echo in echoareas:
         if y - start < height - 2:
             if y == echo_cursor:
                 if y >= start:
@@ -251,10 +262,12 @@ def draw_echo_selector(start):
 
 def echo_selector():
     global echo_cursor
+    archive = False
+    echoareas = echoes
     key = 0
     start = 0
     while not key == curses.KEY_F10:
-        draw_echo_selector(start)
+        draw_echo_selector(start, archive)
         key = stdscr.getch()
         if key == curses.KEY_RESIZE:
             get_term_size()
@@ -263,9 +276,9 @@ def echo_selector():
             echo_cursor = echo_cursor - 1
             if echo_cursor - start < 0 and start > 0:
                 start = start - 1
-        elif key == curses.KEY_DOWN and echo_cursor < len(echoes) - 1:
+        elif key == curses.KEY_DOWN and echo_cursor < len(echoareas) - 1:
             echo_cursor = echo_cursor + 1
-            if echo_cursor - start > height - 3 and start < len(echoes) - height + 2:
+            if echo_cursor - start > height - 3 and start < len(echoareas) - height + 2:
                 start = start + 1
         elif key == curses.KEY_PPAGE:
             echo_cursor = echo_cursor - height + 2
@@ -275,31 +288,42 @@ def echo_selector():
                 start = start - height + 2
         elif key == curses.KEY_NPAGE:
             echo_cursor = echo_cursor + height - 2
-            if echo_cursor >= len(echoes):
-                echo_cursor = len(echoes) - 1
-            if echo_cursor - start > height - 3 and start < len(echoes) - height + 2:
+            if echo_cursor >= len(echoareas):
+                echo_cursor = len(echoareas) - 1
+            if echo_cursor - start > height - 3 and start < len(echoareas) - height + 2:
                 start = start + height - 2
         elif key == curses.KEY_HOME:
             echo_cursor = 0
             start = 0
         elif key == curses.KEY_END:
-            echo_cursor = len(echoes) - 1
-            if len(echoes) >= height - 2:
-                start = len(echoes) - height + 2
+            echo_cursor = len(echoareas) - 1
+            if len(echoareas) >= height - 2:
+                start = len(echoareas) - height + 2
         elif key == ord("g") or key == ord("G"):
             fetch_mail()
         elif key == ord("s") or key == ord("S"):
             make_toss()
             send_mail()
+        elif key == ord("a") or key == ord("A"):
+            if archive:
+                archive = False
+                echo_cursor = 0
+                echoareas = echoes
+                stdscr.clear()
+            else:
+                archive = True
+                echo_cursor = 0
+                echoareas = archives
+                stdscr.clear()
         elif key == 10 or key == curses.KEY_RIGHT:
             last = 0
             for i in lasts:
-                if i[0] == echoes[echo_cursor][0]:
+                if i[0] == echoareas[echo_cursor][0]:
                     last = i[1]
-            echo_length = get_echo_length(echoes[echo_cursor][0])
+            echo_length = get_echo_length(echoareas[echo_cursor][0])
             if last > 0 and last < echo_length:
                 last = last + 1
-            echo_reader(echoes[echo_cursor][0], last)
+            echo_reader(echoareas[echo_cursor][0], last, archive)
 
 def read_msg(msgid):
     size = "0b"
@@ -416,7 +440,7 @@ def save_message(msgid):
     msgwin.getch()
     msgwin.clear()
 
-def echo_reader(echo, last):
+def echo_reader(echo, last, archive):
     global lasts
     stdscr.clear()
     stdscr.attron(curses.color_pair(1))
@@ -504,7 +528,7 @@ def echo_reader(echo, last):
             msgn = len(msgids) - 1
             msg, size = read_msg(msgids[msgn])
             msgbody = body_render(msg[8:])
-        elif key == ord ("i") or key == ord("I"):
+        elif not archive and (key == ord ("i") or key == ord("I")):
             f = open("temp", "w")
             f.write(echo + "\n")
             f.write("All\n")
@@ -513,7 +537,7 @@ def echo_reader(echo, last):
             call_editor()
         elif key == ord("w") or key == ord("W"):
             save_message(msgids[msgn])
-        elif key == ord ("q") or key == ord("Q"):
+        elif not archive and (key == ord ("q") or key == ord("Q")):
             f = open("temp", "w")
             f.write(msgids[msgn] + "\n")
             f.write(echo + "\n")
