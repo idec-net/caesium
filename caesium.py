@@ -123,7 +123,7 @@ def fetch_mail():
                 log.refresh()
         else:
             codecs.open("echo/" + echo, "a", "utf-8").close()
-    if line >= height - 3:
+    if line >= height - 4:
         for i in range(abs(height - 6 - line)):
             log.scroll()
             line = line - 1
