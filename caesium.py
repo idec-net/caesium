@@ -305,7 +305,7 @@ def echo_selector():
         elif key == ord("s") or key == ord("S"):
             make_toss()
             send_mail()
-        elif key == ord("a") or key == ord("A"):
+        elif key == 9:
             if archive:
                 archive = False
                 echo_cursor = 0
