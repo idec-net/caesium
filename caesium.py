@@ -553,7 +553,7 @@ def echo_reader(echo, last, archive):
                     f.write("\n" + line)
             f.close()
             call_editor()
-        elif key == ord("e") or key == ord("E"):
+        elif key == 27:
             go = False
     for i in range(0, len(lasts)):
         if echo == lasts[i][0]:
