@@ -123,9 +123,10 @@ def fetch_mail():
                 log.refresh()
         else:
             codecs.open("echo/" + echo, "a", "utf-8").close()
-    for i in range(abs(height - 6 - line)):
-        log.scroll()
-        line = line - 1
+    if line >= height - 3:
+        for i in range(abs(height - 6 - line)):
+            log.scroll()
+            line = line - 1
     log.addstr(line + 2, 1, "Загрузка завершена.", curses.color_pair(4))
     log.addstr(line + 3, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
     log.getch()
