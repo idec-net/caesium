@@ -537,7 +537,7 @@ def echo_reader(echo, last, archive, favorites):
                 msgn = msgn +1
                 msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-        elif key == curses.KEY_RIGHT and msgn == len(msgids) - 1:
+        elif key == curses.KEY_RIGHT and (msgn == len(msgids) - 1 or len(msgids) == 0):
             go = False
             quit = False
         elif key == curses.KEY_UP and y > 0:
