@@ -612,9 +612,13 @@ def echo_reader(echo, last, archive, favorites):
         elif key == curses.KEY_F10:
             go = False
             quit = True
+    flag = False
     for i in range(0, len(lasts)):
         if echo == lasts[i][0]:
+            flag = True
             lasts[i][1] = msgn
+    if not flag:
+        lasts.append([echo, msgn])
     f = open("lasts.lst", "wb")
     pickle.dump(lasts, f)
     f.close()
