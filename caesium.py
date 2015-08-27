@@ -168,7 +168,7 @@ def send_mail():
     draw_title(0, 1, "Отправка почты")
     stdscr.refresh()
     lst = [x for x in os.listdir("out") if x.endswith(".toss")]
-    lst = reversed(lst)
+    lst.reverse()
     max = len(lst)
     n = 1
     for msg in lst:
@@ -268,7 +268,8 @@ def echo_selector():
     echoareas = echoes
     key = 0
     start = 0
-    while not key == curses.KEY_F10:
+    go = True
+    while go:
         draw_echo_selector(start, archive)
         key = stdscr.getch()
         if key == curses.KEY_RESIZE:
@@ -325,7 +326,12 @@ def echo_selector():
             echo_length = get_echo_length(echoareas[echo_cursor][0])
             if last > 0 and last < echo_length:
                 last = last + 1
-            echo_reader(echoareas[echo_cursor][0], last, archive)
+            if echo_cursor == 0:
+                go = not echo_reader(echoareas[echo_cursor][0], last, archive, True)
+            else:
+                go = not echo_reader(echoareas[echo_cursor][0], last, archive, False)
+        elif key == curses.KEY_F10:
+            go = False
 
 def read_msg(msgid):
     size = "0b"
@@ -421,6 +427,25 @@ def call_editor():
     curses.init_pair(5, 2, 0)
     get_term_size()
 
+def message_box(smsg):
+    maxlen = 0
+    msg = smsg.split("\n")
+    for line in msg:
+        if len(line) > maxlen:
+            maxlen = len(line)
+    msgwin = curses.newwin(len(msg) + 4, maxlen + 2, int(height / 2 - 2) , int(width / 2 - maxlen / 2))
+    msgwin.attron(curses.color_pair(1))
+    msgwin.attron(curses.A_BOLD)
+    msgwin.border()
+    i = 1
+    for line in msg:
+        msgwin.addstr(i, 1, line, curses.color_pair(4))
+        i = i + 1
+    msgwin.addstr(len(msg) + 2, int((maxlen + 2 - 21) / 2), "Нажмите любую клавишу", curses.color_pair(2) + curses.A_BOLD)
+    msgwin.refresh()
+    msgwin.getch()
+    msgwin.clear()
+
 def save_message(msgid):
     msg, size = read_msg(msgid)
     f = open(msgid + ".txt", "w")
@@ -430,19 +455,29 @@ def save_message(msgid):
     f.write("Тема: " + msg[6] + "\n")
     f.write("\n".join(msg[7:]))
     f.close
-    smsg = "Сообщение сохранено в файл"
-    msgwin = curses.newwin(5, len(smsg) + 2, int(height / 2 - 2) , int(width / 2 - len(smsg) / 2))
-    msgwin.attron(curses.color_pair(1))
-    msgwin.attron(curses.A_BOLD)
-    msgwin.border()
-    msgwin.addstr(1, 1, smsg, curses.color_pair(4))
-    msgwin.addstr(2, 2, str(msgid) + ".txt", curses.color_pair(4))
-    msgwin.addstr(3, 4, "Нажмите любую клавишу", curses.color_pair(2) + curses.A_BOLD)
-    msgwin.refresh()
-    msgwin.getch()
-    msgwin.clear()
+    message_box("Сообщение сохранено в файл\n" + str(msgid) + ".txt")
 
-def echo_reader(echo, last, archive):
+def save_to_favorites(msgid):
+    if os.path.exists("echo/favorites"):
+        favorites = open("echo/favorites", "r").read().split("\n")
+    else:
+        favorites = []
+    if not msgid in favorites:
+        open("echo/favorites", "a").write(msgid + "\n")
+        message_box("Собщение добавлено в избранные")
+    else:
+        message_box("Собщение уже есть в избранных")
+
+def get_echo_msgids(echo):
+    if os.path.exists("echo/" + echo):
+        f = open("echo/" + echo, "r")
+        msgids = f.read().split("\n")[:-1]
+        f.close()
+    else:
+        msgids = []
+    return msgids
+
+def echo_reader(echo, last, archive, favorites):
     global lasts
     stdscr.clear()
     stdscr.attron(curses.color_pair(1))
@@ -450,11 +485,7 @@ def echo_reader(echo, last, archive):
     y = 0
     msgn = last
     key = 0
-    msgids = []
-    if os.path.exists("echo/" + echo):
-        f = open("echo/" + echo, "r")
-        msgids = f.read().split("\n")[:-1]
-        f.close()
+    msgids = get_echo_msgids(echo)
     if len(msgids) > 0:
         msg, size = read_msg(msgids[msgn])
         msgbody = body_render(msg[8:])
@@ -509,54 +540,77 @@ def echo_reader(echo, last, archive):
         elif key == curses.KEY_RIGHT and msgn == len(msgids) - 1:
             go = False
         elif key == curses.KEY_UP and y > 0:
-            y = y - 1
+            if len(msgids) > 0:
+                y = y - 1
         elif key == curses.KEY_PPAGE:
-            y = y - height + 6
-            if y < 0:
-                y = 0
+            if len(msgids) > 0:
+                y = y - height + 6
+                if y < 0:
+                    y = 0
         elif key == curses.KEY_NPAGE:
-            y = y + height - 6
-            if y + height - 6 >= len(msgbody):
-                y = len(msgbody) - height + 6
-        elif key == curses.KEY_DOWN and y + height - 6 < len(msgbody):
-            y = y + 1
+            if len(msgids) > 0:
+                y = y + height - 6
+                if y + height - 6 >= len(msgbody):
+                    y = len(msgbody) - height + 6
+        elif key == curses.KEY_DOWN:
+            if len(msgids) > 0:
+                if y + height - 6 < len(msgbody):
+                    y = y + 1
         elif key == curses.KEY_HOME:
-            y = 0
-            msgn = 0
-            msg, size = read_msg(msgids[msgn])
-            msgbody = body_render(msg[8:])
+            if len(msgids) > 0:
+                y = 0
+                msgn = 0
+                msg, size = read_msg(msgids[msgn])
+                msgbody = body_render(msg[8:])
         elif key == curses.KEY_END:
-            y = 0
-            msgn = len(msgids) - 1
-            msg, size = read_msg(msgids[msgn])
-            msgbody = body_render(msg[8:])
+            if len(msgids) > 0:
+                y = 0
+                msgn = len(msgids) - 1
+                msg, size = read_msg(msgids[msgn])
+                msgbody = body_render(msg[8:])
         elif not archive and (key == ord ("i") or key == ord("I")):
-            f = open("temp", "w")
-            f.write(echo + "\n")
-            f.write("All\n")
-            f.write("No subject\n\n")
-            f.close()
-            call_editor()
+            if not favorites:
+                f = open("temp", "w")
+                f.write(echo + "\n")
+                f.write("All\n")
+                f.write("No subject\n\n")
+                f.close()
+                call_editor()
         elif key == ord("w") or key == ord("W"):
             save_message(msgids[msgn])
+        elif key == ord("f") or key == ord("F"):
+            save_to_favorites(msgids[msgn])
         elif not archive and (key == ord ("q") or key == ord("Q")):
-            f = open("temp", "w")
-            f.write(msgids[msgn] + "\n")
-            f.write(echo + "\n")
-            f.write(msg[3] + "\n")
-            if not msg[6].startswith("Re:"):
-                f.write("Re: " + msg[6] + "\n")
-            else:
-                f.write(msg[6] + "\n")
-            for line in msg[8:]:
-                if line.strip() != "":
-                    f.write("\n>" + line)
+            if len(msgids) > 0:
+                f = open("temp", "w")
+                f.write(msgids[msgn] + "\n")
+                f.write(echo + "\n")
+                f.write(msg[3] + "\n")
+                if not msg[6].startswith("Re:"):
+                    f.write("Re: " + msg[6] + "\n")
                 else:
-                    f.write("\n" + line)
-            f.close()
-            call_editor()
+                    f.write(msg[6] + "\n")
+                for line in msg[8:]:
+                    if line.strip() != "":
+                        f.write("\n>" + line)
+                    else:
+                        f.write("\n" + line)
+                f.close()
+                call_editor()
+        elif favorites and key == curses.KEY_DC:
+            if len(msgids) > 0:
+                favorites_list = open("echo/favorites", "r").read().split("\n")
+                favorites_list.remove(msgids[msgn])
+                open("echo/favorites", "w").write("\n".join(favorites_list))
+                msgids = get_echo_msgids(echo)
+                if msgn >= len(msgids):
+                    msgn = len(msgids) - 1
         elif key == 27:
             go = False
+            quit = False
+        elif key == curses.KEY_F10:
+            go = False
+            quit = True
     for i in range(0, len(lasts)):
         if echo == lasts[i][0]:
             lasts[i][1] = msgn
@@ -564,9 +618,11 @@ def echo_reader(echo, last, archive):
     pickle.dump(lasts, f)
     f.close()
     stdscr.clear()
+    return quit
 
 check_directories()
 load_config()
+echoes.insert(0, ["favorites", "Избранные сообщения"])
 if os.path.exists("lasts.lst"):
     f = open("lasts.lst", "rb")
     lasts = pickle.load(f)
