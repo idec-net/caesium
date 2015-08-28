@@ -109,8 +109,12 @@ def fetch_mail():
             line = line + 1
         else:
             log.scroll()
-        remote_msg_list = get_msg_list(echo)
-        if len(remote_msg_list) > 1:
+        try:
+            remote_msg_list = get_msg_list(echo)
+            remote = True
+        except:
+            remote = False
+        if remote and len(remote_msg_list) > 1:
             local_msg_list = get_local_msg_list(echo)
             msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
             list_len = len (msg_list) - 1
@@ -122,13 +126,16 @@ def fetch_mail():
                 stdscr.refresh()
                 log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n - 1) + "/" + str(list_len), curses.color_pair(4))
                 log.refresh()
-        else:
-            codecs.open("echo/" + echo, "a", "utf-8").close()
-    if line >= height - 4:
+    if remote and line >= height - 4:
         for i in range(abs(height - 6 - line)):
             log.scroll()
             line = line - 1
-    log.addstr(line + 2, 1, "Загрузка завершена.", curses.color_pair(4))
+    if not remote:
+        line = -1
+    if remote:
+        log.addstr(line + 2, 1, "Загрузка завершена.", curses.color_pair(4))
+    else:
+        log.addstr(line + 2, 1, "Ошибка: не удаётся с нодой.", curses.color_pair(4))
     log.addstr(line + 3, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
     log.getch()
     stdscr.clear()
@@ -172,23 +179,26 @@ def send_mail():
     lst.reverse()
     max = len(lst)
     n = 1
-    for msg in lst:
-        stdscr.addstr(1, 1, "Отправка сообщения: " + str(n) + "/" + str(max), curses.color_pair(4))
-        text = codecs.open("out/%s" % msg, "r", "utf-8").read()
-        data = urllib.parse.urlencode({"tmsg": text,"pauth": auth}).encode("utf-8")
-        request = urllib.request.Request(node + "u/point")
-        result = urllib.request.urlopen(request, data).read().decode("utf-8")
-        if result.startswith("msg ok"):
-            os.remove("out/%s" % msg)
-            n = n + 1
-        elif result == "msg big!":
-            print ("ERROR: very big message (limit 64K)!")
-        elif result == "auth error!":
-            print ("ERROR: unknown auth!")
-        else:
-            print ("ERROR: unknown error!")
-    stdscr.addstr(3, 1, "Отправка завершена.", curses.color_pair(4))
-    stdscr.addstr(4, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
+    try:
+        for msg in lst:
+            stdscr.addstr(1, 1, "Отправка сообщения: " + str(n) + "/" + str(max), curses.color_pair(4))
+            text = codecs.open("out/%s" % msg, "r", "utf-8").read()
+            data = urllib.parse.urlencode({"tmsg": text,"pauth": auth}).encode("utf-8")
+            request = urllib.request.Request(node + "u/point")
+            result = urllib.request.urlopen(request, data).read().decode("utf-8")
+            if result.startswith("msg ok"):
+                os.remove("out/%s" % msg)
+                n = n + 1
+            elif result == "msg big!":
+                print ("ERROR: very big message (limit 64K)!")
+            elif result == "auth error!":
+                print ("ERROR: unknown auth!")
+            else:
+                print ("ERROR: unknown error!")
+        stdscr.addstr(3, 1, "Отправка завершена.", curses.color_pair(4))
+    except:
+        stdscr.addstr(2, 1, "Ошибка: не удаётся с нодой.", curses.color_pair(4))
+    stdscr.addstr(3, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
     stdscr.getch()
     stdscr.clear()
 
