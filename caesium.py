@@ -571,7 +571,7 @@ def echo_reader(echo, last, archive, favorites):
                 if y < 0:
                     y = 0
         elif key == curses.KEY_NPAGE:
-            if len(msgids) > 0:
+            if len(msgids) > 0 and len(msgbody) > height - 6:
                 y = y + height - 6
                 if y + height - 6 >= len(msgbody):
                     y = len(msgbody) - height + 6
