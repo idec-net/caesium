@@ -175,8 +175,7 @@ def send_mail():
     stdscr.border()
     draw_title(0, 1, "Отправка почты")
     stdscr.refresh()
-    lst = [x for x in os.listdir("out") if x.endswith(".toss")]
-    lst.reverse()
+    lst = [x for x in sorted(os.listdir("out")) if x.endswith(".toss")]
     max = len(lst)
     n = 1
     try:
