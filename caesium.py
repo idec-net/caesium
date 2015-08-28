@@ -617,6 +617,7 @@ def echo_reader(echo, last, archive, favorites):
                 msgids = get_echo_msgids(echo)
                 if msgn >= len(msgids):
                     msgn = len(msgids) - 1
+                stdscr.clear()
         elif key == 27:
             go = False
             quit = False
