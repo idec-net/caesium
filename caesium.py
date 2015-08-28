@@ -207,6 +207,7 @@ def send_mail():
 #
 
 echo_cursor = 0
+archive_cursor = 0
 
 def get_term_size():
     global width, height
@@ -233,7 +234,7 @@ def get_echo_length(echo):
         echo_length = 0
     return echo_length
 
-def draw_echo_selector(start, archive):
+def draw_echo_selector(start, cursor, archive):
     stdscr.attron(curses.color_pair(1))
     stdscr.attron(curses.A_BOLD)
     stdscr.border()
@@ -246,7 +247,7 @@ def draw_echo_selector(start, archive):
     y = 0
     for echo in echoareas:
         if y - start < height - 2:
-            if y == echo_cursor:
+            if y == cursor:
                 if y >= start:
                     draw_cursor(y - start, curses.color_pair(3))
                 stdscr.attron (curses.color_pair(3) + curses.A_BOLD)
@@ -274,43 +275,47 @@ def draw_echo_selector(start, archive):
     stdscr.refresh()
 
 def echo_selector():
-    global echo_cursor
+    global echo_cursor, archive_cursor
     archive = False
     echoareas = echoes
     key = 0
     start = 0
     go = True
+    if archive:
+        cursor = echo_cursor
+    else:
+        cursor = archive_cursor
     while go:
-        draw_echo_selector(start, archive)
+        draw_echo_selector(start, cursor, archive)
         key = stdscr.getch()
         if key == curses.KEY_RESIZE:
             get_term_size()
             stdscr.clear()
-        elif key == curses.KEY_UP and echo_cursor > 0:
-            echo_cursor = echo_cursor - 1
-            if echo_cursor - start < 0 and start > 0:
+        elif key == curses.KEY_UP and cursor > 0:
+            cursor = cursor - 1
+            if cursor - start < 0 and start > 0:
                 start = start - 1
-        elif key == curses.KEY_DOWN and echo_cursor < len(echoareas) - 1:
-            echo_cursor = echo_cursor + 1
-            if echo_cursor - start > height - 3 and start < len(echoareas) - height + 2:
+        elif key == curses.KEY_DOWN and cursor < len(echoareas) - 1:
+            cursor = cursor + 1
+            if cursor - start > height - 3 and start < len(echoareas) - height + 2:
                 start = start + 1
         elif key == curses.KEY_PPAGE:
-            echo_cursor = echo_cursor - height + 2
-            if echo_cursor < 0:
-                echo_cursor = 0
-            if echo_cursor - start < 0 and start > 0:
+            cursor = cursor - height + 2
+            if cursor < 0:
+                cursor = 0
+            if cursor - start < 0 and start > 0:
                 start = start - height + 2
         elif key == curses.KEY_NPAGE:
-            echo_cursor = echo_cursor + height - 2
-            if echo_cursor >= len(echoareas):
-                echo_cursor = len(echoareas) - 1
-            if echo_cursor - start > height - 3 and start < len(echoareas) - height + 2:
+            cursor = cursor + height - 2
+            if cursor >= len(echoareas):
+                cursor = len(echoareas) - 1
+            if cursor - start > height - 3 and start < len(echoareas) - height + 2:
                 start = start + height - 2
         elif key == curses.KEY_HOME:
-            echo_cursor = 0
+            cursor = 0
             start = 0
         elif key == curses.KEY_END:
-            echo_cursor = len(echoareas) - 1
+            cursor = len(echoareas) - 1
             if len(echoareas) >= height - 2:
                 start = len(echoareas) - height + 2
         elif key == ord("g") or key == ord("G"):
@@ -321,28 +326,34 @@ def echo_selector():
         elif key == 9:
             if archive:
                 archive = False
-                echo_cursor = 0
+                archive_cursor = cursor
+                cursor = echo_cursor
                 echoareas = echoes
                 stdscr.clear()
             else:
                 archive = True
-                echo_cursor = 0
+                echo_cursor = cursor
+                cursor = archive_cursor
                 echoareas = archives
                 stdscr.clear()
         elif key == 10 or key == curses.KEY_RIGHT:
             last = 0
             for i in lasts:
-                if i[0] == echoareas[echo_cursor][0]:
+                if i[0] == echoareas[cursor][0]:
                     last = i[1]
-            echo_length = get_echo_length(echoareas[echo_cursor][0])
+            echo_length = get_echo_length(echoareas[cursor][0])
             if last > 0 and last < echo_length:
                 last = last + 1
-            if echo_cursor == 0:
-                go = not echo_reader(echoareas[echo_cursor][0], last, archive, True)
+            if cursor == 0:
+                go = not echo_reader(echoareas[cursor][0], last, archive, True)
             else:
-                go = not echo_reader(echoareas[echo_cursor][0], last, archive, False)
+                go = not echo_reader(echoareas[cursor][0], last, archive, False)
         elif key == curses.KEY_F10:
             go = False
+    if archive:
+        archive_cursor = cursor
+    else:
+        echo_cursor = cursor
 
 def read_msg(msgid):
     size = "0b"
