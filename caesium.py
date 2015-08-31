@@ -83,7 +83,7 @@ def debundle(echo, bundle):
             m = msg.split(":")
             msgid = m[0]
             if len(msgid) == 20 and m[1]:
-                codecs.open("msg/" + msgid, "w", "utf-8").write(base64.b64decode(m[1]).decode("utf-8"))
+                codecs.open("msg/" + msgid, "w", "utf-8").write(base64.b64decode(m[1].encode("ascii")).decode("utf8"))
                 codecs.open("echo/" + echo[0], "a", "utf-8").write(msgid + "\n")
 
 def fetch_mail():
