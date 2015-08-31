@@ -304,12 +304,16 @@ def echo_selector():
                 cursor = 0
             if cursor - start < 0 and start > 0:
                 start = start - height + 2
+            if start < 0:
+                start = 0
         elif key == curses.KEY_NPAGE:
             cursor = cursor + height - 2
             if cursor >= len(echoareas):
                 cursor = len(echoareas) - 1
-            if cursor - start > height - 3 and start < len(echoareas) - height + 2:
+            if cursor - start > height - 3:
                 start = start + height - 2
+                if start > len(echoareas) - height + 2:
+                    start = len(echoareas) - height + 2
         elif key == curses.KEY_HOME:
             cursor = 0
             start = 0
