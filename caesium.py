@@ -135,7 +135,7 @@ def fetch_mail():
     if remote:
         log.addstr(line + 2, 1, "Загрузка завершена.", curses.color_pair(4))
     else:
-        log.addstr(line + 2, 1, "Ошибка: не удаётся с нодой.", curses.color_pair(4))
+        log.addstr(line + 2, 1, "Ошибка: не удаётся связаться с нодой.", curses.color_pair(4))
     log.addstr(line + 3, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
     log.getch()
     stdscr.clear()
@@ -196,7 +196,7 @@ def send_mail():
                 print ("ERROR: unknown error!")
         stdscr.addstr(3, 1, "Отправка завершена.", curses.color_pair(4))
     except:
-        stdscr.addstr(2, 1, "Ошибка: не удаётся с нодой.", curses.color_pair(4))
+        stdscr.addstr(2, 1, "Ошибка: не удаётся связаться с нодой.", curses.color_pair(4))
     stdscr.addstr(3, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
     stdscr.getch()
     stdscr.clear()
