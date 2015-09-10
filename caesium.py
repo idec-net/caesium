@@ -299,6 +299,17 @@ def draw_echo_selector(start, cursor, archive):
     current_time()
     stdscr.refresh()
 
+def find_new(cursor):
+    ret = cursor
+    n = 0
+    lock = False
+    for i in counts:
+        n = n + 1
+        if n > cursor and not lock and int(i[1]) > 0:
+            ret = n - 1
+            lock = True
+    return ret
+
 def echo_selector():
     global echo_cursor, archive_cursor, counts, counts_rescan, next_echoarea
     archive = False
@@ -349,7 +360,8 @@ def echo_selector():
                 start = len(echoareas) - height + 2
         elif key == ord("g") or key == ord("G"):
             fetch_mail()
-            counts_rescan = True
+            counts = rescan_counts(echoareas)
+            cursor = find_new(0)
         elif key == ord("s") or key == ord("S"):
             make_toss()
             send_mail()
@@ -383,13 +395,7 @@ def echo_selector():
             counts_rescan = True
             if next_echoarea:
                 counts = rescan_counts(echoareas)
-                n = 0
-                lock = False
-                for i in counts:
-                    n = n + 1
-                    if n > cursor and not lock and int(i[1]) > 0:
-                        cursor = n - 1
-                        lock = True
+                cursor = find_new(cursor)
                 next_echoarea = False
         elif key == curses.KEY_F10:
             go = False
