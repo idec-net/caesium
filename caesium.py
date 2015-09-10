@@ -265,10 +265,12 @@ def draw_echo_selector(start, cursor, archive):
                     stdscr.addstr(y + 1 - start, 1, "+")
                 stdscr.addstr(y + 1 - start, 3, echo[0])
                 echocount = len(open("echo/" + echo[0], "r").read().split("\n")) - 1
-                last = 0
+                last = -1
                 for n in lasts:
                     if n[0] == echo[0]:
                         last = echocount - n[1]
+                if last == -1:
+                    last = echocount + 1
                 stdscr.addstr(y + 1 - start, 25, str(echocount))
                 stdscr.addstr(y + 1 - start, 31, str(last - 1))
                 if width - 38 >= len(echo[1]):
