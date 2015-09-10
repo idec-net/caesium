@@ -9,6 +9,8 @@ echoes = []
 archives = []
 editor = ""
 lasts = []
+counts = []
+counts_rescan = True
 
 def check_directories():
     if not os.path.exists("echo"):
@@ -233,7 +235,25 @@ def get_echo_length(echo):
         echo_length = 0
     return echo_length
 
+def rescan_counts(echoareas):
+    counts = []
+    for echo in echoareas:
+        try:
+            echocount = len(open("echo/" + echo[0], "r").read().split("\n")) - 1
+            last = -1
+            for n in lasts:
+                if n[0] == echo[0]:
+                    last = echocount - n[1]
+            if last == -1:
+                last = echocount + 1
+        except:
+            echocount = 0
+            last = 1
+        counts.append([str(echocount), str(last - 1)])
+    return counts
+        
 def draw_echo_selector(start, cursor, archive):
+    global counts, counts_rescan
     stdscr.attron(curses.color_pair(1))
     stdscr.attron(curses.A_BOLD)
     stdscr.border()
@@ -264,19 +284,11 @@ def draw_echo_selector(start, cursor, archive):
                 if last < echo_length:
                     stdscr.addstr(y + 1 - start, 1, "+")
                 stdscr.addstr(y + 1 - start, 3, echo[0])
-                try:
-                    echocount = len(open("echo/" + echo[0], "r").read().split("\n")) - 1
-                    last = -1
-                    for n in lasts:
-                        if n[0] == echo[0]:
-                            last = echocount - n[1]
-                    if last == -1:
-                        last = echocount + 1
-                except:
-                    echocount = 0
-                    last = 1
-                stdscr.addstr(y + 1 - start, 25, str(echocount))
-                stdscr.addstr(y + 1 - start, 31, str(last - 1))
+                if counts_rescan:
+                    counts = rescan_counts(echoareas)
+                    counts_rescan = False
+                stdscr.addstr(y + 1 - start, 30 - len(counts[y][0]), counts[y][0])
+                stdscr.addstr(y + 1 - start, 36 - len(counts[y][1]), counts[y][1])
                 if width - 38 >= len(echo[1]):
                     stdscr.addstr(y + 1 - start, 37, echo[1])
                 else:
@@ -287,7 +299,7 @@ def draw_echo_selector(start, cursor, archive):
     stdscr.refresh()
 
 def echo_selector():
-    global echo_cursor, archive_cursor
+    global echo_cursor, archive_cursor, counts_rescan
     archive = False
     echoareas = echoes
     key = 0
@@ -336,6 +348,7 @@ def echo_selector():
                 start = len(echoareas) - height + 2
         elif key == ord("g") or key == ord("G"):
             fetch_mail()
+            counts_rescan = True
         elif key == ord("s") or key == ord("S"):
             make_toss()
             send_mail()
@@ -346,12 +359,14 @@ def echo_selector():
                 cursor = echo_cursor
                 echoareas = echoes
                 stdscr.clear()
+                counts_rescan = True
             else:
                 archive = True
                 echo_cursor = cursor
                 cursor = archive_cursor
                 echoareas = archives
                 stdscr.clear()
+                counts_rescan = True
         elif key == 10 or key == curses.KEY_RIGHT:
             last = 0
             for i in lasts:
@@ -364,6 +379,7 @@ def echo_selector():
                 go = not echo_reader(echoareas[cursor][0], last, archive, True)
             else:
                 go = not echo_reader(echoareas[cursor][0], last, archive, False)
+            counts_rescan = True
         elif key == curses.KEY_F10:
             go = False
     if archive:
