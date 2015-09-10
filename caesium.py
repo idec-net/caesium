@@ -11,6 +11,7 @@ editor = ""
 lasts = []
 counts = []
 counts_rescan = True
+next_echoarea = False
 
 def check_directories():
     if not os.path.exists("echo"):
@@ -299,7 +300,7 @@ def draw_echo_selector(start, cursor, archive):
     stdscr.refresh()
 
 def echo_selector():
-    global echo_cursor, archive_cursor, counts_rescan
+    global echo_cursor, archive_cursor, counts, counts_rescan, next_echoarea
     archive = False
     echoareas = echoes
     key = 0
@@ -380,6 +381,16 @@ def echo_selector():
             else:
                 go = not echo_reader(echoareas[cursor][0], last, archive, False)
             counts_rescan = True
+            if next_echoarea:
+                counts = rescan_counts(echoareas)
+                n = 0
+                lock = False
+                for i in counts:
+                    n = n + 1
+                    if n > cursor and not lock and int(i[1]) > 0:
+                        cursor = n - 1
+                        lock = True
+                next_echoarea = False
         elif key == curses.KEY_F10:
             go = False
     if archive:
@@ -532,7 +543,7 @@ def get_echo_msgids(echo):
     return msgids
 
 def echo_reader(echo, last, archive, favorites):
-    global lasts
+    global lasts, next_echoarea
     stdscr.clear()
     stdscr.attron(curses.color_pair(1))
     stdscr.attron(curses.A_BOLD)
@@ -558,7 +569,7 @@ def echo_reader(echo, last, archive, favorites):
             for i in range (0, height - 6):
                 draw_cursor(i + 4, 1)
                 if i < len(msgbody) - 1:
-                    if len(msgbody[y+i]) > 0:
+                    if y + i < len(msgbody) and len(msgbody[y+i]) > 0:
                         if msgbody[y + i][0] == chr(15):
                             stdscr.attron(curses.color_pair(2))
                         elif msgbody[y + i][0] == chr(16):
@@ -594,6 +605,7 @@ def echo_reader(echo, last, archive, favorites):
         elif key == curses.KEY_RIGHT and (msgn == len(msgids) - 1 or len(msgids) == 0):
             go = False
             quit = False
+            next_echoarea = True
         elif key == curses.KEY_UP and y > 0:
             if len(msgids) > 0:
                 y = y - 1
@@ -607,6 +619,22 @@ def echo_reader(echo, last, archive, favorites):
                 y = y + height - 6
                 if y + height - 6 >= len(msgbody):
                     y = len(msgbody) - height + 6
+        elif key == 10:
+            if len(msgids) == 0 or y >= len(msgbody) - height + 6:
+                y = 0
+                if msgn == len(msgids) - 1 or len(msgids) == 0:
+                    next_echoarea = True
+                    go = False
+                    quit = False
+                else:
+                    msgn = msgn +1
+                    msg, size = read_msg(msgids[msgn])
+                    msgbody = body_render(msg[8:])
+            else:
+                if len(msgids) > 0 and len(msgbody) > height - 6:
+                    y = y + height - 6
+#                    if y + height - 6 >= len(msgbody):
+#                        y = len(msgbody) - height + 6
         elif key == curses.KEY_DOWN:
             if len(msgids) > 0:
                 if y + height - 6 < len(msgbody):
@@ -664,6 +692,7 @@ def echo_reader(echo, last, archive, favorites):
         elif key == 27:
             go = False
             quit = False
+            next_echoarea = False
         elif key == curses.KEY_F10:
             go = False
             quit = True
