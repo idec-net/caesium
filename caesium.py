@@ -264,11 +264,18 @@ def draw_echo_selector(start, cursor, archive):
                 if last < echo_length:
                     stdscr.addstr(y + 1 - start, 1, "+")
                 stdscr.addstr(y + 1 - start, 3, echo[0])
-                if width - 26 >= len(echo[1]):
-                    stdscr.addstr(y + 1 - start, 25, echo[1])
+                echocount = len(open("echo/" + echo[0], "r").read().split("\n")) - 1
+                last = 0
+                for n in lasts:
+                    if n[0] == echo[0]:
+                        last = echocount - n[1]
+                stdscr.addstr(y + 1 - start, 25, str(echocount))
+                stdscr.addstr(y + 1 - start, 31, str(last - 1))
+                if width - 38 >= len(echo[1]):
+                    stdscr.addstr(y + 1 - start, 37, echo[1])
                 else:
-                    cut_index = width - 26 - len(echo[1])
-                    stdscr.addstr(y + 1 - start, 25, echo[1][:cut_index])
+                    cut_index = width - 38 - len(echo[1])
+                    stdscr.addstr(y + 1 - start, 37, echo[1][:cut_index])
         y = y + 1
     current_time()
     stdscr.refresh()
