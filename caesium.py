@@ -8,6 +8,7 @@ auth = ""
 echoes = []
 archives = []
 editor = ""
+to = ""
 lasts = []
 counts = []
 counts_rescan = True
@@ -30,7 +31,7 @@ def separate(l, step=20):
         yield l[x:x+step]
         
 def load_config():
-    global node, auth, echoes, editor
+    global node, auth, echoes, editor, to
     f = open("caesium.cfg", "r")
     config = f.read().split("\n")
     f.close()
@@ -55,6 +56,8 @@ def load_config():
                 editor = " ".join(param[1:])
             else:
                 editor = param[1]
+        elif param[0] == "to":
+            to = " ".join(param[1:])
 
 def get_msg_list(echo):
     msg_list = []
@@ -86,7 +89,10 @@ def debundle(echo, bundle):
             m = msg.split(":")
             msgid = m[0]
             if len(msgid) == 20 and m[1]:
-                codecs.open("msg/" + msgid, "w", "utf-8").write(base64.b64decode(m[1].encode("ascii")).decode("utf8"))
+                msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
+                if msgbody.split("\n")[5] == to:
+                    codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
+                codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
                 codecs.open("echo/" + echo[0], "a", "utf-8").write(msgid + "\n")
 
 def fetch_mail():
@@ -563,7 +569,7 @@ def echo_reader(echo, last, archive, favorites):
     go = True
     while go:
         if len(msgids) > 0:
-            draw_reader(echo, msgids[msgn])
+            draw_reader(msg[1], msgids[msgn])
             msg_string = str(msgn + 1) + " / " + str(len(msgids))
             draw_title (0, width - len(msg_string) - 5, msg_string)
             msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
@@ -718,6 +724,7 @@ def echo_reader(echo, last, archive, favorites):
 check_directories()
 load_config()
 echoes.insert(0, ["favorites", "Избранные сообщения"])
+echoes.insert(1, ["carbonarea", "Карбонка"])
 if os.path.exists("lasts.lst"):
     f = open("lasts.lst", "rb")
     lasts = pickle.load(f)
