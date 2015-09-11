@@ -106,7 +106,7 @@ def fetch_mail():
     log = curses.newwin(height - 2, width - 2, 1, 1)
     log.scrollok(True)
     line = -1
-    echoareas = echoes[1:]
+    echoareas = echoes[2:]
     for echo in echoareas:
         find = False
         for i in lasts:
