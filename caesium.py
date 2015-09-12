@@ -666,7 +666,7 @@ def echo_reader(echo, last, archive, favorites):
         elif not archive and (key == ord ("i") or key == ord("I")):
             if not favorites:
                 f = open("temp", "w")
-                f.write(echo + "\n")
+                f.write(msg[1] + "\n")
                 f.write("All\n")
                 f.write("No subject\n\n")
                 f.close()
@@ -679,7 +679,7 @@ def echo_reader(echo, last, archive, favorites):
             if len(msgids) > 0:
                 f = open("temp", "w")
                 f.write(msgids[msgn] + "\n")
-                f.write(echo + "\n")
+                f.write(msg[1] + "\n")
                 f.write(msg[3] + "\n")
                 if not msg[6].startswith("Re:"):
                     f.write("Re: " + msg[6] + "\n")
