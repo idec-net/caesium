@@ -627,10 +627,10 @@ def echo_reader(echo, last, archive, favorites):
                 if y < 0:
                     y = 0
         elif key == curses.KEY_NPAGE:
-            if len(msgids) > 0 and len(msgbody) > height - 6:
-                y = y + height - 6
-                if y + height - 6 >= len(msgbody):
-                    y = len(msgbody) - height + 6
+            if len(msgids) > 0 and len(msgbody) > height - 5:
+                y = y + height - 5
+                if y + height - 5 >= len(msgbody):
+                    y = len(msgbody) - height + 5
         elif key == 10:
             if len(msgids) == 0 or y >= len(msgbody) - height + 6:
                 y = 0
@@ -649,7 +649,7 @@ def echo_reader(echo, last, archive, favorites):
 #                        y = len(msgbody) - height + 6
         elif key == curses.KEY_DOWN:
             if len(msgids) > 0:
-                if y + height - 6 < len(msgbody):
+                if y + height - 5 < len(msgbody):
                     y = y + 1
         elif key == curses.KEY_HOME:
             if len(msgids) > 0:
