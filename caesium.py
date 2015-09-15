@@ -570,7 +570,7 @@ def echo_reader(echo, last, archive, favorites):
     while go:
         if len(msgids) > 0:
             draw_reader(msg[1], msgids[msgn])
-            msg_string = str(msgn + 1) + " / " + str(len(msgids))
+            msg_string = str(msgn + 1) + " / " + str(len(msgids)) + " [" + str(len(msgids) - msgn - 1) + "]"
             draw_title (0, width - len(msg_string) - 5, msg_string)
             msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
             stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", curses.color_pair(4))
