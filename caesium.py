@@ -386,7 +386,7 @@ def echo_selector():
                 echoareas = archives
                 stdscr.clear()
                 counts_rescan = True
-        elif key == 10 or key == curses.KEY_RIGHT:
+        elif key == 10 or key == curses.KEY_RIGHT or key == ord(" "):
             last = 0
             for i in lasts:
                 if i[0] == echoareas[cursor][0]:
@@ -444,6 +444,8 @@ def body_render(tbody):
             code = chr (15)
         else:
             code = " "
+        if code != " ":
+            line = " " + line
         body = body + code
         for word in line.split(" "):
             if n + len(word) + 1 <= width - 2:
@@ -631,7 +633,7 @@ def echo_reader(echo, last, archive, favorites):
                 y = y + height - 5
                 if y + height - 5 >= len(msgbody):
                     y = len(msgbody) - height + 5
-        elif key == 10:
+        elif key == 10 or key == ord(" "):
             if len(msgids) == 0 or y >= len(msgbody) - height + 6:
                 y = 0
                 if msgn == len(msgids) - 1 or len(msgids) == 0:
