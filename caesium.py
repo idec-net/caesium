@@ -258,7 +258,7 @@ def rescan_counts(echoareas):
             last = 1
         counts.append([str(echocount), str(last - 1)])
     return counts
-        
+
 def draw_echo_selector(start, cursor, archive):
     global counts, counts_rescan
     stdscr.attron(curses.color_pair(1))
@@ -448,7 +448,7 @@ def body_render(tbody):
             line = " " + line
         body = body + code
         for word in line.split(" "):
-            if n + len(word) + 1 <= width - 2:
+            if n + len(word) + 1 <= width:
                 n = n + len(word)
                 body = body + word
                 if not word[-1:] == "\n":
@@ -456,11 +456,11 @@ def body_render(tbody):
                     body = body + " "
             else:
                 body = body[:-1]
-                if len(word) < width - 2:
+                if len(word) < width:
                     body = body + "\n" + code + word
                     n = len (word)
                 else:
-                    chunks, chunksize = len(word), width - 2
+                    chunks, chunksize = len(word), width
                     chunk_list = [ word[i:i+chunksize] for i in range(0, chunks, chunksize) ]
                     for line in chunk_list:
                         body = body + "\n" + code + line
@@ -474,7 +474,10 @@ def body_render(tbody):
     return body.split("\n")
 
 def draw_reader(echo, msgid):
-    stdscr.border()
+    for i in range(0, width):
+        stdscr.insstr(0, i, "─", curses.color_pair(1) + curses.A_BOLD)
+        stdscr.insstr(4, i, "─", curses.color_pair(1) + curses.A_BOLD)
+        stdscr.insstr(height - 1, i, "─", curses.color_pair(1) + curses.A_BOLD)
     draw_title(0, 1, echo + " / " + msgid)
     current_time()
     for i in range(0, 3):
@@ -482,10 +485,7 @@ def draw_reader(echo, msgid):
     stdscr.addstr(1, 1, "От:   ", curses.color_pair(2) + curses.A_BOLD)
     stdscr.addstr(2, 1, "Кому: ", curses.color_pair(2) + curses.A_BOLD)
     stdscr.addstr(3, 1, "Тема: ", curses.color_pair(2) + curses.A_BOLD)
-    stdscr.addstr(4, 0, "├", curses.color_pair(1) + curses.A_BOLD)
-    stdscr.addstr(4, width - 1, "┤", curses.color_pair(1) + curses.A_BOLD)
-    for i in range(1, width - 1):
-        stdscr.addstr(4, i, "─", curses.color_pair(1) + curses.A_BOLD)
+
 
 def call_editor():
     curses.echo()
@@ -581,7 +581,8 @@ def echo_reader(echo, last, archive, favorites):
             stdscr.addstr(3, 7, msg[6][:width - 8], curses.color_pair(4))
             draw_title(4, 1, size)
             for i in range (0, height - 6):
-                draw_cursor(i + 4, 1)
+                for x in range (0, width):
+                    stdscr.addstr(i + 5, x, " ", 1)
                 if i < len(msgbody) - 1:
                     if y + i < len(msgbody) and len(msgbody[y+i]) > 0:
                         if msgbody[y + i][0] == chr(15):
@@ -591,7 +592,7 @@ def echo_reader(echo, last, archive, favorites):
                         else:
                             stdscr.attron(curses.color_pair(4))
                         stdscr.attroff(curses.A_BOLD)
-                        stdscr.addstr(i + 5, 1, msgbody[y + i][1:])
+                        stdscr.addstr(i + 5, 0, msgbody[y + i][1:])
         else:
             draw_reader(echo, "")
         stdscr.attron(curses.color_pair(1))
@@ -647,8 +648,6 @@ def echo_reader(echo, last, archive, favorites):
             else:
                 if len(msgids) > 0 and len(msgbody) > height - 6:
                     y = y + height - 6
-#                    if y + height - 6 >= len(msgbody):
-#                        y = len(msgbody) - height + 6
         elif key == curses.KEY_DOWN:
             if len(msgids) > 0:
                 if y + height - 5 < len(msgbody):
