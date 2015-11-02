@@ -448,9 +448,11 @@ def body_render(tbody):
             code = chr(16)
         elif r1.match(line):
             code = chr(15)
+        elif line.startswith("//") or line.startswith("#") or line.startswith("P.S.") or line.startswith("PS") or line.startswith("ps"):
+            code = chr(17)
         else:
             code = " "
-        if code != " ":
+        if code != " " and code != chr(17):
             line = " " + line
         body = body + code
         for word in line.split(" "):
@@ -595,6 +597,8 @@ def echo_reader(echo, last, archive, favorites):
                             stdscr.attron(curses.color_pair(2))
                         elif msgbody[y + i][0] == chr(16):
                             stdscr.attron(curses.color_pair(5))
+                        elif msgbody[y + i][0] == chr(17):
+                            stdscr.attron(curses.color_pair(6))
                         else:
                             stdscr.attron(curses.color_pair(4))
                         stdscr.attroff(curses.A_BOLD)
@@ -757,6 +761,7 @@ curses.init_pair(2, 3, 0)
 curses.init_pair(3, 7, 4)
 curses.init_pair(4, 7, 0)
 curses.init_pair(5, 2, 0)
+curses.init_pair(6, 8, 0)
 get_term_size()
 echo_selector()
 curses.echo()
