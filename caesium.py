@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess
+import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re
 from datetime import datetime
 
 node = ""
@@ -429,22 +429,47 @@ def body_render(tbody):
     body = ""
     code = ""
     for line in tbody:
+        indent = False
         n = 0
+        r1 = re.compile(r" [a-zA-Z1-9_-]{1,20}>")
+        r2 = re.compile(r" [a-zA-Z1-9_-]{1,20}>>")
+        r3 = re.compile(r" [a-zA-Z1-9_-]{1,20}>>>")
+        r4 = re.compile(r" [a-zA-Z1-9_-]{1,20}>>>>")
+        r5 = re.compile(r" [a-zA-Z1-9_-]{1,20}>>>>>")
+        r6 = re.compile(r" [a-zA-Z1-9_-]{1,20}>>>>>>")
         if line.startswith(">>>>>>"):
+            indent = True
             code = chr(16)
         elif line.startswith(">>>>>"):
+            indent = True
             code = chr(15)
         elif line.startswith(">>>>"):
+            indent = True
             code = chr(16)
         elif line.startswith(">>>"):
+            indent = True
             code = chr(15)
         elif line.startswith(">>"):
+            indent = True
             code = chr(16)
         elif line.startswith(">"):
-            code = chr (15)
+            indent = True
+            code = chr(15)
+        elif r6.match(line):
+            code = chr(16)
+        elif r5.match(line):
+            code = chr(15)
+        elif r4.match(line):
+            code = chr(16)
+        elif r3.match(line):
+            code = chr(15)
+        elif r2.match(line):
+            code = chr(16)
+        elif r1.match(line):
+            code = chr(15)
         else:
             code = " "
-        if code != " ":
+        if indent:
             line = " " + line
         body = body + code
         for word in line.split(" "):
@@ -477,9 +502,9 @@ def draw_reader(echo, msgid):
     for i in range(0, width):
         stdscr.insstr(0, i, "─", curses.color_pair(1) + curses.A_BOLD)
         stdscr.insstr(4, i, "─", curses.color_pair(1) + curses.A_BOLD)
-        stdscr.insstr(height - 1, i, "─", curses.color_pair(1) + curses.A_BOLD)
+        stdscr.insstr(height - 1, i, " ", curses.color_pair(3) + curses.A_BOLD)
     draw_title(0, 1, echo + " / " + msgid)
-    current_time()
+    stdscr.insstr(height - 1, width - 8, "│ " + datetime.now().strftime("%H:%M"), curses.color_pair(3) + curses.A_BOLD)
     for i in range(0, 3):
         draw_cursor(i, 1)
     stdscr.addstr(1, 1, "От:   ", curses.color_pair(2) + curses.A_BOLD)
@@ -682,13 +707,20 @@ def echo_reader(echo, last, archive, favorites):
                 f.write(msgids[msgn] + "\n")
                 f.write(msg[1] + "\n")
                 f.write(msg[3] + "\n")
+                to = msg[3].split(" ")
+                if len(to) == 1:
+                    q = to[0]
+                else:
+                    q = ""
+                    for word in to:
+                        q = q + word[0]
                 if not msg[6].startswith("Re:"):
                     f.write("Re: " + msg[6] + "\n")
                 else:
                     f.write(msg[6] + "\n")
                 for line in msg[8:]:
                     if line.strip() != "":
-                        f.write("\n>" + line)
+                        f.write("\n " + q + ">" + line)
                     else:
                         f.write("\n" + line)
                 f.close()
