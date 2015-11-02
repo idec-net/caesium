@@ -429,31 +429,24 @@ def body_render(tbody):
     body = ""
     code = ""
     for line in tbody:
-        indent = False
         n = 0
-        r1 = re.compile(r" [a-zA-Z1-9_-]{1,20}>")
-        r2 = re.compile(r" [a-zA-Z1-9_-]{1,20}>>")
-        r3 = re.compile(r" [a-zA-Z1-9_-]{1,20}>>>")
-        r4 = re.compile(r" [a-zA-Z1-9_-]{1,20}>>>>")
-        r5 = re.compile(r" [a-zA-Z1-9_-]{1,20}>>>>>")
-        r6 = re.compile(r" [a-zA-Z1-9_-]{1,20}>>>>>>")
+        r1 = re.compile(r"[a-zA-Z0-9_-]{1,20}>")
+        r2 = re.compile(r"[a-zA-Z0-9_-]{1,20}>>")
+        r3 = re.compile(r"[a-zA-Z0-9_-]{1,20}>>>")
+        r4 = re.compile(r"[a-zA-Z0-9_-]{1,20}>>>>")
+        r5 = re.compile(r"[a-zA-Z0-9_-]{1,20}>>>>>")
+        r6 = re.compile(r"[a-zA-Z0-9_-]{1,20}>>>>>>")
         if line.startswith(">>>>>>"):
-            indent = True
             code = chr(16)
         elif line.startswith(">>>>>"):
-            indent = True
             code = chr(15)
         elif line.startswith(">>>>"):
-            indent = True
             code = chr(16)
         elif line.startswith(">>>"):
-            indent = True
             code = chr(15)
         elif line.startswith(">>"):
-            indent = True
             code = chr(16)
         elif line.startswith(">"):
-            indent = True
             code = chr(15)
         elif r6.match(line):
             code = chr(16)
@@ -469,7 +462,7 @@ def body_render(tbody):
             code = chr(15)
         else:
             code = " "
-        if indent:
+        if code != " ":
             line = " " + line
         body = body + code
         for word in line.split(" "):
@@ -711,18 +704,20 @@ def echo_reader(echo, last, archive, favorites):
                 if len(to) == 1:
                     q = to[0]
                 else:
-                    q = " "
+                    q = ""
                     for word in to:
                         q = q + word[0]
                 if not msg[6].startswith("Re:"):
                     f.write("Re: " + msg[6] + "\n")
                 else:
                     f.write(msg[6] + "\n")
-                rr = re.compile(r" [a-zA-Z1-9_-]{1,20}>")
+                rr = re.compile(r"[a-zA-Z0-9_-]{1,20}>")
                 for line in msg[8:]:
                     if line.strip() != "":
-                        if rr.match(line) or line.startswith(">"):
+                        if rr.match(line):
                             f.write("\n" + line[:rr.match(line).span()[1]] + ">" + line[rr.match(line).span()[1]:])
+                        elif line.startswith(">"):
+                            f.write("\n" + ">" + line)
                         else:
                             f.write("\n" + q + ">" + line)
                     else:
