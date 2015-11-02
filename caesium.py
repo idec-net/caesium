@@ -430,25 +430,13 @@ def body_render(tbody):
     code = ""
     for line in tbody:
         n = 0
-        r1 = re.compile(r"[a-zA-Z0-9_-]{1,20}>")
-        r2 = re.compile(r"[a-zA-Z0-9_-]{1,20}>>")
-        r3 = re.compile(r"[a-zA-Z0-9_-]{1,20}>>>")
-        r4 = re.compile(r"[a-zA-Z0-9_-]{1,20}>>>>")
-        r5 = re.compile(r"[a-zA-Z0-9_-]{1,20}>>>>>")
-        r6 = re.compile(r"[a-zA-Z0-9_-]{1,20}>>>>>>")
-        if line.startswith(">>>>>>"):
-            code = chr(16)
-        elif line.startswith(">>>>>"):
-            code = chr(15)
-        elif line.startswith(">>>>"):
-            code = chr(16)
-        elif line.startswith(">>>"):
-            code = chr(15)
-        elif line.startswith(">>"):
-            code = chr(16)
-        elif line.startswith(">"):
-            code = chr(15)
-        elif r6.match(line):
+        r1 = re.compile(r"[a-zA-Z0-9_-]{0,20}>")
+        r2 = re.compile(r"[a-zA-Z0-9_-]{0,20}>>")
+        r3 = re.compile(r"[a-zA-Z0-9_-]{0,20}>>>")
+        r4 = re.compile(r"[a-zA-Z0-9_-]{0,20}>>>>")
+        r5 = re.compile(r"[a-zA-Z0-9_-]{0,20}>>>>>")
+        r6 = re.compile(r"[a-zA-Z0-9_-]{0,20}>>>>>>")
+        if r6.match(line):
             code = chr(16)
         elif r5.match(line):
             code = chr(15)
@@ -711,13 +699,11 @@ def echo_reader(echo, last, archive, favorites):
                     f.write("Re: " + msg[6] + "\n")
                 else:
                     f.write(msg[6] + "\n")
-                rr = re.compile(r"[a-zA-Z0-9_-]{1,20}>")
+                rr = re.compile(r"[a-zA-Z0-9_-]{0,20}>")
                 for line in msg[8:]:
                     if line.strip() != "":
                         if rr.match(line):
                             f.write("\n" + line[:rr.match(line).span()[1]] + ">" + line[rr.match(line).span()[1]:])
-                        elif line.startswith(">"):
-                            f.write("\n" + ">" + line)
                         else:
                             f.write("\n" + q + ">" + line)
                     else:
