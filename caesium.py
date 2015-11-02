@@ -711,16 +711,20 @@ def echo_reader(echo, last, archive, favorites):
                 if len(to) == 1:
                     q = to[0]
                 else:
-                    q = ""
+                    q = " "
                     for word in to:
                         q = q + word[0]
                 if not msg[6].startswith("Re:"):
                     f.write("Re: " + msg[6] + "\n")
                 else:
                     f.write(msg[6] + "\n")
+                rr = re.compile(r" [a-zA-Z1-9_-]{1,20}>")
                 for line in msg[8:]:
                     if line.strip() != "":
-                        f.write("\n " + q + ">" + line)
+                        if rr.match(line) or line.startswith(">"):
+                            f.write("\n" + line[:rr.match(line).span()[1]] + ">" + line[rr.match(line).span()[1]:])
+                        else:
+                            f.write("\n" + q + ">" + line)
                     else:
                         f.write("\n" + line)
                 f.close()
