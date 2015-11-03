@@ -431,6 +431,7 @@ def body_render(tbody):
     for line in tbody:
         n = 0
         rr = re.compile(r"^[a-zA-Z0-9_-]{0,20}>{1,20}")
+        cc = re.compile(r"(^\s*)(PS|P.S|ps|ЗЫ|З.Ы|\/\/|#)")
         try:
             count = line[0:rr.match(line).span()[1]].count(">")
         except:
@@ -440,7 +441,7 @@ def body_render(tbody):
                 code = chr(15)
             elif count % 2 == 0:
                 code = chr(16)
-        elif line.startswith("//") or line.startswith("#") or line.startswith("P.S.") or line.startswith("PS") or line.startswith("ps"):
+        elif cc.match(line):
             code = chr(17)
         else:
             code = " "
