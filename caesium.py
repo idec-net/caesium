@@ -278,6 +278,8 @@ def draw_echo_selector(start, cursor, archive):
         l = len(echo[1])
         if l > m:
             m = l
+        if m > width - 38:
+            m = width - 38
         dsc_lens.append(l)
     y = 0
     for echo in echoareas:
@@ -305,13 +307,11 @@ def draw_echo_selector(start, cursor, archive):
                     counts_rescan = False
                 if width - 38 >= len(echo[1]):
                     stdscr.addstr(y + 1 - start, width - 2 - dsc_lens[y], echo[1])
-                    indent = m
                 else:
                     cut_index = width - 38 - len(echo[1])
-                    stdscr.addstr(y + 1 - start, 37, echo[1][:cut_index])
-                    indent = cut_index
-                stdscr.addstr(y + 1 - start, width - 10 - indent - len(counts[y][0]), counts[y][0])
-                stdscr.addstr(y + 1 - start, width - 4 - indent - len(counts[y][1]), counts[y][1])
+                    stdscr.addstr(y + 1 - start, width - 2 - len(echo[1][:cut_index]), echo[1][:cut_index])
+                stdscr.addstr(y + 1 - start, width - 10 - m - len(counts[y][0]), counts[y][0])
+                stdscr.addstr(y + 1 - start, width - 4 - m - len(counts[y][1]), counts[y][1])
         y = y + 1
     current_time()
     stdscr.refresh()
