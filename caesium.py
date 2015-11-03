@@ -216,6 +216,8 @@ def send_mail():
 
 echo_cursor = 0
 archive_cursor = 0
+width = 0
+height = 0
 
 def get_term_size():
     global width, height
@@ -261,6 +263,8 @@ def rescan_counts(echoareas):
 
 def draw_echo_selector(start, cursor, archive):
     global counts, counts_rescan
+    dsc_lens = []
+    m = 0
     stdscr.attron(curses.color_pair(1))
     stdscr.attron(curses.A_BOLD)
     stdscr.border()
@@ -270,6 +274,11 @@ def draw_echo_selector(start, cursor, archive):
     else:
         echoareas = echoes
         draw_title(0, 1, "Список эхоконференций")
+    for echo in echoareas:
+        l = len(echo[1])
+        if l > m:
+            m = l
+        dsc_lens.append(l)
     y = 0
     for echo in echoareas:
         if y - start < height - 2:
@@ -294,13 +303,15 @@ def draw_echo_selector(start, cursor, archive):
                 if counts_rescan:
                     counts = rescan_counts(echoareas)
                     counts_rescan = False
-                stdscr.addstr(y + 1 - start, 30 - len(counts[y][0]), counts[y][0])
-                stdscr.addstr(y + 1 - start, 36 - len(counts[y][1]), counts[y][1])
                 if width - 38 >= len(echo[1]):
-                    stdscr.addstr(y + 1 - start, 37, echo[1])
+                    stdscr.addstr(y + 1 - start, width - 2 - dsc_lens[y], echo[1])
+                    indent = m
                 else:
                     cut_index = width - 38 - len(echo[1])
                     stdscr.addstr(y + 1 - start, 37, echo[1][:cut_index])
+                    indent = cut_index
+                stdscr.addstr(y + 1 - start, width - 10 - indent - len(counts[y][0]), counts[y][0])
+                stdscr.addstr(y + 1 - start, width - 4 - indent - len(counts[y][1]), counts[y][1])
         y = y + 1
     current_time()
     stdscr.refresh()
@@ -321,8 +332,8 @@ def echo_selector():
     archive = False
     echoareas = echoes
     key = 0
-    start = 0
     go = True
+    start = 0
     if archive:
         cursor = echo_cursor
     else:
@@ -402,6 +413,8 @@ def echo_selector():
             if next_echoarea:
                 counts = rescan_counts(echoareas)
                 cursor = find_new(cursor)
+                if cursor - start > height - 3:
+                    start = cursor - height + 3
                 next_echoarea = False
         elif key == curses.KEY_F10:
             go = False
