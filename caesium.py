@@ -430,24 +430,16 @@ def body_render(tbody):
     code = ""
     for line in tbody:
         n = 0
-        r1 = re.compile(r"[a-zA-Z0-9_-]{0,20}>")
-        r2 = re.compile(r"[a-zA-Z0-9_-]{0,20}>>")
-        r3 = re.compile(r"[a-zA-Z0-9_-]{0,20}>>>")
-        r4 = re.compile(r"[a-zA-Z0-9_-]{0,20}>>>>")
-        r5 = re.compile(r"[a-zA-Z0-9_-]{0,20}>>>>>")
-        r6 = re.compile(r"[a-zA-Z0-9_-]{0,20}>>>>>>")
-        if r6.match(line):
-            code = chr(16)
-        elif r5.match(line):
-            code = chr(15)
-        elif r4.match(line):
-            code = chr(16)
-        elif r3.match(line):
-            code = chr(15)
-        elif r2.match(line):
-            code = chr(16)
-        elif r1.match(line):
-            code = chr(15)
+        rr = re.compile(r"^[a-zA-Z0-9_-]{0,20}>{1,20}")
+        try:
+            count = line[0:rr.match(line).span()[1]].count(">")
+        except:
+            count = 0
+        if count > 0:
+            if count % 2 == 1:
+                code = chr(15)
+            elif count % 2 == 0:
+                code = chr(16)
         elif line.startswith("//") or line.startswith("#") or line.startswith("P.S.") or line.startswith("PS") or line.startswith("ps"):
             code = chr(17)
         else:
@@ -703,7 +695,7 @@ def echo_reader(echo, last, archive, favorites):
                     f.write("Re: " + msg[6] + "\n")
                 else:
                     f.write(msg[6] + "\n")
-                rr = re.compile(r"[a-zA-Z0-9_-]{0,20}>{1,20}")
+                rr = re.compile(r"^[a-zA-Z0-9_-]{0,20}>{1,20}")
                 for line in msg[8:]:
                     if line.strip() != "":
                         if rr.match(line):
