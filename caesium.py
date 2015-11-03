@@ -703,13 +703,13 @@ def echo_reader(echo, last, archive, favorites):
                     f.write("Re: " + msg[6] + "\n")
                 else:
                     f.write(msg[6] + "\n")
-                rr = re.compile(r"[a-zA-Z0-9_-]{0,20}>")
+                rr = re.compile(r"[a-zA-Z0-9_-]{0,20}>{1,20}")
                 for line in msg[8:]:
                     if line.strip() != "":
                         if rr.match(line):
-                            f.write("\n" + line[:rr.match(line).span()[1]] + ">" + line[rr.match(line).span()[1]:])
+                            f.write("\n" + line[:rr.match(line).span()[1]] + "> " + line[rr.match(line).span()[1]:])
                         else:
-                            f.write("\n" + q + ">" + line)
+                            f.write("\n" + q + "> " + line)
                     else:
                         f.write("\n" + line)
                 f.close()
