@@ -3,12 +3,9 @@
 import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re
 from datetime import datetime
 
-node = ""
-auth = ""
-echoes = []
-archives = []
+nodes = []
+node = 0
 editor = ""
-to = ""
 lasts = []
 counts = []
 counts_rescan = True
@@ -29,39 +26,58 @@ def check_directories():
 def separate(l, step=20):
     for x in range(0, len(l), step):
         yield l[x:x+step]
-        
+
 def load_config():
-    global node, auth, echoes, editor, to
-    f = open("caesium.cfg", "r")
+    global nodes, editor
+    first = True
+    node = {}
+    echoareas = []
+    archive = []
+    f = open("caesium.cfg")
     config = f.read().split("\n")
     f.close()
     for line in config:
         param = line.split(" ")
-        if param[0] == "node":
-            node = param[1]
+        if param[0] == "nodename":
+            if not first:
+                node["echoareas"] = echoareas
+                node["archive"] = archive
+                nodes.append(node)
+            else:
+                first = False
+            node = {}
+            echoareas = []
+            archive = []
+            node["nodename"] = " ".join(param[1:])
+        elif param[0] == "node":
+            node["node"] = param[1]
         elif param[0] == "auth":
-            auth = param[1]
+            node["auth"] = param[1]
         elif param[0] == "echo":
-            if len(param) > 2:
-                echoes.append([param[1], " ".join(param[2:])])
+            if len(param) == 2:
+                echoareas.append([param[1], ""])
             else:
-                echoes.append([param[1], ""])
-        elif param[0] == "archive":
-            if len(param) > 2:
-                archives.append([param[1], " ".join(param[2:])])
-            else:
-                archives.append([param[1], ""])
-        elif param[0] == "editor":
-            if len(param) > 2:
-                editor = " ".join(param[1:])
-            else:
-                editor = param[1]
+                echoareas.append([param[1], " ".join(param[2:])])
         elif param[0] == "to":
-            to = " ".join(param[1:])
+            node["to"] = " ".join(param[1:])
+        elif param[0] == "archive":
+            if len(param) == 2:
+                archive.append([param[1], ""])
+            else:
+                archive.append([param[1], " ".join(param[2:])])
+        elif param[0] == "editor":
+            editor = " ".join(param[1:])
+    if not "nodename" in node:
+        node["nodename"] = "untitled node"
+    if not "to" in node:
+        node["to"] = ""
+    node["echoareas"] = echoareas
+    node["archive"] = archive
+    nodes.append(node)
 
 def get_msg_list(echo):
     msg_list = []
-    r = urllib.request.Request(node + "u/e/" + echo[0])
+    r = urllib.request.Request(nodes[node]["node"] + "u/e/" + echo[0])
     with urllib.request.urlopen(r) as f:
         lines = f.read().decode("utf-8").split("\n")
         for line in lines:
@@ -78,7 +94,7 @@ def get_local_msg_list(echo):
 
 def get_bundle(msgids):
     bundle = []
-    r = urllib.request.Request(node + "u/m/" + msgids)
+    r = urllib.request.Request(nodes[node]["node"] + "u/m/" + msgids)
     with urllib.request.urlopen(r) as f:
         bundle = f.read().decode("utf-8").split("\n")
     return bundle
@@ -90,7 +106,7 @@ def debundle(echo, bundle):
             msgid = m[0]
             if len(msgid) == 20 and m[1]:
                 msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
-                if msgbody.split("\n")[5] == to:
+                if msgbody.split("\n")[5] == nodes[node]["to"]:
                     codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
                 codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
                 codecs.open("echo/" + echo[0], "a", "utf-8").write(msgid + "\n")
@@ -102,11 +118,12 @@ def fetch_mail():
     stdscr.attron(curses.A_BOLD)
     stdscr.border()
     draw_title(0, 1, "Получение почты")
+    draw_title(0, width - len(nodes[node]["nodename"]) - 5, nodes[node]["nodename"])
     stdscr.refresh()
     log = curses.newwin(height - 2, width - 2, 1, 1)
     log.scrollok(True)
     line = -1
-    echoareas = echoes[2:]
+    echoareas = nodes[node]["echoareas"][2:]
     for echo in echoareas:
         find = False
         for i in lasts:
@@ -150,11 +167,13 @@ def fetch_mail():
     stdscr.clear()
 
 def outcount():
-    if not os.path.exists("out/.outcount"):
-        codecs.open("out/.outcount", "w", "utf-8").write("0")
-    i = str(int(codecs.open("out/.outcount", "r", "utf-8").read()) + 1)
-    codecs.open("out/.outcount", "w", "utf-8").write(i)
-    return "out/%s.out" % i.zfill(5)
+    if not os.path.exists("out/" + nodes[node]["nodename"]):
+        os.mkdir("out/" + nodes[node]["nodename"])
+    if not os.path.exists("out/" + nodes[node]["nodename"] + "/.outcount"):
+        codecs.open("out/" + nodes[node]["nodename"] + "/.outcount", "w", "utf-8").write("0")
+    i = str(int(codecs.open("out/" + nodes[node]["nodename"] + "/.outcount", "r", "utf-8").read()) + 1)
+    codecs.open("out/" + nodes[node]["nodename"] + "/.outcount", "w", "utf-8").write(i)
+    return "out/" + nodes[node]["nodename"] + "/%s.out" % i.zfill(5)
 
 def save_out():
     new = codecs.open("temp", "r", "utf-8").read().split("\n")
@@ -170,12 +189,12 @@ def save_out():
         os.remove("temp")
 
 def make_toss():
-    lst = [x for x in os.listdir("out") if x.endswith(".out")]
+    lst = [x for x in os.listdir("out/" + nodes[node]["nodename"]) if x.endswith(".out")]
     for msg in lst:
-        text = codecs.open("out/%s" % msg, "r", "utf-8").read()
+        text = codecs.open("out/" + nodes[node]["nodename"] + "/%s" % msg, "r", "utf-8").read()
         coded_text = base64.b64encode(text.encode("utf-8"))
-        codecs.open("out/%s.toss" % msg, "w", "utf-8").write(coded_text.decode("utf-8"))
-        os.rename("out/%s" % msg, "out/%s%s" % (msg, "msg"))
+        codecs.open("out/" + nodes[node]["nodename"] + "/%s.toss" % msg, "w", "utf-8").write(coded_text.decode("utf-8"))
+        os.rename("out/" + nodes[node]["nodename"] + "/%s" % msg, "out/" + nodes[node]["nodename"] + "/%s%s" % (msg, "msg"))
 
 def send_mail():
     stdscr.clear()
@@ -184,18 +203,18 @@ def send_mail():
     stdscr.border()
     draw_title(0, 1, "Отправка почты")
     stdscr.refresh()
-    lst = [x for x in sorted(os.listdir("out")) if x.endswith(".toss")]
+    lst = [x for x in sorted(os.listdir("out/" + nodes[node]["nodename"])) if x.endswith(".toss")]
     max = len(lst)
     n = 1
     try:
         for msg in lst:
             stdscr.addstr(1, 1, "Отправка сообщения: " + str(n) + "/" + str(max), curses.color_pair(4))
-            text = codecs.open("out/%s" % msg, "r", "utf-8").read()
-            data = urllib.parse.urlencode({"tmsg": text,"pauth": auth}).encode("utf-8")
-            request = urllib.request.Request(node + "u/point")
+            text = codecs.open("out/" + nodes[node]["nodename"] + "/%s" % msg, "r", "utf-8").read()
+            data = urllib.parse.urlencode({"tmsg": text,"pauth": nodes[node]["auth"]}).encode("utf-8")
+            request = urllib.request.Request(nodes[node]["node"] + "u/point")
             result = urllib.request.urlopen(request, data).read().decode("utf-8")
             if result.startswith("msg ok"):
-                os.remove("out/%s" % msg)
+                os.remove("out/" + nodes[node]["nodename"] + "/%s" % msg)
                 n = n + 1
             elif result == "msg big!":
                 print ("ERROR: very big message (limit 64K)!")
@@ -269,11 +288,12 @@ def draw_echo_selector(start, cursor, archive):
     stdscr.attron(curses.A_BOLD)
     stdscr.border()
     if archive:
-        echoareas = archives
+        echoareas = nodes[node]["archive"]
         draw_title(0, 1, "Архив эхоконференций")
     else:
-        echoareas = echoes
+        echoareas = nodes[node]["echoareas"]
         draw_title(0, 1, "Список эхоконференций")
+        draw_title(0, width - len(nodes[node]["nodename"]) - 5, nodes[node]["nodename"])
     for echo in echoareas:
         l = len(echo[1])
         if l > m:
@@ -328,9 +348,9 @@ def find_new(cursor):
     return ret
 
 def echo_selector():
-    global echo_cursor, archive_cursor, counts, counts_rescan, next_echoarea
+    global echo_cursor, archive_cursor, counts, counts_rescan, next_echoarea, node
     archive = False
-    echoareas = echoes
+    echoareas = nodes[node]["echoareas"]
     key = 0
     go = True
     start = 0
@@ -387,14 +407,14 @@ def echo_selector():
                 archive = False
                 archive_cursor = cursor
                 cursor = echo_cursor
-                echoareas = echoes
+                echoareas = nodes[node]["echoareas"]
                 stdscr.clear()
                 counts_rescan = True
             else:
                 archive = True
                 echo_cursor = cursor
                 cursor = archive_cursor
-                echoareas = archives
+                echoareas = nodes[node]["archive"]
                 stdscr.clear()
                 counts_rescan = True
         elif key == 10 or key == curses.KEY_RIGHT or key == ord(" "):
@@ -416,6 +436,20 @@ def echo_selector():
                 if cursor - start > height - 3:
                     start = cursor - height + 3
                 next_echoarea = False
+        elif key == ord("."):
+            node = node + 1
+            if node == len(nodes):
+                node = 0
+            stdscr.clear()
+            counts_rescan = True
+            cursor = 0
+        elif key == ord(","):
+            node = node - 1
+            if node == -1:
+                node = len(nodes) - 1
+            stdscr.clear()
+            counts_rescan = True
+            cursor = 0
         elif key == curses.KEY_F10:
             go = False
     if archive:
@@ -751,8 +785,9 @@ def echo_reader(echo, last, archive, favorites):
 
 check_directories()
 load_config()
-echoes.insert(0, ["favorites", "Избранные сообщения"])
-echoes.insert(1, ["carbonarea", "Карбонка"])
+for i in range(0, len(nodes)):
+    nodes[i]["echoareas"].insert(0, ["favorites", "Избранные сообщения"])
+    nodes[i]["echoareas"].insert(1, ["carbonarea", "Карбонка"])
 if os.path.exists("lasts.lst"):
     f = open("lasts.lst", "rb")
     lasts = pickle.load(f)
