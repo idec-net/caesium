@@ -189,6 +189,8 @@ def save_out():
         os.remove("temp")
 
 def make_toss():
+    if not os.path.exists("out/" + nodes[node]["nodename"]):
+        os.mkdir("out/" + nodes[node]["nodename"])
     lst = [x for x in os.listdir("out/" + nodes[node]["nodename"]) if x.endswith(".out")]
     for msg in lst:
         text = codecs.open("out/" + nodes[node]["nodename"] + "/%s" % msg, "r", "utf-8").read()
@@ -440,6 +442,7 @@ def echo_selector():
             node = node + 1
             if node == len(nodes):
                 node = 0
+            echoareas = nodes[node]["echoareas"]
             stdscr.clear()
             counts_rescan = True
             cursor = 0
@@ -447,6 +450,7 @@ def echo_selector():
             node = node - 1
             if node == -1:
                 node = len(nodes) - 1
+            echoareas = nodes[node]["echoareas"]
             stdscr.clear()
             counts_rescan = True
             cursor = 0
@@ -717,7 +721,7 @@ def echo_reader(echo, last, archive, favorites):
         elif not archive and (key == ord ("i") or key == ord("I")):
             if not favorites:
                 f = open("temp", "w")
-                f.write(msg[1] + "\n")
+                f.write(echo + "\n")
                 f.write("All\n")
                 f.write("No subject\n\n")
                 f.close()
