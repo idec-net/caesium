@@ -162,6 +162,7 @@ def fetch_mail():
         log.addstr(line + 2, 1, "Загрузка завершена.", curses.color_pair(4))
     else:
         log.addstr(line + 2, 1, "Ошибка: не удаётся связаться с нодой.", curses.color_pair(4))
+    log.scroll()
     log.addstr(line + 3, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
     log.getch()
     stdscr.clear()
