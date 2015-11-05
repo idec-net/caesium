@@ -152,7 +152,7 @@ def fetch_mail():
                 stdscr.refresh()
                 log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n - 1) + "/" + str(list_len), curses.color_pair(4))
                 log.refresh()
-    if remote and line >= height - 4:
+    if remote and line >= height - 5:
         for i in range(abs(height - 6 - line)):
             log.scroll()
             line = line - 1
@@ -162,7 +162,6 @@ def fetch_mail():
         log.addstr(line + 2, 1, "Загрузка завершена.", curses.color_pair(4))
     else:
         log.addstr(line + 2, 1, "Ошибка: не удаётся связаться с нодой.", curses.color_pair(4))
-    log.scroll()
     log.addstr(line + 3, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
     log.getch()
     stdscr.clear()
