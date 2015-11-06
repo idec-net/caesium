@@ -6,7 +6,7 @@ from datetime import datetime
 nodes = []
 node = 0
 editor = ""
-lasts = []
+lasts = {}
 counts = []
 counts_rescan = True
 next_echoarea = False
@@ -14,8 +14,6 @@ next_echoarea = False
 def check_directories():
     if not os.path.exists("echo"):
         os.mkdir("echo")
-    if not os.path.exists("echo/full"):
-        os.mkdir("echo/full")
     if not os.path.exists("msg"):
         os.mkdir("msg")
     if not os.path.exists("out"):
@@ -44,7 +42,6 @@ def load_config():
             if not first:
                 node["echoareas"] = echoareas
                 node["archive"] = archive
-                node["clone"] = []
                 nodes.append(node)
             else:
                 first = False
@@ -76,7 +73,6 @@ def load_config():
         node["to"] = ""
     node["echoareas"] = echoareas
     node["archive"] = archive
-    node["clone"] = []
     nodes.append(node)
 
 def get_msg_list(echo):
@@ -96,13 +92,6 @@ def get_local_msg_list(echo):
         local_msg_list = codecs.open("echo/" + echo[0], "r", "utf-8").read().split("\n")
         return local_msg_list
 
-def get_local_full_msg_list(echo):
-    if not os.path.exists("echo/full/" + echo[0]):
-        return []
-    else:
-        local_msg_list = codecs.open("echo/full/" + echo[0], "r", "utf-8").read().split("\n")
-        return local_msg_list
-
 def get_bundle(msgids):
     bundle = []
     r = urllib.request.Request(nodes[node]["node"] + "u/m/" + msgids)
@@ -111,22 +100,16 @@ def get_bundle(msgids):
     return bundle
 
 def debundle(echo, bundle):
-    if os.path.exists("echo/carbonarea"):
-        carbonarea = open("echo/carbonarea", "r").read().split("\n")
-    else:
-        carbonarea = []
     for msg in bundle:
         if msg:
             m = msg.split(":")
             msgid = m[0]
             if len(msgid) == 20 and m[1]:
                 msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
-                if msgbody.split("\n")[5] == nodes[node]["to"] and not msgid in carbonarea:
+                if msgbody.split("\n")[5] == nodes[node]["to"]:
                     codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
-                    carbonarea.append(msgid)
                 codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
                 codecs.open("echo/" + echo[0], "a", "utf-8").write(msgid + "\n")
-                codecs.open("echo/full/" + echo[0], "a", "utf-8").write(msgid + "\n")
 
 def fetch_mail():
     global lasts
@@ -142,12 +125,8 @@ def fetch_mail():
     line = -1
     echoareas = nodes[node]["echoareas"][2:]
     for echo in echoareas:
-        find = False
-        for i in lasts:
-            if echo[0] in i:
-                find = True
-        if not find:
-            lasts.append([echo[0], 0])
+        if not echo[0] in lasts:
+            lasts[echo[0]] = 0
         if line < height - 3:
             line = line + 1
         else:
@@ -158,32 +137,17 @@ def fetch_mail():
         except:
             remote = False
         if remote and len(remote_msg_list) > 1:
-            if echo[0] in nodes[node]["clone"]:
-                if os.path.exists("echo/" + echo[0]):
-                    msglist = open("echo/" + echo[0], "r").read().split("\n")
-                    for msgid in msglist:
-                        if msgid and os.path.exists("msg/" + msgid):
-                            os.remove("msg/" + msgid)
-                    if os.path.exists("echo/" + echo[0]):
-                        os.remove("echo/" + echo[0])
-            if not os.path.exists("echo/full/" + echo[0]) or echo[0] in nodes[node]["clone"]:
-                local_msg_list = get_local_msg_list(echo)
-            else:
-                local_msg_list = get_local_full_msg_list(echo)
-            if not os.path.exists("echo/full/" + echo[0]) and not echo[0] in nodes[node]["clone"]:
-                for msgid in remote_msg_list:
-                    codecs.open("echo/full/" + echo[0], "a", "utf-8").write(msgid + "\n")
-                msg_list = [x for x in remote_msg_list[-52:] if x not in local_msg_list and x != ""]
-            else:
-                msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
-            if echo[0] in nodes[node]["clone"]:
-                nodes[node]["clone"].remove(echo[0])
-            current_time()
-            stdscr.refresh()
-            log.addstr(line, 1, "Загрузка " + echo[0], curses.color_pair(4))
-            log.refresh()
+            local_msg_list = get_local_msg_list(echo)
+            msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
+            list_len = len (msg_list) - 1
+            n = 0
             for get_list in separate(msg_list):
                 debundle(echo, get_bundle("/".join(get_list)))
+                n = n + len(get_list)
+                current_time()
+                stdscr.refresh()
+                log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n - 1) + "/" + str(list_len), curses.color_pair(4))
+                log.refresh()
     if remote and line >= height - 5:
         for i in range(abs(height - 6 - line)):
             log.scroll()
@@ -195,7 +159,6 @@ def fetch_mail():
     else:
         log.addstr(line + 2, 1, "Ошибка: не удаётся связаться с нодой.", curses.color_pair(4))
     log.addstr(line + 3, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
-    nodes[node]["clone"] = []
     log.getch()
     stdscr.clear()
 
@@ -303,11 +266,9 @@ def rescan_counts(echoareas):
     for echo in echoareas:
         try:
             echocount = len(open("echo/" + echo[0], "r").read().split("\n")) - 1
-            last = -1
-            for n in lasts:
-                if n[0] == echo[0]:
-                    last = echocount - n[1]
-            if last == -1:
+            if echo[0] in lasts:
+                last = echocount - lasts[echo[0]]
+            else:
                 last = echocount + 1
         except:
             echocount = 0
@@ -350,14 +311,12 @@ def draw_echo_selector(start, cursor, archive):
                 stdscr.attroff (curses.A_BOLD)
             if y + 1 >= start + 1:
                 echo_length = get_echo_length(echo[0])
-                last = 0
-                for i in lasts:
-                    if echo[0] == i[0]:
-                        last = i[1]
+                if echo[0] in lasts:
+                    last = lasts[echo[0]]
+                else:
+                    last = 0
                 if last < echo_length:
                     stdscr.addstr(y + 1 - start, 1, "+")
-                if echo[0] in nodes[node]["clone"]:
-                    stdscr.addstr(y + 1 - start, 2, "*")
                 stdscr.addstr(y + 1 - start, 3, echo[0])
                 if counts_rescan:
                     counts = rescan_counts(echoareas)
@@ -456,9 +415,8 @@ def echo_selector():
                 counts_rescan = True
         elif key == 10 or key == curses.KEY_RIGHT or key == ord(" "):
             last = 0
-            for i in lasts:
-                if i[0] == echoareas[cursor][0]:
-                    last = i[1]
+            if echoareas[cursor][0] in lasts:
+                last = lasts[echoareas[cursor][0]]
             echo_length = get_echo_length(echoareas[cursor][0])
             if last > 0 and last < echo_length:
                 last = last + 1
@@ -473,11 +431,6 @@ def echo_selector():
                 if cursor - start > height - 3:
                     start = cursor - height + 3
                 next_echoarea = False
-        elif key == ord("c") or key == ord("C"):
-            if echoareas[cursor][0] in nodes[node]["clone"]:
-                nodes[node]["clone"].remove(echoareas[cursor][0])
-            else:
-                nodes[node]["clone"].append(echoareas[cursor][0])
         elif key == ord("."):
             node = node + 1
             if node == len(nodes):
@@ -814,13 +767,7 @@ def echo_reader(echo, last, archive, favorites):
         elif key == curses.KEY_F10:
             go = False
             quit = True
-    flag = False
-    for i in range(0, len(lasts)):
-        if echo == lasts[i][0]:
-            flag = True
-            lasts[i][1] = msgn
-    if not flag:
-        lasts.append([echo, msgn])
+    lasts[echo] = msgn
     f = open("lasts.lst", "wb")
     pickle.dump(lasts, f)
     f.close()
