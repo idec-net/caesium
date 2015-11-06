@@ -44,6 +44,7 @@ def load_config():
             if not first:
                 node["echoareas"] = echoareas
                 node["archive"] = archive
+                node["clone"] = []
                 nodes.append(node)
             else:
                 first = False
