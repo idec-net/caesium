@@ -111,7 +111,10 @@ def get_bundle(msgids):
     return bundle
 
 def debundle(echo, bundle):
-    carbonarea = open("echo/carbonarea", "r").read().split("\n")
+    if os.path.exists("echo/carbonarea"):
+        carbonarea = open("echo/carbonarea", "r").read().split("\n")
+    else:
+        carbonarea = []
     for msg in bundle:
         if msg:
             m = msg.split(":")
@@ -120,6 +123,7 @@ def debundle(echo, bundle):
                 msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
                 if msgbody.split("\n")[5] == nodes[node]["to"] and not msgid in carbonarea:
                     codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
+                    carbonarea.append(msgid)
                 codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
                 codecs.open("echo/" + echo[0], "a", "utf-8").write(msgid + "\n")
                 codecs.open("echo/full/" + echo[0], "a", "utf-8").write(msgid + "\n")
@@ -154,10 +158,6 @@ def fetch_mail():
         except:
             remote = False
         if remote and len(remote_msg_list) > 1:
-            if not os.path.exists("echo/full/" + echo[0]) or echo[0] in nodes[node]["clone"]:
-                local_msg_list = get_local_msg_list(echo)
-            else:
-                local_msg_list = get_local_full_msg_list(echo)
             if echo[0] in nodes[node]["clone"]:
                 if os.path.exists("echo/" + echo[0]):
                     msglist = open("echo/" + echo[0], "r").read().split("\n")
@@ -166,7 +166,12 @@ def fetch_mail():
                             os.remove("msg/" + msgid)
                     if os.path.exists("echo/" + echo[0]):
                         os.remove("echo/" + echo[0])
-                nodes[node]["clone"].remove(echo[0])
+            if not os.path.exists("echo/full/" + echo[0]) or echo[0] in nodes[node]["clone"]:
+                local_msg_list = get_local_msg_list(echo)
+                if echo[0] in nodes[node]["clone"]:
+                    nodes[node]["clone"].remove(echo[0])
+            else:
+                local_msg_list = get_local_full_msg_list(echo)
             if not os.path.exists("echo/full/" + echo[0]):
                 for msgid in remote_msg_list:
                     codecs.open("echo/full/" + echo[0], "a", "utf-8").write(msgid + "\n")
