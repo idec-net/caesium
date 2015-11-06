@@ -189,7 +189,7 @@ def fetch_mail():
                 n = n + len(get_list)
                 current_time()
                 stdscr.refresh()
-                log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n - 1) + "/" + str(list_len), curses.color_pair(4))
+                log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n) + "/" + str(list_len), curses.color_pair(4))
                 log.refresh()
     if remote and line >= height - 5:
         for i in range(abs(height - 6 - line)):
