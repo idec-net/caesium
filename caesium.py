@@ -168,29 +168,22 @@ def fetch_mail():
                         os.remove("echo/" + echo[0])
             if not os.path.exists("echo/full/" + echo[0]) or echo[0] in nodes[node]["clone"]:
                 local_msg_list = get_local_msg_list(echo)
-                if echo[0] in nodes[node]["clone"]:
-                    nodes[node]["clone"].remove(echo[0])
             else:
                 local_msg_list = get_local_full_msg_list(echo)
-            if not os.path.exists("echo/full/" + echo[0]):
+            if not os.path.exists("echo/full/" + echo[0]) and not echo[0] in nodes[node]["clone"]:
                 for msgid in remote_msg_list:
                     codecs.open("echo/full/" + echo[0], "a", "utf-8").write(msgid + "\n")
                 msg_list = [x for x in remote_msg_list[-52:] if x not in local_msg_list and x != ""]
             else:
                 msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
-            list_len = len (msg_list) - 1
-            n = 0
+            if echo[0] in nodes[node]["clone"]:
+                nodes[node]["clone"].remove(echo[0])
             current_time()
             stdscr.refresh()
-            log.addstr(line, 1, "Загрузка " + echo[0] + ": 0/0", curses.color_pair(4))
+            log.addstr(line, 1, "Загрузка " + echo[0], curses.color_pair(4))
             log.refresh()
             for get_list in separate(msg_list):
                 debundle(echo, get_bundle("/".join(get_list)))
-                n = n + len(get_list)
-                current_time()
-                stdscr.refresh()
-                log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n) + "/" + str(list_len), curses.color_pair(4))
-                log.refresh()
     if remote and line >= height - 5:
         for i in range(abs(height - 6 - line)):
             log.scroll()
@@ -202,6 +195,7 @@ def fetch_mail():
     else:
         log.addstr(line + 2, 1, "Ошибка: не удаётся связаться с нодой.", curses.color_pair(4))
     log.addstr(line + 3, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
+    nodes[node]["clone"] = []
     log.getch()
     stdscr.clear()
 
