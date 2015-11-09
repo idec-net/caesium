@@ -20,6 +20,10 @@ def check_directories():
         os.mkdir("msg")
     if not os.path.exists("out"):
         os.mkdir("out")
+    if not os.path.exists("echo/favorites"):
+        open("echo/favorites", "w")
+    if not os.path.exists("echo/carbonarea"):
+        open("echo/carbonarea", "w")
 
 #
 # Взаимодействие с нодой
