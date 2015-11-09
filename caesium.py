@@ -110,14 +110,14 @@ def get_bundle(msgids):
         bundle = f.read().decode("utf-8").split("\n")
     return bundle
 
-def debundle(echo, bundle, local):
+def debundle(echo, bundle, local, carbonarea):
     for msg in bundle:
         if msg:
             m = msg.split(":")
             msgid = m[0]
             if len(msgid) == 20 and m[1]:
                 msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
-                if msgbody.split("\n")[5] == nodes[node]["to"]:
+                if msgbody.split("\n")[5] == nodes[node]["to"] and not msgid in carbonarea:
                     codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
                 codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
                 codecs.open("echo/" + echo[0], "a", "utf-8").write(msgid + "\n")
@@ -137,6 +137,7 @@ def fetch_mail():
     log.scrollok(True)
     line = -1
     echoareas = nodes[node]["echoareas"][2:]
+    carbonarea = open("echo/carbonarea", "r").read().split("\n")
     for echo in echoareas:
         if line < height - 3:
             line = line + 1
@@ -170,7 +171,7 @@ def fetch_mail():
             if os.path.exists("echo/full/" + echo[0]):
                 local_index = open("echo/full/" + echo[0]).read().split("\n")
             for get_list in separate(msg_list):
-                debundle(echo, get_bundle("/".join(get_list)), local_index)
+                debundle(echo, get_bundle("/".join(get_list)), local_index, carbonarea)
                 n = n + len(get_list)
                 current_time()
                 stdscr.refresh()
