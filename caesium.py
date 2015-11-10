@@ -174,6 +174,8 @@ def fetch_mail():
             n = 0
             if os.path.exists("echo/full/" + echo[0]):
                 local_index = open("echo/full/" + echo[0]).read().split("\n")
+            else:
+                local_index = []
             for get_list in separate(msg_list):
                 debundle(echo, get_bundle("/".join(get_list)), local_index, carbonarea)
                 n = n + len(get_list)
@@ -301,6 +303,8 @@ def rescan_counts(echoareas):
             echocount = len(open("echo/" + echo[0], "r").read().split("\n")) - 1
             if echo[0] in lasts: 
                 last = echocount - lasts[echo[0]]
+                if echocount == 0 and lasts[echo[0]] == 0:
+                    last = 1
             else:
                 last = echocount + 1
         except:
