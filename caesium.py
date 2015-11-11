@@ -7,6 +7,8 @@ nodes = []
 node = 0
 editor = ""
 lasts = {}
+color_theme = "default"
+bold = [False, False, False, False, False, False, False]
 counts = []
 counts_rescan = True
 next_echoarea = False
@@ -34,7 +36,7 @@ def separate(l, step=20):
         yield l[x:x+step]
 
 def load_config():
-    global nodes, editor
+    global nodes, editor, color_theme
     first = True
     node = {}
     echoareas = []
@@ -74,6 +76,8 @@ def load_config():
                 archive.append([param[1], " ".join(param[2:])])
         elif param[0] == "editor":
             editor = " ".join(param[1:])
+        elif param[0] == "theme":
+            color_theme = param[1]
     if not "nodename" in node:
         node["nodename"] = "untitled node"
     if not "to" in node:
@@ -82,6 +86,56 @@ def load_config():
     node["archive"] = archive
     node["clone"] = []
     nodes.append(node)
+
+def load_colors():
+    global bold
+    colors = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white", "gray"]
+
+    theme = open("themes/" + color_theme + ".cfg", "r").read().split("\n")
+    for line in theme:
+        param = line.split(" ")
+        if param[0] == "border":
+            curses.init_pair(1, colors.index(param[1]), colors.index(param[2]))
+            if len(param) == 4:
+                bold[0] = True
+            else:
+                bold[0] = False
+        if param[0] == "titles":
+            curses.init_pair(2, colors.index(param[1]), colors.index(param[2]))
+            if len(param) == 4:
+                bold[1] = True
+            else:
+                bold[1] = False
+        if param[0] == "cursor":
+            curses.init_pair(3, colors.index(param[1]), colors.index(param[2]))
+            if len(param) == 4:
+                bold[2] = True
+            else:
+                bold[2] = False
+        if param[0] == "text":
+            curses.init_pair(4, colors.index(param[1]), colors.index(param[2]))
+            if len(param) == 4:
+                bold[3] = True
+            else:
+                bold[3] = False
+        if param[0] == "quote1":
+            curses.init_pair(5, colors.index(param[1]), colors.index(param[2]))
+            if len(param) == 4:
+                bold[4] = True
+            else:
+                bold[4] = False
+        if param[0] == "quote2":
+            curses.init_pair(6, colors.index(param[1]), colors.index(param[2]))
+            if len(param) == 4:
+                bold[5] = True
+            else:
+                bold[5] = False
+        if param[0] == "comment":
+            curses.init_pair(7, colors.index(param[1]), colors.index(param[2]))
+            if len(param) == 4:
+                bold[6] = True
+            else:
+                bold[6] = False
 
 def get_msg_list(echo):
     msg_list = []
@@ -132,7 +186,10 @@ def fetch_mail():
     global lasts
     stdscr.clear()
     stdscr.attron(curses.color_pair(1))
-    stdscr.attron(curses.A_BOLD)
+    if bold[0]:
+        stdscr.attron(curses.A_BOLD)
+    else:
+        stdscr.attroff(curses.A_BOLD)
     stdscr.border()
     draw_title(0, 1, "Получение почты")
     draw_title(0, width - len(nodes[node]["nodename"]) - 5, nodes[node]["nodename"])
@@ -181,7 +238,11 @@ def fetch_mail():
                 n = n + len(get_list)
                 current_time()
                 stdscr.refresh()
-                log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n - 1) + "/" + str(list_len), curses.color_pair(4))
+                if bold[3]:
+                    color = curses.color_pair(4) + curses.A_BOLD
+                else:
+                    color = curses.color_pair(4)
+                log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n - 1) + "/" + str(list_len), color)
                 log.refresh()
     if remote and line >= height - 5:
         for i in range(abs(height - 6 - line)):
@@ -189,11 +250,19 @@ def fetch_mail():
             line = line - 1
     if not remote:
         line = -1
-    if remote:
-        log.addstr(line + 2, 1, "Загрузка завершена.", curses.color_pair(4))
+    if bold[3]:
+        color = curses.color_pair(4) + curses.A_BOLD
     else:
-        log.addstr(line + 2, 1, "Ошибка: не удаётся связаться с нодой.", curses.color_pair(4))
-    log.addstr(line + 3, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
+        color = curses.color_pair(4)
+    if remote:
+        log.addstr(line + 2, 1, "Загрузка завершена.", color)
+    else:
+        log.addstr(line + 2, 1, "Ошибка: не удаётся связаться с нодой.", color)
+    if bold[1]:
+        color = curses.color_pair(2) + curses.A_BOLD
+    else:
+        color = curses.color_pair(2)
+    log.addstr(line + 3, 1, "Нажмите любую клавишу.", color)
     log.getch()
     stdscr.clear()
 
@@ -231,8 +300,11 @@ def make_toss():
 
 def send_mail():
     stdscr.clear()
-    stdscr.attron(curses.color_pair(1))
-    stdscr.attron(curses.A_BOLD)
+    if bold[0]:
+        stdscr.attron(curses.color_pair(1))
+        stdscr.attron(curses.A_BOLD)
+    else:
+        stdscr.attron(curses.color_pair(1))
     stdscr.border()
     draw_title(0, 1, "Отправка почты")
     stdscr.refresh()
@@ -240,8 +312,12 @@ def send_mail():
     max = len(lst)
     n = 1
     try:
+        if bold[3]:
+            color = curses.color_pair(4) + curses.A_BOLD
+        else:
+            color = curses.color_pair(4)
         for msg in lst:
-            stdscr.addstr(1, 1, "Отправка сообщения: " + str(n) + "/" + str(max), curses.color_pair(4))
+            stdscr.addstr(1, 1, "Отправка сообщения: " + str(n) + "/" + str(max), color)
             text = codecs.open("out/" + nodes[node]["nodename"] + "/%s" % msg, "r", "utf-8").read()
             data = urllib.parse.urlencode({"tmsg": text,"pauth": nodes[node]["auth"]}).encode("utf-8")
             request = urllib.request.Request(nodes[node]["node"] + "u/point")
@@ -255,10 +331,14 @@ def send_mail():
                 print ("ERROR: unknown auth!")
             else:
                 print ("ERROR: unknown error!")
-        stdscr.addstr(3, 1, "Отправка завершена.", curses.color_pair(4))
+        stdscr.addstr(3, 1, "Отправка завершена.", color)
     except:
-        stdscr.addstr(2, 1, "Ошибка: не удаётся связаться с нодой.", curses.color_pair(4))
-    stdscr.addstr(3, 1, "Нажмите любую клавишу.", curses.color_pair(2) + curses.A_BOLD)
+        stdscr.addstr(2, 1, "Ошибка: не удаётся связаться с нодой.", color)
+    if bold[1]:
+        color = curses.color_pair(2) + curses.A_BOLD
+    else:
+        curses.color_pair(2)
+    stdscr.addstr(3, 1, "Нажмите любую клавишу.", color)
     stdscr.getch()
     stdscr.clear()
 
@@ -276,9 +356,17 @@ def get_term_size():
     height, width = stdscr.getmaxyx()
 
 def draw_title(y, x, title):
-    stdscr.addstr(y, x, "[", curses.color_pair(1) + curses.A_BOLD)
+    if bold[0]:
+        color = curses.color_pair(1) + curses.A_BOLD
+    else:
+        color = curses.color_pair(1)
+    stdscr.addstr(y, x, "[", color)
+    stdscr.addstr(y, x + 3 + len(title), "]", color)
+    if bold[1]:
+        color = curses.color_pair(2) + curses.A_BOLD
+    else:
+        color = curses.color_pair(2)
     stdscr.addstr(y, x + 1, " " + title + " ", curses.color_pair(2) + curses.A_BOLD)
-    stdscr.addstr(y, x + 3 + len(title), "]", curses.color_pair(1) + curses.A_BOLD)
 
 def draw_cursor(y, color):
     for i in range (1, width - 1):
@@ -317,8 +405,11 @@ def draw_echo_selector(start, cursor, archive):
     global counts, counts_rescan
     dsc_lens = []
     m = 0
-    stdscr.attron(curses.color_pair(1))
-    stdscr.attron(curses.A_BOLD)
+    if bold[0]:
+        stdscr.attron(curses.color_pair(1))
+        stdscr.attron(curses.A_BOLD)
+    else:
+        stdscr.attron(curses.color_pair(1))
     stdscr.border()
     if archive:
         echoareas = nodes[node]["archive"]
@@ -339,13 +430,25 @@ def draw_echo_selector(start, cursor, archive):
         if y - start < height - 2:
             if y == cursor:
                 if y >= start:
-                    draw_cursor(y - start, curses.color_pair(3))
-                stdscr.attron (curses.color_pair(3) + curses.A_BOLD)
+                    if bold[2]:
+                        color = curses.color_pair(3) + curses.A_BOLD
+                    else:
+                        color = curses.color_pair(3)
+                    draw_cursor(y - start, color)
+                stdscr.attron (color)
             else:
                 if y >= start:
-                    draw_cursor(y - start, curses.color_pair(4))
-                stdscr.attron (curses.color_pair(4))
-                stdscr.attroff (curses.A_BOLD)
+                    if bold[3]:
+                        color = curses.color_pair(4) + curses.A_BOLD
+                    else:
+                        color = curses.color_pair(4)
+                    draw_cursor(y - start, color)
+                if bold[3]:
+                    stdscr.attron (curses.color_pair(4))
+                    stdscr.attron (curses.A_BOLD)
+                else:
+                    stdscr.attron (curses.color_pair(4))
+                    stdscr.attroff (curses.A_BOLD)
             if y + 1 >= start + 1:
                 echo_length = get_echo_length(echo[0])
                 if echo[0] in lasts:
@@ -566,16 +669,28 @@ def body_render(tbody):
 
 def draw_reader(echo, msgid):
     for i in range(0, width):
-        stdscr.insstr(0, i, "─", curses.color_pair(1) + curses.A_BOLD)
-        stdscr.insstr(4, i, "─", curses.color_pair(1) + curses.A_BOLD)
-        stdscr.insstr(height - 1, i, " ", curses.color_pair(3) + curses.A_BOLD)
+        if bold[0]:
+            color = curses.color_pair(1) + curses.A_BOLD
+        else:
+            color = curses.color_pair(1)
+        stdscr.insstr(0, i, "─", color)
+        stdscr.insstr(4, i, "─", color)
+        if bold[2]:
+            color = curses.color_pair(3) + curses.A_BOLD
+        else:
+            color = curses.color_pair(3)
+        stdscr.insstr(height - 1, i, " ", color)
     draw_title(0, 1, echo + " / " + msgid)
-    stdscr.insstr(height - 1, width - 8, "│ " + datetime.now().strftime("%H:%M"), curses.color_pair(3) + curses.A_BOLD)
+    stdscr.insstr(height - 1, width - 8, "│ " + datetime.now().strftime("%H:%M"), color)
     for i in range(0, 3):
         draw_cursor(i, 1)
-    stdscr.addstr(1, 1, "От:   ", curses.color_pair(2) + curses.A_BOLD)
-    stdscr.addstr(2, 1, "Кому: ", curses.color_pair(2) + curses.A_BOLD)
-    stdscr.addstr(3, 1, "Тема: ", curses.color_pair(2) + curses.A_BOLD)
+    if bold[1]:
+        color = curses.color_pair(2) + curses.A_BOLD
+    else:
+        color = curses.color_pair(2)
+    stdscr.addstr(1, 1, "От:   ", color)
+    stdscr.addstr(2, 1, "Кому: ", color)
+    stdscr.addstr(3, 1, "Тема: ", color)
 
 
 def call_editor():
@@ -604,14 +719,25 @@ def message_box(smsg):
         if len(line) > maxlen:
             maxlen = len(line)
     msgwin = curses.newwin(len(msg) + 4, maxlen + 2, int(height / 2 - 2) , int(width / 2 - maxlen / 2))
-    msgwin.attron(curses.color_pair(1))
-    msgwin.attron(curses.A_BOLD)
+    if bold[0]:
+        msgwin.attron(curses.color_pair(1))
+        msgwin.attron(curses.A_BOLD)
+    else:
+        msgwin.attron(curses.color_pair(1))
     msgwin.border()
     i = 1
+    if bold[3]:
+        color = curses.color_pair(4) + curses.A_BOLD
+    else:
+        color = curses.color_pair(4)
     for line in msg:
-        msgwin.addstr(i, 1, line, curses.color_pair(4))
+        msgwin.addstr(i, 1, line, color)
         i = i + 1
-    msgwin.addstr(len(msg) + 2, int((maxlen + 2 - 21) / 2), "Нажмите любую клавишу", curses.color_pair(2) + curses.A_BOLD)
+    if bold[1]:
+        color = curses.color_pair(2) + curses.A_BOLD
+    else:
+        color = curses.color_pair(2)
+    msgwin.addstr(len(msg) + 2, int((maxlen + 2 - 21) / 2), "Нажмите любую клавишу", color)
     msgwin.refresh()
     msgwin.getch()
     msgwin.clear()
@@ -650,8 +776,11 @@ def get_echo_msgids(echo):
 def echo_reader(echo, last, archive, favorites):
     global lasts, next_echoarea
     stdscr.clear()
-    stdscr.attron(curses.color_pair(1))
-    stdscr.attron(curses.A_BOLD)
+    if bold[0]:
+        stdscr.attron(curses.color_pair(1))
+        stdscr.attron(curses.A_BOLD)
+    else:
+        stdscr.attron(curses.color_pair(1))
     y = 0
     msgn = last
     key = 0
@@ -666,10 +795,14 @@ def echo_reader(echo, last, archive, favorites):
             msg_string = str(msgn + 1) + " / " + str(len(msgids)) + " [" + str(len(msgids) - msgn - 1) + "]"
             draw_title (0, width - len(msg_string) - 5, msg_string)
             msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
-            stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", curses.color_pair(4))
-            stdscr.addstr(1, width - len(msgtime) - 1, msgtime, curses.color_pair(4))
-            stdscr.addstr(2, 7, msg[5], curses.color_pair(4))
-            stdscr.addstr(3, 7, msg[6][:width - 8], curses.color_pair(4))
+            if bold[3]:
+                color = curses.color_pair(4) + curses.A_BOLD
+            else:
+                color = curses.color_pair(4)
+            stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", color)
+            stdscr.addstr(1, width - len(msgtime) - 1, msgtime, color)
+            stdscr.addstr(2, 7, msg[5], color)
+            stdscr.addstr(3, 7, msg[6][:width - 8], color)
             draw_title(4, 1, size)
             for i in range (0, height - 6):
                 for x in range (0, width):
@@ -677,19 +810,37 @@ def echo_reader(echo, last, archive, favorites):
                 if i < len(msgbody) - 1:
                     if y + i < len(msgbody) and len(msgbody[y+i]) > 0:
                         if msgbody[y + i][0] == chr(15):
-                            stdscr.attron(curses.color_pair(2))
+                            stdscr.attron(curses.color_pair(6))
+                            if bold[5]:
+                                stdscr.attron(curses.A_BOLD)
+                            else:
+                                stdscr.attroff(curses.A_BOLD)
                         elif msgbody[y + i][0] == chr(16):
                             stdscr.attron(curses.color_pair(5))
+                            if bold[4]:
+                                stdscr.attron(curses.A_BOLD)
+                            else:
+                                stdscr.attroff(curses.A_BOLD)
                         elif msgbody[y + i][0] == chr(17):
-                            stdscr.attron(curses.color_pair(6))
+                            stdscr.attron(curses.color_pair(7))
+                            if bold[6]:
+                                stdscr.attron(curses.A_BOLD)
+                            else:
+                                stdscr.attroff(curses.A_BOLD)
                         else:
                             stdscr.attron(curses.color_pair(4))
-                        stdscr.attroff(curses.A_BOLD)
+                            if bold[3]:
+                                stdscr.attron(curses.A_BOLD)
+                            else:
+                                stdscr.attroff(curses.A_BOLD)
                         stdscr.addstr(i + 5, 0, msgbody[y + i][1:])
         else:
             draw_reader(echo, "")
         stdscr.attron(curses.color_pair(1))
-        stdscr.attron(curses.A_BOLD)
+        if bold[0]:
+            stdscr.attron(curses.A_BOLD)
+        else:
+            stdscr.attroff(curses.A_BOLD)
         stdscr.refresh()
         key = stdscr.getch()
         if key == curses.KEY_RESIZE:
@@ -831,15 +982,12 @@ if os.path.exists("lasts.lst"):
     f.close()
 stdscr = curses.initscr()
 curses.start_color()
+load_colors()
 curses.noecho()
 curses.curs_set(False)
 stdscr.keypad(True)
-curses.init_pair(1, 4, 0)
-curses.init_pair(2, 3, 0)
-curses.init_pair(3, 7, 4)
-curses.init_pair(4, 7, 0)
-curses.init_pair(5, 2, 0)
-curses.init_pair(6, 8, 0)
+
+stdscr.bkgd(" ", curses.color_pair(1))
 get_term_size()
 echo_selector()
 curses.echo()
