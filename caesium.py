@@ -705,11 +705,6 @@ def call_editor():
     curses.noecho()
     curses.curs_set(False)
     stdscr.keypad(True)
-    curses.init_pair(1, 4, 0)
-    curses.init_pair(2, 3, 0)
-    curses.init_pair(3, 7, 4)
-    curses.init_pair(4, 7, 0)
-    curses.init_pair(5, 2, 0)
     get_term_size()
 
 def message_box(smsg):
