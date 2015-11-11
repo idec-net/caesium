@@ -810,14 +810,14 @@ def echo_reader(echo, last, archive, favorites):
                 if i < len(msgbody) - 1:
                     if y + i < len(msgbody) and len(msgbody[y+i]) > 0:
                         if msgbody[y + i][0] == chr(15):
-                            stdscr.attron(curses.color_pair(6))
-                            if bold[5]:
+                            stdscr.attron(curses.color_pair(5))
+                            if bold[4]:
                                 stdscr.attron(curses.A_BOLD)
                             else:
                                 stdscr.attroff(curses.A_BOLD)
                         elif msgbody[y + i][0] == chr(16):
-                            stdscr.attron(curses.color_pair(5))
-                            if bold[4]:
+                            stdscr.attron(curses.color_pair(6))
+                            if bold[5]:
                                 stdscr.attron(curses.A_BOLD)
                             else:
                                 stdscr.attroff(curses.A_BOLD)
