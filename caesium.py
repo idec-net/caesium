@@ -936,7 +936,11 @@ def echo_reader(echo, last, archive, favorites):
                 for line in msg[8:]:
                     if line.strip() != "":
                         if rr.match(line):
-                            f.write("\n" + line[:rr.match(line).span()[1]] + "> " + line[rr.match(line).span()[1]:])
+                            if line[rr.match(line).span()[1]] == " ":
+                                quoter = ">"
+                            else:
+                                quoter = "> "
+                            f.write("\n" + line[:rr.match(line).span()[1]] + quoter + line[rr.match(line).span()[1]:])
                         else:
                             f.write("\n" + q + "> " + line)
                     else:
