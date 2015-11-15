@@ -89,7 +89,7 @@ def load_config():
 
 def load_colors():
     global bold
-    colors = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white", "gray"]
+    colors = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
 
     theme = open("themes/" + color_theme + ".cfg", "r").read().split("\n")
     for line in theme:
@@ -192,7 +192,7 @@ def fetch_mail():
         stdscr.attroff(curses.A_BOLD)
     stdscr.border()
     draw_title(0, 1, "Получение почты")
-    draw_title(0, width - len(nodes[node]["nodename"]) - 5, nodes[node]["nodename"])
+    draw_title(0, width - len(nodes[node]["nodename"]) - 3, nodes[node]["nodename"])
     stdscr.refresh()
     log = curses.newwin(height - 2, width - 2, 1, 1)
     log.scrollok(True)
@@ -361,19 +361,19 @@ def draw_title(y, x, title):
     else:
         color = curses.color_pair(1)
     stdscr.addstr(y, x, "[", color)
-    stdscr.addstr(y, x + 3 + len(title), "]", color)
+    stdscr.addstr(y, x + 1 + len(title), "]", color)
     if bold[1]:
         color = curses.color_pair(2) + curses.A_BOLD
     else:
         color = curses.color_pair(2)
-    stdscr.addstr(y, x + 1, " " + title + " ", curses.color_pair(2) + curses.A_BOLD)
+    stdscr.addstr(y, x + 1, title, curses.color_pair(2) + curses.A_BOLD)
 
 def draw_cursor(y, color):
     for i in range (1, width - 1):
         stdscr.addstr(y + 1, i, " ", color)
 
 def current_time():
-    draw_title (height - 1, width - 10, datetime.now().strftime("%H:%M"))
+    draw_title (height - 1, width - 8, datetime.now().strftime("%H:%M"))
 
 def get_echo_length(echo):
     if os.path.exists("echo/" + echo):
@@ -417,7 +417,7 @@ def draw_echo_selector(start, cursor, archive):
     else:
         echoareas = nodes[node]["echoareas"]
         draw_title(0, 1, "Список эхоконференций")
-        draw_title(0, width - len(nodes[node]["nodename"]) - 5, nodes[node]["nodename"])
+        draw_title(0, width - len(nodes[node]["nodename"]) - 3, nodes[node]["nodename"])
     for echo in echoareas:
         l = len(echo[1])
         if l > m:
@@ -623,7 +623,7 @@ def body_render(tbody):
     code = ""
     for line in tbody:
         n = 0
-        rr = re.compile(r"^[a-zA-Z0-9_-]{0,20}>{1,20}")
+        rr = re.compile(r"^[a-zA-Zа-яА-Я0-9_-]{0,20}>{1,20}")
         cc = re.compile(r"(^\s*)(PS|P.S|ps|ЗЫ|З.Ы|\/\/|#)")
         try:
             count = line[0:rr.match(line).span()[1]].count(">")
@@ -675,13 +675,9 @@ def draw_reader(echo, msgid):
             color = curses.color_pair(1)
         stdscr.insstr(0, i, "─", color)
         stdscr.insstr(4, i, "─", color)
-        if bold[2]:
-            color = curses.color_pair(3) + curses.A_BOLD
-        else:
-            color = curses.color_pair(3)
-        stdscr.insstr(height - 1, i, " ", color)
+        stdscr.insstr(height - 1, i, "─", color)
     draw_title(0, 1, echo + " / " + msgid)
-    stdscr.insstr(height - 1, width - 8, "│ " + datetime.now().strftime("%H:%M"), color)
+    current_time()
     for i in range(0, 3):
         draw_cursor(i, 1)
     if bold[1]:
@@ -788,7 +784,7 @@ def echo_reader(echo, last, archive, favorites):
         if len(msgids) > 0:
             draw_reader(msg[1], msgids[msgn])
             msg_string = str(msgn + 1) + " / " + str(len(msgids)) + " [" + str(len(msgids) - msgn - 1) + "]"
-            draw_title (0, width - len(msg_string) - 5, msg_string)
+            draw_title (0, width - len(msg_string) - 3, msg_string)
             msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
             if bold[3]:
                 color = curses.color_pair(4) + curses.A_BOLD
