@@ -213,13 +213,16 @@ def fetch_mail():
             if echo[0] in nodes[node]["clone"]:
                 if os.path.exists("echo/" + echo[0]):
                     os.remove("echo/" + echo[0])
-                msg_list = [x for x in remote_msg_list if x not in get_local_msg_list(echo) and x != ""]
+                local_msg_list = get_local_msg_list(echo)
+                msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
                 nodes[node]["clone"].remove(echo[0])
                 lasts[echo[0]] = -1
             elif os.path.exists("echo/full/" + echo[0]):
-                msg_list = [x for x in remote_msg_list if x not in get_local_full_msg_list(echo) and x != ""]
+                local_msg_list = get_local_full_msg_list(echo)
+                msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
             else:
-                msg_list = [x for x in remote_msg_list[-51:] if x not in get_local_full_msg_list(echo) and x != ""]
+                local_msg_list = get_local_full_msg_list(echo)
+                msg_list = [x for x in remote_msg_list[-51:] if x not in local_msg_list and x != ""]
                 if not len(msg_list) == 1:
                     msg_list.append("")
                 for msgid in remote_msg_list:
@@ -928,7 +931,7 @@ def echo_reader(echo, last, archive, favorites):
                     f.write("Re: " + msg[6] + "\n")
                 else:
                     f.write(msg[6] + "\n")
-                rr = re.compile(r"^[a-zA-Zа-ЯА-Я0-9_-]{0,20}>{1,20}")
+                rr = re.compile(r"^[a-zA-Zа-яА-Я0-9_-]{0,20}>{1,20}")
                 for line in msg[8:]:
                     if line.strip() != "":
                         if rr.match(line):
