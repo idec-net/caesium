@@ -13,6 +13,18 @@ counts = []
 counts_rescan = True
 next_echoarea = False
 
+splash = ["  ______ ______ ______ ______ _____ _    _ _________",
+          "/|  ____|  __  |  __  |  ____|_   _| | /| |  _   _  \\",
+          "|| |___/| |__| | |__| | |____//| ||| | || | |/| |/| |",
+          "|| |   ||  __  |  ____|____  ||| ||| | || | ||| ||| |",
+          "|| |____| | || | |____/____| |_| |_| |__| | ||| ||| |",
+          "||______|_| ||_|______|______|_____|______|_|||_|||_|",
+          "|/______/_/ /__/______/______/_____/______/_/|/_/|/_/",
+          "           ncurses ii-client         v.0.1",
+          "           Andrew Lobanov       13.01.2016",
+          "",
+          "                    Press any key"]
+
 def check_directories():
     if not os.path.exists("echo"):
         os.mkdir("echo")
@@ -36,7 +48,7 @@ def separate(l, step=20):
         yield l[x:x+step]
 
 def load_config():
-    global nodes, editor, color_theme
+    global nodes, editor, color_theme, show_splash
     first = True
     node = {}
     echoareas = []
@@ -78,6 +90,8 @@ def load_config():
             editor = " ".join(param[1:])
         elif param[0] == "theme":
             color_theme = param[1]
+        elif param[0] == "nosplash":
+            show_splash = False
     if not "nodename" in node:
         node["nodename"] = "untitled node"
     if not "to" in node:
@@ -353,6 +367,17 @@ echo_cursor = 0
 archive_cursor = 0
 width = 0
 height = 0
+show_splash = True
+
+def splash_screen():
+    stdscr.clear()
+    x = int((width - len(splash[1])) / 2) - 1
+    y = int((height - len(splash)) / 2)
+    i = 0
+    for line in splash:
+        stdscr.addstr(y + i, x, line, curses.color_pair(4))
+        i = i + 1
+    stdscr.getch()
 
 def get_term_size():
     global width, height
@@ -987,6 +1012,8 @@ stdscr.keypad(True)
 
 stdscr.bkgd(" ", curses.color_pair(1))
 get_term_size()
+if show_splash:
+    splash_screen()
 echo_selector()
 curses.echo()
 curses.curs_set(True)
