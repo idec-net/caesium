@@ -85,9 +85,9 @@ def load_config():
             node["to"] = " ".join(param[1:])
         elif param[0] == "archive":
             if len(param) == 2:
-                archive.append([param[1], ""])
+                archive.append([param[1], "", True])
             else:
-                archive.append([param[1], " ".join(param[2:])])
+                archive.append([param[1], " ".join(param[2:]), True])
         elif param[0] == "editor":
             editor = " ".join(param[1:])
         elif param[0] == "theme":
