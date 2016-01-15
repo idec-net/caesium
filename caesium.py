@@ -105,11 +105,14 @@ def load_config():
 
 def load_colors():
     global bold
-    colors = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
+    colors = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white", "gray"]
 
     theme = open("themes/" + color_theme + ".cfg", "r").read().split("\n")
     for line in theme:
         param = line.split(" ")
+        if len(param) > 1:
+            if param[1] == "grey":
+                param[1] = "gray"
         if param[0] == "border":
             curses.init_pair(1, colors.index(param[1]), colors.index(param[2]))
             if len(param) == 4:
