@@ -73,9 +73,14 @@ def load_config():
             node["auth"] = param[1]
         elif param[0] == "echo":
             if len(param) == 2:
-                echoareas.append([param[1], ""])
+                echoareas.append([param[1], "", False])
             else:
-                echoareas.append([param[1], " ".join(param[2:])])
+                echoareas.append([param[1], " ".join(param[2:]), False])
+        elif param[0] == "stat":
+            if len(param) == 2:
+                echoareas.append([param[1], "", True])
+            else:
+                echoareas.append([param[1], " ".join(param[2:]), True])
         elif param[0] == "to":
             node["to"] = " ".join(param[1:])
         elif param[0] == "archive":
@@ -208,70 +213,74 @@ def fetch_mail():
     log = curses.newwin(height - 2, width - 2, 1, 1)
     log.scrollok(True)
     line = -1
+    local_only = True
     echoareas = nodes[node]["echoareas"][2:]
     carbonarea = open("echo/carbonarea", "r").read().split("\n")
     for echo in echoareas:
-        if line < height - 3:
-            line = line + 1
-        else:
-            log.scroll()
-        try:
-            remote_msg_list = get_msg_list(echo)
-            remote = True
-        except:
-            remote = False
-        if remote and len(remote_msg_list) > 1:
-            if echo[0] in nodes[node]["clone"]:
-                if os.path.exists("echo/" + echo[0]):
-                    os.remove("echo/" + echo[0])
-                local_msg_list = get_local_msg_list(echo)
-                msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
-                nodes[node]["clone"].remove(echo[0])
-                lasts[echo[0]] = -1
-            elif os.path.exists("echo/full/" + echo[0]):
-                local_msg_list = get_local_full_msg_list(echo)
-                msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
+        if not echo[2]:
+            local_only = False
+            if line < height - 3:
+                line = line + 1
             else:
-                local_msg_list = get_local_full_msg_list(echo)
-                msg_list = [x for x in remote_msg_list[-51:] if x not in local_msg_list and x != ""]
-                if not len(msg_list) == 1:
-                    msg_list.append("")
-                for msgid in remote_msg_list:
-                    if len(msgid) == 20:
-                        open("echo/full/" + echo[0], "a").write(msgid + "\n")
-            list_len = len (msg_list) - 1
-            if list_len > 1 and not echo[0] in lasts:
-                lasts[echo[0]] = -1
-            n = 0
-            if os.path.exists("echo/full/" + echo[0]):
-                local_index = open("echo/full/" + echo[0]).read().split("\n")
-            else:
-                local_index = []
-            for get_list in separate(msg_list):
-                debundle(echo, get_bundle("/".join(get_list)), local_index, carbonarea)
-                n = n + len(get_list)
-                current_time()
-                stdscr.refresh()
-                if bold[3]:
-                    color = curses.color_pair(4) + curses.A_BOLD
+                log.scroll()
+            try:
+                remote_msg_list = get_msg_list(echo)
+                remote = True
+            except:
+                remote = False
+            if remote and len(remote_msg_list) > 1:
+                if echo[0] in nodes[node]["clone"]:
+                    if os.path.exists("echo/" + echo[0]):
+                        os.remove("echo/" + echo[0])
+                    local_msg_list = get_local_msg_list(echo)
+                    msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
+                    nodes[node]["clone"].remove(echo[0])
+                    lasts[echo[0]] = -1
+                elif os.path.exists("echo/full/" + echo[0]):
+                    local_msg_list = get_local_full_msg_list(echo)
+                    msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
                 else:
-                    color = curses.color_pair(4)
-                log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n - 1) + "/" + str(list_len), color)
-                log.refresh()
-    if remote and line >= height - 5:
-        for i in range(abs(height - 6 - line)):
-            log.scroll()
-            line = line - 1
-    if not remote:
-        line = -1
-    if bold[3]:
-        color = curses.color_pair(4) + curses.A_BOLD
-    else:
-        color = curses.color_pair(4)
-    if remote:
-        log.addstr(line + 2, 1, "Загрузка завершена.", color)
-    else:
-        log.addstr(line + 2, 1, "Ошибка: не удаётся связаться с нодой.", color)
+                    local_msg_list = get_local_full_msg_list(echo)
+                    msg_list = [x for x in remote_msg_list[-51:] if x not in local_msg_list and x != ""]
+                    if not len(msg_list) == 1:
+                        msg_list.append("")
+                    for msgid in remote_msg_list:
+                        if len(msgid) == 20:
+                            open("echo/full/" + echo[0], "a").write(msgid + "\n")
+                list_len = len (msg_list) - 1
+                if list_len > 1 and not echo[0] in lasts:
+                    lasts[echo[0]] = -1
+                n = 0
+                if os.path.exists("echo/full/" + echo[0]):
+                    local_index = open("echo/full/" + echo[0]).read().split("\n")
+                else:
+                    local_index = []
+                for get_list in separate(msg_list):
+                    debundle(echo, get_bundle("/".join(get_list)), local_index, carbonarea)
+                    n = n + len(get_list)
+                    current_time()
+                    stdscr.refresh()
+                    if bold[3]:
+                        color = curses.color_pair(4) + curses.A_BOLD
+                    else:
+                        color = curses.color_pair(4)
+                    log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n - 1) + "/" + str(list_len), color)
+                    log.refresh()
+    if not local_only:
+        if remote and line >= height - 5:
+            for i in range(abs(height - 6 - line)):
+                log.scroll()
+                line = line - 1
+        if not remote:
+            line = -1
+        if bold[3]:
+            color = curses.color_pair(4) + curses.A_BOLD
+        else:
+            color = curses.color_pair(4)
+        if remote:
+            log.addstr(line + 2, 1, "Загрузка завершена.", color)
+        else:
+            log.addstr(line + 2, 1, "Ошибка: не удаётся связаться с нодой.", color)
     if bold[1]:
         color = curses.color_pair(2) + curses.A_BOLD
     else:
@@ -589,7 +598,7 @@ def echo_selector():
             echo_length = get_echo_length(echoareas[cursor][0])
             if last < echo_length:
                 last = last + 1
-            if cursor == 0:
+            if cursor == 0 or echoareas[cursor][2]:
                 go = not echo_reader(echoareas[cursor][0], last, archive, True)
             else:
                 go = not echo_reader(echoareas[cursor][0], last, archive, False)
@@ -939,6 +948,7 @@ def echo_reader(echo, last, archive, favorites):
             save_to_favorites(msgids[msgn])
         elif not archive and (key == ord ("q") or key == ord("Q")):
             if len(msgids) > 0:
+
                 f = open("temp", "w")
                 f.write(msgids[msgn] + "\n")
                 f.write(msg[1] + "\n")
