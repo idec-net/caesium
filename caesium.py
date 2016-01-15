@@ -21,10 +21,7 @@ splash = ["  ______ ______ ______ ______ _____ _    _ _________",
           "||______|_| ||_|______|______|_____|______|_|||_|||_|",
           "|/______/_/ /__/______/______/_____/______/_/|/_/|/_/",
           "           ncurses ii-client         v.0.1",
-          "           Andrew Lobanov       13.01.2016",
-          "",
-          "                    Press any key"]
-
+          "           Andrew Lobanov       13.01.2016"]
 def check_directories():
     if not os.path.exists("echo"):
         os.mkdir("echo")
@@ -377,7 +374,8 @@ def splash_screen():
     for line in splash:
         stdscr.addstr(y + i, x, line, curses.color_pair(4))
         i = i + 1
-    stdscr.getch()
+    stdscr.refresh()
+    curses.napms(1500)
 
 def get_term_size():
     global width, height
