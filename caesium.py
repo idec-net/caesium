@@ -1008,8 +1008,8 @@ def echo_reader(echo, last, archive, favorites):
 check_directories()
 load_config()
 for i in range(0, len(nodes)):
-    nodes[i]["echoareas"].insert(0, ["favorites", "Избранные сообщения"])
-    nodes[i]["echoareas"].insert(1, ["carbonarea", "Карбонка"])
+    nodes[i]["echoareas"].insert(0, ["favorites", "Избранные сообщения", True])
+    nodes[i]["echoareas"].insert(1, ["carbonarea", "Карбонка", True])
 if os.path.exists("lasts.lst"):
     f = open("lasts.lst", "rb")
     lasts = pickle.load(f)
