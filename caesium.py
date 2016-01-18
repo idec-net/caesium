@@ -371,6 +371,9 @@ def send_mail():
     stdscr.getch()
     stdscr.clear()
 
+def get_out_length():
+    return len(os.listdir("out/" + nodes[node]["nodename"])) - 2
+
 #
 # Пользовательский интерфейс
 #
@@ -605,9 +608,9 @@ def echo_selector():
             if last < echo_length:
                 last = last + 1
             if cursor == 0 or echoareas[cursor][2]:
-                go = not echo_reader(echoareas[cursor][0], last, archive, True)
+                go = not echo_reader(echoareas[cursor][0], last, archive, True, False)
             else:
-                go = not echo_reader(echoareas[cursor][0], last, archive, False)
+                go = not echo_reader(echoareas[cursor][0], last, archive, False, False)
             counts_rescan = True
             if next_echoarea:
                 counts = rescan_counts(echoareas)
@@ -615,6 +618,8 @@ def echo_selector():
                 if cursor - start > height - 3:
                     start = cursor - height + 3
                 next_echoarea = False
+        elif key == ord("o"):
+            go = not echo_reader("out", get_out_length(), archive, True, True)
         elif key == ord("."):
             node = node + 1
             if node == len(nodes):
@@ -657,6 +662,29 @@ def read_msg(msgid):
             size = str(int(size / 1024 * 10) / 10) + " KB"
     else:
         msg = ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"]
+    return msg, size
+
+def read_out_msg(msgid):
+    size = "0b"
+    f = open("out/" + nodes[node]["nodename"] + "/" + msgid, "r")
+    temp = f.read().split("\n")
+    f.close()
+    msg = []
+    msg.append("")
+    msg.append(temp[0])
+    msg.append("")
+    msg.append("")
+    msg.append("")
+    msg.append(temp[1])
+    msg.append(temp[2])
+    for line in temp[3:]:
+        if not(line.startswith("@repto:")):
+               msg.append(line)
+    size = os.stat("out/" + nodes[node]["nodename"] + "/" + msgid).st_size
+    if size < 1024:
+        size = str(size) + " B"
+    else:
+        size = str(int(size / 1024 * 10) / 10) + " KB"
     return msg, size
 
 def body_render(tbody):
@@ -805,6 +833,17 @@ def get_echo_msgids(echo):
         msgids = []
     return msgids
 
+def get_out_msgids():
+    msgids = []
+    not_sended = []
+    if os.path.exists("out/" + nodes[node]["nodename"]):
+        for msg in sorted(os.listdir("out/" + nodes[node]["nodename"])):
+            if not msg == ".outcount":
+                msgids.append(msg)
+                if msg.endswith(".out"):
+                    not_sended.append(msg)
+    return msgids, not_sended
+
 def quote(to):
     if oldquote == True:
         return ""
@@ -817,7 +856,7 @@ def quote(to):
                 q = q + word[0]
         return q
 
-def echo_reader(echo, last, archive, favorites):
+def echo_reader(echo, last, archive, favorites, out):
     global lasts, next_echoarea
     stdscr.clear()
     if bold[0]:
@@ -828,9 +867,15 @@ def echo_reader(echo, last, archive, favorites):
     y = 0
     msgn = last
     key = 0
-    msgids = get_echo_msgids(echo)
+    if out:
+        msgids, not_sended = get_out_msgids()
+    else:
+        msgids = get_echo_msgids(echo)
     if len(msgids) > 0:
-        msg, size = read_msg(msgids[msgn])
+        if out:
+            msg, size = read_out_msg(msgids[msgn])
+        else:
+            msg, size = read_msg(msgids[msgn])
         msgbody = body_render(msg[8:])
     go = True
     while go:
@@ -838,13 +883,17 @@ def echo_reader(echo, last, archive, favorites):
             draw_reader(msg[1], msgids[msgn])
             msg_string = str(msgn + 1) + " / " + str(len(msgids)) + " [" + str(len(msgids) - msgn - 1) + "]"
             draw_title (0, width - len(msg_string) - 3, msg_string)
-            msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
+            if not(out):
+                msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
             if bold[3]:
                 color = curses.color_pair(4) + curses.A_BOLD
             else:
                 color = curses.color_pair(4)
-            stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", color)
-            stdscr.addstr(1, width - len(msgtime) - 1, msgtime, color)
+            if not(out):
+                stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", color)
+                stdscr.addstr(1, width - len(msgtime) - 1, msgtime, color)
+            else:
+                stdscr.addstr(1, 7, nodes[node]["to"], color)
             stdscr.addstr(2, 7, msg[5], color)
             stdscr.addstr(3, 7, msg[6][:width - 8], color)
             draw_title(4, 1, size)
@@ -897,13 +946,19 @@ def echo_reader(echo, last, archive, favorites):
             y = 0
             if len(msgids) > 0:
                 msgn = msgn - 1
-                msg, size = read_msg(msgids[msgn])
+                if out:
+                    msg, size = read_out_msg(msgids[msgn])
+                else:
+                    msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
         elif key == curses.KEY_RIGHT and msgn < len(msgids) - 1:
             y = 0
             if len(msgids) > 0:
                 msgn = msgn +1
-                msg, size = read_msg(msgids[msgn])
+                if out:
+                    msg, size = read_out_msg(msgids[msgn])
+                else:
+                    msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
         elif key == curses.KEY_RIGHT and (msgn == len(msgids) - 1 or len(msgids) == 0):
             go = False
@@ -931,7 +986,10 @@ def echo_reader(echo, last, archive, favorites):
                     quit = False
                 else:
                     msgn = msgn +1
-                    msg, size = read_msg(msgids[msgn])
+                    if out:
+                        msg, size = read_out_msg(msgids[msgn])
+                    else:
+                        msg, size = read_msg(msgids[msgn])
                     msgbody = body_render(msg[8:])
             else:
                 if len(msgids) > 0 and len(msgbody) > height - 6:
@@ -944,15 +1002,21 @@ def echo_reader(echo, last, archive, favorites):
             if len(msgids) > 0:
                 y = 0
                 msgn = 0
-                msg, size = read_msg(msgids[msgn])
+                if out:
+                    msg, size = read_out_msg(msgids[msgn])
+                else:
+                    msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
         elif key == curses.KEY_END:
             if len(msgids) > 0:
                 y = 0
                 msgn = len(msgids) - 1
-                msg, size = read_msg(msgids[msgn])
+                if out:
+                    msg, size = read_out_msg(msgids[msgn])
+                else:
+                    msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-        elif not archive and (key == ord ("i") or key == ord("I")):
+        elif not archive and not out and (key == ord ("i") or key == ord("I")):
             if not favorites:
                 f = open("temp", "w")
                 f.write(echo + "\n")
@@ -960,13 +1024,12 @@ def echo_reader(echo, last, archive, favorites):
                 f.write("No subject\n\n")
                 f.close()
                 call_editor()
-        elif key == ord("w") or key == ord("W"):
+        elif not out and key == ord("w") or key == ord("W"):
             save_message(msgids[msgn])
-        elif key == ord("f") or key == ord("F"):
+        elif not out and key == ord("f") or key == ord("F"):
             save_to_favorites(msgids[msgn])
-        elif not archive and (key == ord ("q") or key == ord("Q")):
+        elif not archive and not out and (key == ord ("q") or key == ord("Q")):
             if len(msgids) > 0:
-
                 f = open("temp", "w")
                 f.write(msgids[msgn] + "\n")
                 f.write(msg[1] + "\n")
