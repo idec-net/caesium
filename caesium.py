@@ -12,6 +12,7 @@ bold = [False, False, False, False, False, False, False]
 counts = []
 counts_rescan = True
 next_echoarea = False
+oldquote = False
 
 splash = ["  ______ ______ ______ ______ _____ _    _ _________",
           "/|  ____|  __  |  __  |  ____|_   _| | /| |  _   _  \\",
@@ -45,7 +46,7 @@ def separate(l, step=20):
         yield l[x:x+step]
 
 def load_config():
-    global nodes, editor, color_theme, show_splash
+    global nodes, editor, color_theme, show_splash, oldquote
     first = True
     node = {}
     echoareas = []
@@ -94,6 +95,8 @@ def load_config():
             color_theme = param[1]
         elif param[0] == "nosplash":
             show_splash = False
+        elif param[0] == "oldquote":
+            oldquote = True
     if not "nodename" in node:
         node["nodename"] = "untitled node"
     if not "to" in node:
@@ -802,6 +805,18 @@ def get_echo_msgids(echo):
         msgids = []
     return msgids
 
+def quote(to):
+    if oldquote == True:
+        return ""
+    else:
+        if len(to) == 1:
+            q = to[0]
+        else:
+            q = ""
+            for word in to:
+                q = q + word[0]
+        return q
+
 def echo_reader(echo, last, archive, favorites):
     global lasts, next_echoarea
     stdscr.clear()
@@ -957,12 +972,7 @@ def echo_reader(echo, last, archive, favorites):
                 f.write(msg[1] + "\n")
                 f.write(msg[3] + "\n")
                 to = msg[3].split(" ")
-                if len(to) == 1:
-                    q = to[0]
-                else:
-                    q = ""
-                    for word in to:
-                        q = q + word[0]
+                q = quote(to)
                 if not msg[6].startswith("Re:"):
                     f.write("Re: " + msg[6] + "\n")
                 else:
