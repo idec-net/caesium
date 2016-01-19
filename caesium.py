@@ -2,6 +2,7 @@
 
 import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re
 from datetime import datetime
+from shutil import copyfile
 
 nodes = []
 node = 0
@@ -317,6 +318,14 @@ def save_out():
         codecs.open(outcount(), "w", "utf-8").write("\n".join(buf))
         os.remove("temp")
 
+def resave_out(filename):
+    new = codecs.open("temp", "r", "utf-8").read().split("\n")
+    if len(new) <= 1:
+        os.remove("temp")
+    else:
+        codecs.open("out/" + nodes[node]["nodename"] + "/" + filename, "w", "utf-8").write("\n".join(new))
+        os.remove("temp")
+
 def make_toss():
     if not os.path.exists("out/" + nodes[node]["nodename"]):
         os.mkdir("out/" + nodes[node]["nodename"])
@@ -618,7 +627,7 @@ def echo_selector():
                 if cursor - start > height - 3:
                     start = cursor - height + 3
                 next_echoarea = False
-        elif key == ord("o"):
+        elif key == ord("o") or key == ord("O"):
             go = not echo_reader("out", get_out_length(), archive, True, True)
         elif key == ord("."):
             node = node + 1
@@ -747,6 +756,9 @@ def draw_reader(echo, msgid, out):
         stdscr.insstr(height - 1, i, "─", color)
     if out:
         draw_title(0, 1, echo)
+        if msgid.endswith(".out"):
+            ns = "не отправлено"
+            draw_title(4, width - len(ns) - 3, ns)
     else:
         draw_title(0, 1, echo + " / " + msgid)
     current_time()
@@ -761,13 +773,16 @@ def draw_reader(echo, msgid, out):
     stdscr.addstr(3, 1, "Тема: ", color)
 
 
-def call_editor():
+def call_editor(out = False):
     curses.echo()
     curses.curs_set(True)
     curses.endwin()
     p = subprocess.Popen(editor + " ./temp", shell=True)
     p.wait()
-    save_out()
+    if not out:
+        save_out()
+    else:
+        resave_out(out)
     stdscr = curses.initscr()
     curses.start_color()
     curses.noecho()
@@ -843,9 +858,7 @@ def get_out_msgids():
         for msg in sorted(os.listdir("out/" + nodes[node]["nodename"])):
             if not msg == ".outcount":
                 msgids.append(msg)
-                if msg.endswith(".out"):
-                    not_sended.append(msg)
-    return msgids, not_sended
+    return msgids
 
 def quote(to):
     if oldquote == True:
@@ -871,7 +884,7 @@ def echo_reader(echo, last, archive, favorites, out):
     msgn = last
     key = 0
     if out:
-        msgids, not_sended = get_out_msgids()
+        msgids = get_out_msgids()
     else:
         msgids = get_echo_msgids(echo)
     if len(msgids) > 0:
@@ -1027,11 +1040,11 @@ def echo_reader(echo, last, archive, favorites, out):
                 f.write("No subject\n\n")
                 f.close()
                 call_editor()
-        elif not out and key == ord("w") or key == ord("W"):
+        elif key == ord("w") or key == ord("W") and not out:
             save_message(msgids[msgn])
-        elif not out and key == ord("f") or key == ord("F"):
+        elif key == ord("f") or key == ord("F") and not out:
             save_to_favorites(msgids[msgn])
-        elif not archive and not out and (key == ord ("q") or key == ord("Q")):
+        elif (key == ord ("q") or key == ord("Q")) and not archive and not out:
             if len(msgids) > 0:
                 f = open("temp", "w")
                 f.write(msgids[msgn] + "\n")
@@ -1058,7 +1071,15 @@ def echo_reader(echo, last, archive, favorites, out):
                         f.write("\n" + line)
                 f.close()
                 call_editor()
-        elif favorites and key == curses.KEY_DC:
+        elif key == ord("e") or key == ord("E") and out:
+            if msgids[msgn].endswith(".out"):
+                copyfile("out/" + nodes[node]["nodename"] + "/" + msgids[msgn], "temp")
+                call_editor(msgids[msgn])
+                msg, size = read_out_msg(msgids[msgn])
+                msgbody = body_render(msg[8:])
+            else:
+                message_box("Сообщение уже отправлено")
+        elif key == curses.KEY_DC and favorites:
             if len(msgids) > 0:
                 favorites_list = open("echo/favorites", "r").read().split("\n")
                 favorites_list.remove(msgids[msgn])
