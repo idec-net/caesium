@@ -355,7 +355,7 @@ def send_mail():
         else:
             color = curses.color_pair(4)
         for msg in lst:
-            stdscr.addstr(1, 1, "Отправка сообщения: " + str(n) + "/" + str(max), color)
+            stdscr.addstr(1, 2, "Отправка сообщения: " + str(n) + "/" + str(max), color)
             text = codecs.open("out/" + nodes[node]["nodename"] + "/%s" % msg, "r", "utf-8").read()
             data = urllib.parse.urlencode({"tmsg": text,"pauth": nodes[node]["auth"]}).encode("utf-8")
             request = urllib.request.Request(nodes[node]["node"] + "u/point")
@@ -369,14 +369,14 @@ def send_mail():
                 print ("ERROR: unknown auth!")
             else:
                 print ("ERROR: unknown error!")
-        stdscr.addstr(3, 1, "Отправка завершена.", color)
+        stdscr.addstr(3, 2, "Отправка завершена.", color)
     except:
-        stdscr.addstr(2, 1, "Ошибка: не удаётся связаться с нодой.", color)
+        stdscr.addstr(2, 2, "Ошибка: не удаётся связаться с нодой.", color)
     if bold[1]:
         color = curses.color_pair(2) + curses.A_BOLD
     else:
         curses.color_pair(2)
-    stdscr.addstr(3, 1, "Нажмите любую клавишу.", color)
+    stdscr.addstr(3, 2, "Нажмите любую клавишу.", color)
     stdscr.getch()
     stdscr.clear()
 
