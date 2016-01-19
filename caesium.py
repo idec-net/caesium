@@ -736,7 +736,7 @@ def body_render(tbody):
         body = body + "\n"
     return body.split("\n")
 
-def draw_reader(echo, msgid):
+def draw_reader(echo, msgid, out):
     for i in range(0, width):
         if bold[0]:
             color = curses.color_pair(1) + curses.A_BOLD
@@ -745,7 +745,10 @@ def draw_reader(echo, msgid):
         stdscr.insstr(0, i, "─", color)
         stdscr.insstr(4, i, "─", color)
         stdscr.insstr(height - 1, i, "─", color)
-    draw_title(0, 1, echo + " / " + msgid)
+    if out:
+        draw_title(0, 1, echo)
+    else:
+        draw_title(0, 1, echo + " / " + msgid)
     current_time()
     for i in range(0, 3):
         draw_cursor(i, 1)
@@ -880,7 +883,7 @@ def echo_reader(echo, last, archive, favorites, out):
     go = True
     while go:
         if len(msgids) > 0:
-            draw_reader(msg[1], msgids[msgn])
+            draw_reader(msg[1], msgids[msgn], out)
             msg_string = str(msgn + 1) + " / " + str(len(msgids)) + " [" + str(len(msgids) - msgn - 1) + "]"
             draw_title (0, width - len(msg_string) - 3, msg_string)
             if not(out):
@@ -973,10 +976,10 @@ def echo_reader(echo, last, archive, favorites, out):
                 if y < 0:
                     y = 0
         elif key == curses.KEY_NPAGE:
-            if len(msgids) > 0 and len(msgbody) > height - 5:
-                y = y + height - 5
-                if y + height - 5 >= len(msgbody):
-                    y = len(msgbody) - height + 5
+            if len(msgids) > 0 and len(msgbody) > height - 6:
+                y = y + height - 6
+                if y + height - 6 >= len(msgbody):
+                    y = len(msgbody) - height + 6
         elif key == 10 or key == ord(" "):
             if len(msgids) == 0 or y >= len(msgbody) - height + 6:
                 y = 0
