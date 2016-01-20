@@ -22,8 +22,8 @@ splash = ["  ______ ______ ______ ______ _____ _    _ _________",
           "|| |____| | || | |____/____| |_| |_| |__| | ||| ||| |",
           "||______|_| ||_|______|______|_____|______|_|||_|||_|",
           "|/______/_/ /__/______/______/_____/______/_/|/_/|/_/",
-          "           ncurses ii-client         v.0.1",
-          "           Andrew Lobanov       13.01.2016"]
+          "           ncurses ii-client         v.0.2",
+          "           Andrew Lobanov       19.01.2016"]
 def check_directories():
     if not os.path.exists("echo"):
         os.mkdir("echo")
@@ -402,7 +402,7 @@ def splash_screen():
         stdscr.addstr(y + i, x, line, curses.color_pair(4))
         i = i + 1
     stdscr.refresh()
-    curses.napms(1500)
+    curses.napms(2000)
 
 def get_term_size():
     global width, height
@@ -479,6 +479,10 @@ def draw_echo_selector(start, cursor, archive):
             m = width - 38
         dsc_lens.append(l)
     y = 0
+    count = "Сообщений"
+    unread = "Не прочитано"
+    draw_title(0, width - 10 - m - len(count) - 1, count);
+    draw_title(0, width - 8 - m - 1, unread);
     for echo in echoareas:
         if y - start < height - 2:
             if y == cursor:
