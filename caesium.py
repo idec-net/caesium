@@ -22,9 +22,8 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
            "███      ███  ███ ███           ███ ███ ███  ███ ███ ██ ███",
            "████████ ████████ ████████ ████████ ███ ████████ ███ ██ ███",
            "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄",
-           "          █ ncurses ii-client             v.0.2 █",
-           "          █ Andrew Lobanov           20.01.2016 █",
-           "          ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀"]
+           "            ncurses ii-client             v.0.2",
+           "            Andrew Lobanov           20.01.2016"]
 
 def check_directories():
     if not os.path.exists("echo"):
@@ -919,6 +918,12 @@ def echo_reader(echo, last, archive, favorites, out):
             stdscr.addstr(2, 7, msg[5], color)
             stdscr.addstr(3, 7, msg[6][:width - 8], color)
             draw_title(4, 1, size)
+            tags = msg[0].split("/")
+            if "repto" in tags:
+                repto = tags[tags.index("repto") + 1]
+                draw_title(4, len(size) + 4, "Ответ на " + repto)
+            else:
+                reto = None
             for i in range (0, height - 6):
                 for x in range (0, width):
                     stdscr.addstr(i + 5, x, " ", 1)
@@ -950,7 +955,7 @@ def echo_reader(echo, last, archive, favorites, out):
                                 stdscr.attroff(curses.A_BOLD)
                         stdscr.addstr(i + 5, 0, msgbody[y + i][1:])
         else:
-            draw_reader(echo, "")
+            draw_reader(echo, "", out)
         stdscr.attron(curses.color_pair(1))
         if bold[0]:
             stdscr.attron(curses.A_BOLD)
