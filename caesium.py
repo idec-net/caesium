@@ -976,6 +976,8 @@ def echo_reader(echo, last, archive, favorites, out):
             y = 0
             if len(msgids) > 0:
                 msgn = msgn - 1
+                if len(stack) > 0:
+                    stack = []
                 if out:
                     msg, size = read_out_msg(msgids[msgn])
                 else:
@@ -985,6 +987,8 @@ def echo_reader(echo, last, archive, favorites, out):
             y = 0
             if len(msgids) > 0:
                 msgn = msgn +1
+                if len(stack) > 0:
+                    stack = []
                 if out:
                     msg, size = read_out_msg(msgids[msgn])
                 else:
@@ -995,12 +999,12 @@ def echo_reader(echo, last, archive, favorites, out):
             quit = False
             next_echoarea = True
         elif key == ord("-") and not out and repto:
-            stack.append(msgids[msgn])
+            stack.append(msgn)
             msgn = msgids.index(repto)
             msg, size = read_msg(msgids[msgn])
             msgbody = body_render(msg[8:])
         elif key == ord("=") and not out and len(stack) > 0:
-            msgn = msgids.index(stack.pop())
+            msgn = stack.pop()
             msg, size = read_msg(msgids[msgn])
             msgbody = body_render(msg[8:])
         elif key == curses.KEY_UP and y > 0:
@@ -1025,6 +1029,8 @@ def echo_reader(echo, last, archive, favorites, out):
                     quit = False
                 else:
                     msgn = msgn +1
+                    if len(stack) > 0:
+                        stack = []
                     if out:
                         msg, size = read_out_msg(msgids[msgn])
                     else:
@@ -1041,6 +1047,8 @@ def echo_reader(echo, last, archive, favorites, out):
             if len(msgids) > 0:
                 y = 0
                 msgn = 0
+                if len(stack) > 0:
+                    stack = []
                 if out:
                     msg, size = read_out_msg(msgids[msgn])
                 else:
@@ -1050,6 +1058,8 @@ def echo_reader(echo, last, archive, favorites, out):
             if len(msgids) > 0:
                 y = 0
                 msgn = len(msgids) - 1
+                if len(stack) > 0:
+                    stack = []
                 if out:
                     msg, size = read_out_msg(msgids[msgn])
                 else:
