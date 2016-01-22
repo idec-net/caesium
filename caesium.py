@@ -899,6 +899,7 @@ def echo_reader(echo, last, archive, favorites, out):
             msg, size = read_msg(msgids[msgn])
         msgbody = body_render(msg[8:])
     go = True
+    stack = []
     while go:
         if len(msgids) > 0:
             draw_reader(msg[1], msgids[msgn], out)
@@ -923,7 +924,7 @@ def echo_reader(echo, last, archive, favorites, out):
                 repto = tags[tags.index("repto") + 1]
                 draw_title(4, len(size) + 4, "Ответ на " + repto)
             else:
-                reto = None
+                repto = False
             for i in range (0, height - 6):
                 for x in range (0, width):
                     stdscr.addstr(i + 5, x, " ", 1)
@@ -991,6 +992,15 @@ def echo_reader(echo, last, archive, favorites, out):
             go = False
             quit = False
             next_echoarea = True
+        elif key == ord("-") and not out and repto:
+            stack.append(msgids[msgn])
+            msgn = msgids.index(repto)
+            msg, size = read_msg(msgids[msgn])
+            msgbody = body_render(msg[8:])
+        elif key == ord("=") and not out and len(stack) > 0:
+            msgn = msgids.index(stack.pop())
+            msg, size = read_msg(msgids[msgn])
+            msgbody = body_render(msg[8:])
         elif key == curses.KEY_UP and y > 0:
             if len(msgids) > 0:
                 y = y - 1
