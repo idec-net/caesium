@@ -63,6 +63,7 @@ def load_config():
                 node["echoareas"] = echoareas
                 node["archive"] = archive
                 node["clone"] = []
+                node["to"] = []
                 nodes.append(node)
             else:
                 first = False
@@ -85,7 +86,8 @@ def load_config():
             else:
                 echoareas.append([param[1], " ".join(param[2:]), True])
         elif param[0] == "to":
-            node["to"] = " ".join(param[1:])
+            node["to"] = (" ".join(param[1:]).split(","))
+            print(node["to"])
         elif param[0] == "archive":
             if len(param) == 2:
                 archive.append([param[1], "", True])
@@ -199,7 +201,7 @@ def debundle(echo, bundle, local, carbonarea):
             msgid = m[0]
             if len(msgid) == 20 and m[1]:
                 msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
-                if msgbody.split("\n")[5] == nodes[node]["to"] and not msgid in carbonarea:
+                if msgbody.split("\n")[5] in nodes[node]["to"] and not msgid in carbonarea:
                     codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
                 codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
                 codecs.open("echo/" + echo[0], "a", "utf-8").write(msgid + "\n")
