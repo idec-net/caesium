@@ -998,7 +998,7 @@ def echo_reader(echo, last, archive, favorites, out):
             go = False
             quit = False
             next_echoarea = True
-        elif key == ord("-") and not out and repto:
+        elif key == ord("-") and not echo == "carbonarea" and not echo == "favorites" and not out and repto:
             stack.append(msgn)
             msgn = msgids.index(repto)
             msg, size = read_msg(msgids[msgn])
@@ -1120,6 +1120,8 @@ def echo_reader(echo, last, archive, favorites, out):
                 msgids = get_echo_msgids(echo)
                 if msgn >= len(msgids):
                     msgn = len(msgids) - 1
+                msg, size = read_msg(msgids[msgn])
+                msgbody = body_render(msg[8:])
                 stdscr.clear()
         elif key == 27:
             go = False
