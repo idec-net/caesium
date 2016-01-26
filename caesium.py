@@ -63,7 +63,8 @@ def load_config():
                 node["echoareas"] = echoareas
                 node["archive"] = archive
                 node["clone"] = []
-                node["to"] = []
+                if not "to" in node:
+                    node["to"] = []
                 nodes.append(node)
             else:
                 first = False
@@ -86,8 +87,7 @@ def load_config():
             else:
                 echoareas.append([param[1], " ".join(param[2:]), True])
         elif param[0] == "to":
-            node["to"] = (" ".join(param[1:]).split(","))
-            print(node["to"])
+            node["to"] = " ".join(param[1:]).split(",")
         elif param[0] == "archive":
             if len(param) == 2:
                 archive.append([param[1], "", True])
@@ -104,7 +104,7 @@ def load_config():
     if not "nodename" in node:
         node["nodename"] = "untitled node"
     if not "to" in node:
-        node["to"] = ""
+        node["to"] = []
     node["echoareas"] = echoareas
     node["archive"] = archive
     node["clone"] = []
@@ -469,10 +469,10 @@ def draw_echo_selector(start, cursor, archive):
     stdscr.border()
     if archive:
         echoareas = nodes[node]["archive"]
-        draw_title(0, 1, "Архив эхоконференций")
+        draw_title(0, 1, "Архив")
     else:
         echoareas = nodes[node]["echoareas"]
-        draw_title(0, 1, "Список эхоконференций")
+        draw_title(0, 1, "Эхоконференции")
         draw_title(0, width - len(nodes[node]["nodename"]) - 3, nodes[node]["nodename"])
     for echo in echoareas:
         l = len(echo[1])
@@ -484,8 +484,8 @@ def draw_echo_selector(start, cursor, archive):
     y = 0
     count = "Сообщений"
     unread = "Не прочитано"
-    draw_title(0, width - 10 - m - len(count) - 1, count);
-    draw_title(0, width - 8 - m - 1, unread);
+    draw_title(0, width - 11 - m - len(count) - 1, count);
+    draw_title(0, width - 9 - m - 1, unread);
     for echo in echoareas:
         if y - start < height - 2:
             if y == cursor:
@@ -528,8 +528,8 @@ def draw_echo_selector(start, cursor, archive):
                 else:
                     cut_index = width - 38 - len(echo[1])
                     stdscr.addstr(y + 1 - start, width - 2 - len(echo[1][:cut_index]), echo[1][:cut_index])
-                stdscr.addstr(y + 1 - start, width - 10 - m - len(counts[y][0]), counts[y][0])
-                stdscr.addstr(y + 1 - start, width - 4 - m - len(counts[y][1]), counts[y][1])
+                stdscr.addstr(y + 1 - start, width - 11 - m - len(counts[y][0]), counts[y][0])
+                stdscr.addstr(y + 1 - start, width - 3 - m - len(counts[y][1]), counts[y][1])
         y = y + 1
     current_time()
     stdscr.refresh()
