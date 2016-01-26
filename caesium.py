@@ -999,10 +999,11 @@ def echo_reader(echo, last, archive, favorites, out):
             quit = False
             next_echoarea = True
         elif key == ord("-") and not echo == "carbonarea" and not echo == "favorites" and not out and repto:
-            stack.append(msgn)
-            msgn = msgids.index(repto)
-            msg, size = read_msg(msgids[msgn])
-            msgbody = body_render(msg[8:])
+            if repto in msgids:
+                stack.append(msgn)
+                msgn = msgids.index(repto)
+                msg, size = read_msg(msgids[msgn])
+                msgbody = body_render(msg[8:])
         elif key == ord("=") and not out and len(stack) > 0:
             msgn = stack.pop()
             msg, size = read_msg(msgids[msgn])
