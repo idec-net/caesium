@@ -38,6 +38,9 @@ def check_directories():
         open("echo/favorites", "w")
     if not os.path.exists("echo/carbonarea"):
         open("echo/carbonarea", "w")
+    if not os.path.exists("caesium.cfg"):
+        default_config = open("caesium.def.cfg", "r").read()
+        open("caesium.cfg","w").write(default_config)
 
 #
 # Взаимодействие с нодой
@@ -406,6 +409,7 @@ def splash_screen():
         i = i + 1
     stdscr.refresh()
     curses.napms(2000)
+    stdscr.clear()
 
 def get_term_size():
     global width, height
@@ -600,7 +604,7 @@ def echo_selector():
         elif key == ord("s") or key == ord("S"):
             make_toss()
             send_mail()
-        elif key == 9:
+        elif key == 9 and not len(nodes[node]["archive"]) == 0:
             if archive:
                 archive = False
                 archive_cursor = cursor
