@@ -927,7 +927,7 @@ def echo_reader(echo, last, archive, favorites, out):
                 stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", color)
                 stdscr.addstr(1, width - len(msgtime) - 1, msgtime, color)
             else:
-                stdscr.addstr(1, 7, nodes[node]["to"], color)
+                stdscr.addstr(1, 7, nodes[node]["to"][0], color)
             stdscr.addstr(2, 7, msg[5], color)
             stdscr.addstr(3, 7, msg[6][:width - 8], color)
             draw_title(4, 1, size)
