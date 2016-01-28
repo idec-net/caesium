@@ -388,7 +388,10 @@ def send_mail():
     stdscr.clear()
 
 def get_out_length():
-    return len(os.listdir("out/" + nodes[node]["nodename"])) - 2
+    try:
+        return len(os.listdir("out/" + nodes[node]["nodename"])) - 2
+    except:
+        return 0
 
 #
 # Пользовательский интерфейс
@@ -640,7 +643,9 @@ def echo_selector():
                     start = cursor - height + 3
                 next_echoarea = False
         elif key == ord("o") or key == ord("O"):
-            go = not echo_reader("out", get_out_length(), archive, True, True)
+            out_length = get_out_length()
+            if out_length > 0:
+                go = not echo_reader("out", out_length, archive, True, True)
         elif key == ord("."):
             node = node + 1
             if node == len(nodes):
