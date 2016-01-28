@@ -303,13 +303,14 @@ def fetch_mail():
     stdscr.clear()
 
 def outcount():
-    if not os.path.exists("out/" + nodes[node]["nodename"]):
-        os.mkdir("out/" + nodes[node]["nodename"])
-    if not os.path.exists("out/" + nodes[node]["nodename"] + "/.outcount"):
-        codecs.open("out/" + nodes[node]["nodename"] + "/.outcount", "w", "utf-8").write("0")
-    i = str(int(codecs.open("out/" + nodes[node]["nodename"] + "/.outcount", "r", "utf-8").read()) + 1)
-    codecs.open("out/" + nodes[node]["nodename"] + "/.outcount", "w", "utf-8").write(i)
-    return "out/" + nodes[node]["nodename"] + "/%s.out" % i.zfill(5)
+    outpath = "out/" + nodes[node]["nodename"].split("/")[0]
+    if not os.path.exists(outpath):
+        os.mkdir(outpath)
+    if not os.path.exists(outpath + "/.outcount"):
+        codecs.open(outpath + "/.outcount", "w", "utf-8").write("0")
+    i = str(int(codecs.open(outpath + "/.outcount", "r", "utf-8").read()) + 1)
+    codecs.open(outpath + "/.outcount", "w", "utf-8").write(i)
+    return outpath + "/%s.out" % i.zfill(5)
 
 def save_out():
     new = codecs.open("temp", "r", "utf-8").read().split("\n")
