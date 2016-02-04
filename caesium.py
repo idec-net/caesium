@@ -221,7 +221,7 @@ def fetch_mail():
         stdscr.attroff(curses.A_BOLD)
     stdscr.border()
     draw_title(0, 1, "Получение почты")
-    draw_title(0, width - len(nodes[node]["nodename"]) - 3, nodes[node]["nodename"])
+    draw_title(height - 1, 1, nodes[node]["nodename"])
     stdscr.refresh()
     log = curses.newwin(height - 2, width - 2, 1, 1)
     log.scrollok(True)
@@ -352,6 +352,7 @@ def send_mail():
         stdscr.attron(curses.color_pair(1))
     stdscr.border()
     draw_title(0, 1, "Отправка почты")
+    draw_title(height - 1, 1, nodes[node]["nodename"])
     stdscr.refresh()
     lst = [x for x in sorted(os.listdir("out/" + nodes[node]["nodename"])) if x.endswith(".toss")]
     max = len(lst)
@@ -481,7 +482,7 @@ def draw_echo_selector(start, cursor, archive):
     else:
         echoareas = nodes[node]["echoareas"]
         draw_title(0, 1, "Эхоконференции")
-        draw_title(height - 1, 1, nodes[node]["nodename"])
+    draw_title(height - 1, 1, nodes[node]["nodename"])
     for echo in echoareas:
         l = len(echo[1])
         if l > m:
