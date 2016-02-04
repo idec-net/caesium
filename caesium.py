@@ -493,9 +493,12 @@ def draw_echo_selector(start, cursor, archive):
     count = "Сообщений"
     unread = "Не прочитано"
     description = "Описание"
+    if width < 80:
+        m = len(unread) - 7
     draw_title(0, width - 11 - m - len(count) - 1, count);
     draw_title(0, width - 9 - m - 1, unread);
-    draw_title(0, width - len(description) - 3, description)
+    if width >= 80:
+        draw_title(0, width - len(description) - 3, description)
     for echo in echoareas:
         if y - start < height - 2:
             if y == cursor:
@@ -533,11 +536,12 @@ def draw_echo_selector(start, cursor, archive):
                 if counts_rescan:
                     counts = rescan_counts(echoareas)
                     counts_rescan = False
-                if width - 38 >= len(echo[1]):
-                    stdscr.addstr(y + 1 - start, width - 2 - dsc_lens[y], echo[1])
-                else:
-                    cut_index = width - 38 - len(echo[1])
-                    stdscr.addstr(y + 1 - start, width - 2 - len(echo[1][:cut_index]), echo[1][:cut_index])
+                if width >= 80:
+                    if width - 38 >= len(echo[1]):
+                        stdscr.addstr(y + 1 - start, width - 2 - dsc_lens[y], echo[1])
+                    else:
+                        cut_index = width - 38 - len(echo[1])
+                        stdscr.addstr(y + 1 - start, width - 2 - len(echo[1][:cut_index]), echo[1][:cut_index])
                 stdscr.addstr(y + 1 - start, width - 11 - m - len(counts[y][0]), counts[y][0])
                 stdscr.addstr(y + 1 - start, width - 3 - m - len(counts[y][1]), counts[y][1])
         y = y + 1
