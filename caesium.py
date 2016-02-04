@@ -481,7 +481,7 @@ def draw_echo_selector(start, cursor, archive):
     else:
         echoareas = nodes[node]["echoareas"]
         draw_title(0, 1, "Эхоконференции")
-        draw_title(0, width - len(nodes[node]["nodename"]) - 3, nodes[node]["nodename"])
+        draw_title(height - 1, 1, nodes[node]["nodename"])
     for echo in echoareas:
         l = len(echo[1])
         if l > m:
@@ -492,8 +492,10 @@ def draw_echo_selector(start, cursor, archive):
     y = 0
     count = "Сообщений"
     unread = "Не прочитано"
+    description = "Описание"
     draw_title(0, width - 11 - m - len(count) - 1, count);
     draw_title(0, width - 9 - m - 1, unread);
+    draw_title(0, width - len(description) - 3, description)
     for echo in echoareas:
         if y - start < height - 2:
             if y == cursor:
