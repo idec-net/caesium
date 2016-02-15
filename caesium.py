@@ -693,7 +693,7 @@ def read_msg(msgid):
         if size < 1024:
             size = str(size) + " B"
         else:
-            size = str(int(size / 1024 * 10) / 10) + " KB"
+            size = str(round(int(size / 1024 * 10) / 10)) + " KB"
     else:
         msg = ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"]
     return msg, size
