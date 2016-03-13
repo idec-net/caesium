@@ -578,15 +578,15 @@ def echo_selector():
         if key == curses.KEY_RESIZE:
             get_term_size()
             stdscr.clear()
-        elif key == s_up and cursor > 0:
+        elif key in s_up and cursor > 0:
             cursor = cursor - 1
             if cursor - start < 0 and start > 0:
                 start = start - 1
-        elif key == s_down and cursor < len(echoareas) - 1:
+        elif key in s_down and cursor < len(echoareas) - 1:
             cursor = cursor + 1
             if cursor - start > height - 3 and start < len(echoareas) - height + 2:
                 start = start + 1
-        elif key == s_ppage:
+        elif key in s_ppage:
             cursor = cursor - height + 2
             if cursor < 0:
                 cursor = 0
@@ -594,7 +594,7 @@ def echo_selector():
                 start = start - height + 2
             if start < 0:
                 start = 0
-        elif key == s_npage:
+        elif key in s_npage:
             cursor = cursor + height - 2
             if cursor >= len(echoareas):
                 cursor = len(echoareas) - 1
@@ -602,21 +602,21 @@ def echo_selector():
                 start = start + height - 2
                 if start > len(echoareas) - height + 2:
                     start = len(echoareas) - height + 2
-        elif key == s_home:
+        elif key in s_home:
             cursor = 0
             start = 0
-        elif key == s_end:
+        elif key in s_end:
             cursor = len(echoareas) - 1
             if len(echoareas) >= height - 2:
                 start = len(echoareas) - height + 2
-        elif key == s_get or key == s_GET:
+        elif key in s_get:
             fetch_mail()
             counts = rescan_counts(echoareas)
             cursor = find_new(0)
-        elif key == s_send or key == s_SEND:
+        elif key in s_send:
             make_toss()
             send_mail()
-        elif key == s_archive and not len(nodes[node]["archive"]) == 0:
+        elif key in s_archive and not len(nodes[node]["archive"]) == 0:
             if archive:
                 archive = False
                 archive_cursor = cursor
@@ -631,7 +631,7 @@ def echo_selector():
                 echoareas = nodes[node]["archive"]
                 stdscr.clear()
                 counts_rescan = True
-        elif key == s_enter1 or key == s_enter2 or key == s_enter3:
+        elif key in s_enter:
             if echoareas[cursor][0] in lasts:
                 last = lasts[echoareas[cursor][0]]
             else:
@@ -650,11 +650,11 @@ def echo_selector():
                 if cursor - start > height - 3:
                     start = cursor - height + 3
                 next_echoarea = False
-        elif key == s_out or key == s_OUT:
+        elif key in s_out:
             out_length = get_out_length()
             if out_length > 0:
                 go = not echo_reader("out", out_length, archive, True, True)
-        elif key == s_nnode:
+        elif key in s_nnode:
             node = node + 1
             if node == len(nodes):
                 node = 0
@@ -662,7 +662,7 @@ def echo_selector():
             stdscr.clear()
             counts_rescan = True
             cursor = 0
-        elif key == s_pnode:
+        elif key in s_pnode:
             node = node - 1
             if node == -1:
                 node = len(nodes) - 1
@@ -670,13 +670,13 @@ def echo_selector():
             stdscr.clear()
             counts_rescan = True
             cursor = 0
-        elif key == s_clone or key == s_CLONE:
+        elif key in s_clone or key in s_PLONE:
             if cursor > 1:
                 if echoareas[cursor][0] in nodes[node]["clone"]:
                     nodes[node]["clone"].remove(echoareas[cursor][0])
                 else:
                     nodes[node]["clone"].append(echoareas[cursor][0])
-        elif key == g_quit:
+        elif key in g_quit:
             go = False
     if archive:
         archive_cursor = cursor
@@ -990,7 +990,7 @@ def echo_reader(echo, last, archive, favorites, out):
             if len(msgids) > 0:
                 msgbody = body_render(msg[8:])
             stdscr.clear()
-        elif key == r_prev and msgn > 0:
+        elif key in r_prev and msgn > 0:
             y = 0
             if len(msgids) > 0:
                 msgn = msgn - 1
@@ -1001,7 +1001,7 @@ def echo_reader(echo, last, archive, favorites, out):
                 else:
                     msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-        elif key == r_next and msgn < len(msgids) - 1:
+        elif key in r_next and msgn < len(msgids) - 1:
             y = 0
             if len(msgids) > 0:
                 msgn = msgn +1
@@ -1012,34 +1012,34 @@ def echo_reader(echo, last, archive, favorites, out):
                 else:
                     msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-        elif key == r_next and (msgn == len(msgids) - 1 or len(msgids) == 0):
+        elif key in r_next and (msgn == len(msgids) - 1 or len(msgids) == 0):
             go = False
             quit = False
             next_echoarea = True
-        elif key == r_prep and not echo == "carbonarea" and not echo == "favorites" and not out and repto:
+        elif key in r_prep and not echo == "carbonarea" and not echo == "favorites" and not out and repto:
             if repto in msgids:
                 stack.append(msgn)
                 msgn = msgids.index(repto)
                 msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-        elif key == r_nrep and not out and len(stack) > 0:
+        elif key in r_nrep and not out and len(stack) > 0:
             msgn = stack.pop()
             msg, size = read_msg(msgids[msgn])
             msgbody = body_render(msg[8:])
-        elif key == r_up and y > 0:
+        elif key in r_up and y > 0:
             if len(msgids) > 0:
                 y = y - 1
-        elif key == r_ppage:
+        elif key in r_ppage:
             if len(msgids) > 0:
                 y = y - height + 6
                 if y < 0:
                     y = 0
-        elif key == r_npage:
+        elif key in r_npage:
             if len(msgids) > 0 and len(msgbody) > height - 6:
                 y = y + height - 6
                 if y + height - 6 >= len(msgbody):
                     y = len(msgbody) - height + 6
-        elif key == r_ukey1 or key == r_ukey2:
+        elif key in r_ukeys:
             if len(msgids) == 0 or y >= len(msgbody) - height + 6:
                 y = 0
                 if msgn == len(msgids) - 1 or len(msgids) == 0:
@@ -1058,11 +1058,11 @@ def echo_reader(echo, last, archive, favorites, out):
             else:
                 if len(msgids) > 0 and len(msgbody) > height - 6:
                     y = y + height - 6
-        elif key == r_down:
+        elif key in r_down:
             if len(msgids) > 0:
                 if y + height - 5 < len(msgbody):
                     y = y + 1
-        elif key == r_begin:
+        elif key in r_begin:
             if len(msgids) > 0:
                 y = 0
                 msgn = 0
@@ -1073,7 +1073,7 @@ def echo_reader(echo, last, archive, favorites, out):
                 else:
                     msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-        elif key == r_end:
+        elif key in r_end:
             if len(msgids) > 0:
                 y = 0
                 msgn = len(msgids) - 1
@@ -1084,7 +1084,7 @@ def echo_reader(echo, last, archive, favorites, out):
                 else:
                     msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-        elif (key == r_ins or key == r_INS) and not archive and not out:
+        elif (key in r_ins) and not archive and not out:
             if not favorites:
                 f = open("temp", "w")
                 f.write(echo + "\n")
@@ -1092,11 +1092,11 @@ def echo_reader(echo, last, archive, favorites, out):
                 f.write("No subject\n\n")
                 f.close()
                 call_editor()
-        elif key == r_save or key == r_SAVE and not out:
+        elif key in r_save and not out:
             save_message(msgids[msgn])
-        elif key == r_favorites or key == r_FAVORITES and not out:
+        elif key in r_favorites and not out:
             save_to_favorites(msgids[msgn])
-        elif (key == r_quote or key == r_QUOTE) and not archive and not out:
+        elif (key in r_quote) and not archive and not out:
             if len(msgids) > 0:
                 f = open("temp", "w")
                 f.write(msgids[msgn] + "\n")
@@ -1123,7 +1123,7 @@ def echo_reader(echo, last, archive, favorites, out):
                         f.write("\n" + line)
                 f.close()
                 call_editor()
-        elif key == o_edit or key == o_EDIT and out:
+        elif key in o_edit and out:
             if msgids[msgn].endswith(".out"):
                 copyfile("out/" + nodes[node]["nodename"] + "/" + msgids[msgn], "temp")
                 call_editor(msgids[msgn])
@@ -1131,7 +1131,7 @@ def echo_reader(echo, last, archive, favorites, out):
                 msgbody = body_render(msg[8:])
             else:
                 message_box("Сообщение уже отправлено")
-        elif key == f_delete and favorites:
+        elif key in f_delete and favorites:
             if len(msgids) > 0:
                 favorites_list = open("echo/favorites", "r").read().split("\n")
                 favorites_list.remove(msgids[msgn])
@@ -1142,11 +1142,11 @@ def echo_reader(echo, last, archive, favorites, out):
                 msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
                 stdscr.clear()
-        elif key == r_quit:
+        elif key in r_quit:
             go = False
             quit = False
             next_echoarea = False
-        elif key == g_quit:
+        elif key in g_quit:
             go = False
             quit = True
     lasts[echo] = msgn
