@@ -821,7 +821,7 @@ def message_box(smsg):
     for line in msg:
         if len(line) > maxlen:
             maxlen = len(line)
-    msgwin = curses.newwin(len(msg) + 4, maxlen + 2, int(height / 2 - 2) , int(width / 2 - maxlen / 2))
+    msgwin = curses.newwin(len(msg) + 4, maxlen + 2, int(height / 2 - 2) , int(width / 2 - maxlen / 2 - 2))
     if bold[0]:
         msgwin.attron(curses.color_pair(1))
         msgwin.attron(curses.A_BOLD)
@@ -898,7 +898,7 @@ def quote(to):
         return q
 
 def show_subject(subject):
-    if len(subject) > width - 4:
+    if len(subject) > width - 8:
         msg = ""
         line = ""
         for word in subject.split(" "):
