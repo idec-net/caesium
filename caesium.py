@@ -908,9 +908,7 @@ def show_subject(subject):
                 msg = msg + line + "\n"
                 line = word + " "
         msg = msg + line
-    else:
-        msg = subject
-    message_box(msg)
+        message_box(msg)
 
 def echo_reader(echo, last, archive, favorites, out):
     global lasts, next_echoarea
