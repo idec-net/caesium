@@ -821,7 +821,7 @@ def message_box(smsg):
     for line in msg:
         if len(line) > maxlen:
             maxlen = len(line)
-    msgwin = curses.newwin(len(msg) + 4, maxlen + 2, int(height / 2 - 2) , int(width / 2 - maxlen / 2))
+    msgwin = curses.newwin(len(msg) + 4, maxlen + 2, int(height / 2 - 2) , int(width / 2 - maxlen / 2 - 2))
     if bold[0]:
         msgwin.attron(curses.color_pair(1))
         msgwin.attron(curses.A_BOLD)
@@ -896,6 +896,19 @@ def quote(to):
             for word in to:
                 q = q + word[0]
         return q
+
+def show_subject(subject):
+    if len(subject) > width - 8:
+        msg = ""
+        line = ""
+        for word in subject.split(" "):
+            if len(line + word) <= width - 4:
+                line = line + word + " "
+            else:
+                msg = msg + line + "\n"
+                line = word + " "
+        msg = msg + line
+        message_box(msg)
 
 def echo_reader(echo, last, archive, favorites, out):
     global lasts, next_echoarea
@@ -1123,6 +1136,8 @@ def echo_reader(echo, last, archive, favorites, out):
                         f.write("\n" + line)
                 f.close()
                 call_editor()
+        elif key in r_subj:
+            show_subject(msg[6])
         elif key in o_edit and out:
             if msgids[msgn].endswith(".out"):
                 copyfile("out/" + nodes[node]["nodename"] + "/" + msgids[msgn], "temp")
