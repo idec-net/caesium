@@ -653,7 +653,7 @@ def echo_selector():
         elif key in s_out:
             out_length = get_out_length()
             if out_length > 0:
-                go = not echo_reader("out", out_length, archive, True, True)
+                go = not echo_reader("out", out_length, archive, False, True)
         elif key in s_nnode:
             node = node + 1
             if node == len(nodes):
