@@ -314,7 +314,7 @@ def outcount():
     return outpath + "/%s.out" % i.zfill(5)
 
 def save_out():
-    new = codecs.open("temp", "r", "utf-8").read().split("\n")
+    new = codecs.open("temp", "r", "utf-8").read().strip().split("\n")
     if len(new) <= 1:
         os.remove("temp")
     else:
@@ -327,7 +327,7 @@ def save_out():
         os.remove("temp")
 
 def resave_out(filename):
-    new = codecs.open("temp", "r", "utf-8").read().split("\n")
+    new = codecs.open("temp", "r", "utf-8").read().strip().split("\n")
     if len(new) <= 1:
         os.remove("temp")
     else:
