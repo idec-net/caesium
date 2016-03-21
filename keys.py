@@ -23,13 +23,13 @@ r_next =      [curses.KEY_RIGHT] # следующее сообщение
 r_prep =      [ord("-")]         # перейти ниже по цепочке ответов
 r_nrep =      [ord("=")]         # вернуться по цепочке ответов
 r_up =        [curses.KEY_UP]    # прокрутка вверх
-r_down =      [curses.KEY_DOWN]  # прокрутка вверх
+r_down =      [curses.KEY_DOWN]  # прокрутка вниз
 r_ppage =     [curses.KEY_PPAGE] # страница вверх
 r_npage =     [curses.KEY_NPAGE] # страница вниз
 r_ukeys =     [10, ord(" ")]         # клавиша прокрутки или перехода к следующему сообщению
 r_begin =     [curses.KEY_HOME]  # в начало эхоконференции
 r_end =       [curses.KEY_END]   # в конце эхоконференции
-r_ins =       [ord("i")+ord("u"), ord("I")]         # добавить сообщение
+r_ins =       [ord("i"), ord("I")]         # добавить сообщение
 r_save =      [ord("w"), ord("W")]         # сохранить сообщение в файл
 r_favorites = [ord("f"), ord("F")]         # добавить сообщение в избранные
 r_quote =     [ord("q"), ord("Q")]         # ответить с цитированием
