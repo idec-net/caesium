@@ -810,6 +810,8 @@ def call_editor(out = False):
             save_out()
         else:
             resave_out(out)
+    else:
+        os.remove("temp")
     stdscr = curses.initscr()
     curses.start_color()
     curses.noecho()
