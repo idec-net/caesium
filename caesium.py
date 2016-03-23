@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re
+import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re, hashlib
 from datetime import datetime
 from shutil import copyfile
 from keys import *
@@ -802,12 +802,14 @@ def call_editor(out = False):
     curses.echo()
     curses.curs_set(True)
     curses.endwin()
+    h = hashlib.sha1(str.encode(open("temp", "r",).read())).hexdigest()
     p = subprocess.Popen(editor + " ./temp", shell=True)
     p.wait()
-    if not out:
-        save_out()
-    else:
-        resave_out(out)
+    if h != hashlib.sha1(str.encode(open("temp", "r",).read())).hexdigest():
+        if not out:
+            save_out()
+        else:
+            resave_out(out)
     stdscr = curses.initscr()
     curses.start_color()
     curses.noecho()
