@@ -430,13 +430,17 @@ def fetch_mail():
     curses.curs_set(True)
     curses.endwin()
     echoareas = []
+    to = ""
+    if len(nodes[node]["to"]) > 0:
+        to = " -t \"" + ",".join(nodes[node]["to"]) + "\""
     for echoarea in nodes[node]["echoareas"][2:]:
         echoareas.append(echoarea[0])
     if len(nodes[node]["clone"]) > 0:
-        p = subprocess.Popen("./fetcher.py -w -n " + nodes[node]["node"] + " -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]), shell=True)
+        p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]) + to, shell=True)
         nodes[node]["clone"] = []
     else:
-        p = subprocess.Popen("./fetcher.py -w -n " + nodes[node]["node"] + " -e " + ",".join(echoareas), shell=True)
+        print("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to)
+        p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to, shell=True)
     p.wait()
     stdscr = curses.initscr()
     curses.start_color()

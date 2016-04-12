@@ -9,6 +9,7 @@ node = ""
 echoareas = []
 ue_ext = False
 wait = False
+to = []
 
 def load_config():
     global node, echoareas
@@ -20,20 +21,16 @@ def load_config():
         elif param[0] == "echo":
             echoareas.append(param[1])
 
-def get_msg_list(echoareas, ext = False, start = -48, **kwargs):
+def get_msg_list(echo, ext = False, start = -48):
     msg_list = []
-    try:
-        clone = kwargs["clone"]
-    except:
-        clone = False
-    if not ext or clone or old:
-        r = urllib.request.Request(node + "u/e/" + echoareas)
+    if not ext or echo in clone or old:
+        r = urllib.request.Request(node + "u/e/" + echo)
     else:
-        r = urllib.request.Request(node + "u/e/" + echoareas + "/" + str(start) + ":48")
+        r = urllib.request.Request(node + "u/e/" + echo + "/" + str(start) + ":48")
     with urllib.request.urlopen(r) as f:
         lines = f.read().decode("utf-8").split("\n")
         for line in lines:
-            if not line in echoareas and len(line) > 0:
+            if line != echo and len(line) > 0:
                 msg_list.append(line)
     return msg_list
 
@@ -50,6 +47,7 @@ def separate(l, step=48):
 
 def get_bundle(msgids):
     bundle = []
+#    print("fetch: " + node + "u/m/" + msgids + "\r")
     r = urllib.request.Request(node + "u/m/" + msgids)
     with urllib.request.urlopen(r) as f:
         bundle = f.read().decode("utf-8").split("\n")
@@ -62,6 +60,13 @@ def debundle(bundle):
             msgid = m[0]
             if len(msgid) == 20 and m[1]:
                 msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
+                if len(to) > 0:
+                    try:
+                        carbonarea = open("echo/carbonarea", "r").read().split("\n")
+                    except:
+                        carbonarea = []
+                    if msgbody.split("\n")[5] in to and not msgid in carbonarea:
+                        codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
                 codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
                 codecs.open("echo/" + msgbody.split("\n")[1], "a", "utf-8").write(msgid + "\n")
 
@@ -75,6 +80,8 @@ if "-n" in sys.argv:
     node = sys.argv[sys.argv.index("-n") + 1]
 if "-e" in sys.argv:
     echoareas = sys.argv[sys.argv.index("-e") + 1].split(",")
+if "-t" in sys.argv:
+    to = sys.argv[sys.argv.index("-t") + 1].split(",")
 if "-w" in sys.argv:
     wait = True
 
@@ -93,7 +100,9 @@ if "-f" in sys.argv:
         load_config()
     except:
         print("Не удаётся найти файл конфигурации")
-        quit()
+
+for echo in clone:
+    os.remove("echo/" + echo)
 
 try:
     r = urllib.request.Request(node + "x/features")
@@ -108,77 +117,40 @@ except:
 
 remote = False
 remote_msg_list = []
-local_msg_list = []
-echolist = []
-new_echoareas = []
-
-#
-# Подготавливаем списки эхоконференций и новых эхоконференций
-#
-for echoarea in echoareas:
+for echo in echoareas:
     if old:
-        try:
-            os.remove("echo/" + echoarea)
-        except:
-            None
-    if not echoarea in clone:
-        echolist.append(echoarea)
-    if not os.path.exists("echo/" + echoarea) and ue_ext and not echoarea in clone:
-        new_echoareas.append(echoarea)
-    if not echoarea in clone:
-        local_msg_list = local_msg_list + get_local_msg_list(echoarea)
-
-#
-# Клонирование указанных эхоконференций
-#
-if len(clone) > 0:
-    for echo in clone:
         try:
             os.remove("echo/" + echo)
         except:
             None
-    remote_msg_list = remote_msg_list + get_msg_list("/".join(clone), clone=True)
-
-#
-# Если есть новые эхоконференции и нода поддерживает расширанную схему u/e, то скачиваем последние сообщения
-#
-if len(new_echoareas) > 0 and ue_ext:
-    for echo in new_echoareas:
-        echolist.remove(echo)
-if len(new_echoareas) > 0 and ue_ext:
-    remote_msg_list = remote_msg_list + get_msg_list("/".join(new_echoareas), True)
-
-#
-# Получаем новые сообщения для уже существующих эхоконференций
-#
-try:
-    if ue_ext:
-        loop = True
-        start = -48
-        while loop:
-            tmp = []
-            remote = get_msg_list("/".join(echolist), True, start)
-            remote.reverse()
-            for msgid in remote:
-                if not msgid in local_msg_list:
-                    tmp.append(msgid)
-                else:
-                    loop = False
-                    break
-            tmp.reverse()
-            remote_msg_list = remote_msg_list + tmp
-            start = start - 48
-            if start < 0:
-                start = 0
-                break
-        remote = True
-    else:
-        remote_msg_list = remote_msg_list + get_msg_list("/".join(echoareas + new_echoareas))
-        remote = True
-except:
-    print("Не удаётся связаться с узлом: " + node)
-    remote = False
-
+    local_msg_list = get_local_msg_list(echo)
+    try:
+        if not os.path.exists("echo/" + echo) and ue_ext:
+            remote_msg_list = remote_msg_list + get_msg_list(echo, True)
+            remote = True
+        elif ue_ext:
+            loop = True
+            start = -48
+            while loop:
+                tmp = []
+                remote = get_msg_list(echo, True, start)
+                remote.reverse()
+                for msgid in remote:
+                    if not msgid in local_msg_list:
+                        tmp.append(msgid)
+                    else:
+                        loop = False
+                        break
+                tmp.reverse()
+                remote_msg_list = remote_msg_list + tmp
+                start = start - 48
+            remote = True
+        else:
+            remote_msg_list = remote_msg_list + get_msg_list(echo)
+            remote = True
+    except:
+        print("Не удаётся связаться с узлом: " + node)
+        remote = False
 if remote and len(remote_msg_list) > 0:
     msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
     msg_list_len = str(len(msg_list))
