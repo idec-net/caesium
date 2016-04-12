@@ -167,142 +167,6 @@ def load_colors():
             else:
                 bold[6] = False
 
-def get_msg_list(echo):
-    msg_list = []
-    r = urllib.request.Request(nodes[node]["node"] + "u/e/" + echo[0])
-    with urllib.request.urlopen(r) as f:
-        lines = f.read().decode("utf-8").split("\n")
-        for line in lines:
-            if line != echo:
-                msg_list.append(line)
-    return msg_list
-
-def get_local_msg_list(echo):
-    if not os.path.exists("echo/" + echo[0]):
-        return []
-    else:
-        local_msg_list = codecs.open("echo/" + echo[0], "r", "utf-8").read().split("\n")
-        return local_msg_list
-
-def get_local_full_msg_list(echo):
-    if not os.path.exists("echo/full/" + echo[0]):
-        return []
-    else:
-        local_msg_list = codecs.open("echo/full/" + echo[0], "r", "utf-8").read().split("\n")
-        return local_msg_list
-
-def get_bundle(msgids):
-    bundle = []
-    r = urllib.request.Request(nodes[node]["node"] + "u/m/" + msgids)
-    with urllib.request.urlopen(r) as f:
-        bundle = f.read().decode("utf-8").split("\n")
-    return bundle
-
-def debundle(echo, bundle, local, carbonarea):
-    for msg in bundle:
-        if msg:
-            m = msg.split(":")
-            msgid = m[0]
-            if len(msgid) == 20 and m[1]:
-                msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
-                if msgbody.split("\n")[5] in nodes[node]["to"] and not msgid in carbonarea:
-                    codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
-                codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
-                codecs.open("echo/" + echo[0], "a", "utf-8").write(msgid + "\n")
-                if not msgid in local:
-                    codecs.open("echo/full/" + echo[0], "a", "utf-8").write(msgid + "\n")
-
-def fetch_mail():
-    global lasts
-    stdscr.clear()
-    stdscr.attron(curses.color_pair(1))
-    if bold[0]:
-        stdscr.attron(curses.A_BOLD)
-    else:
-        stdscr.attroff(curses.A_BOLD)
-    stdscr.border()
-    draw_title(0, 1, "Получение почты")
-    draw_title(height - 1, 1, nodes[node]["nodename"])
-    stdscr.refresh()
-    log = curses.newwin(height - 2, width - 2, 1, 1)
-    log.scrollok(True)
-    line = -1
-    local_only = True
-    echoareas = nodes[node]["echoareas"][2:]
-    carbonarea = open("echo/carbonarea", "r").read().split("\n")
-    for echo in echoareas:
-        if not echo[2]:
-            local_only = False
-            if line < height - 3:
-                line = line + 1
-            else:
-                log.scroll()
-            try:
-                remote_msg_list = get_msg_list(echo)
-                remote = True
-            except:
-                remote = False
-            if remote and len(remote_msg_list) > 1:
-                if echo[0] in nodes[node]["clone"]:
-                    if os.path.exists("echo/" + echo[0]):
-                        os.remove("echo/" + echo[0])
-                    local_msg_list = get_local_msg_list(echo)
-                    msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
-                    nodes[node]["clone"].remove(echo[0])
-                    lasts[echo[0]] = -1
-                elif os.path.exists("echo/full/" + echo[0]):
-                    local_msg_list = get_local_full_msg_list(echo)
-                    msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
-                else:
-                    local_msg_list = get_local_full_msg_list(echo)
-                    msg_list = [x for x in remote_msg_list[-51:] if x not in local_msg_list and x != ""]
-                    if not len(msg_list) == 1:
-                        msg_list.append("")
-                    for msgid in remote_msg_list:
-                        if len(msgid) == 20:
-                            open("echo/full/" + echo[0], "a").write(msgid + "\n")
-                list_len = len (msg_list) - 1
-                if list_len > 1 and not echo[0] in lasts:
-                    lasts[echo[0]] = -1
-                n = 0
-                if os.path.exists("echo/full/" + echo[0]):
-                    local_index = open("echo/full/" + echo[0]).read().split("\n")
-                else:
-                    local_index = []
-                for get_list in separate(msg_list):
-                    debundle(echo, get_bundle("/".join(get_list)), local_index, carbonarea)
-                    n = n + len(get_list)
-                    current_time()
-                    stdscr.refresh()
-                    if bold[3]:
-                        color = curses.color_pair(4) + curses.A_BOLD
-                    else:
-                        color = curses.color_pair(4)
-                    log.addstr(line, 1, "Загрузка " + echo[0] + ": " + str(n - 1) + "/" + str(list_len), color)
-                    log.refresh()
-    if not local_only:
-        if remote and line >= height - 5:
-            for i in range(abs(height - 6 - line)):
-                log.scroll()
-                line = line - 1
-        if not remote:
-            line = -1
-        if bold[3]:
-            color = curses.color_pair(4) + curses.A_BOLD
-        else:
-            color = curses.color_pair(4)
-        if remote:
-            log.addstr(line + 2, 1, "Загрузка завершена.", color)
-        else:
-            log.addstr(line + 2, 1, "Ошибка: не удаётся связаться с нодой.", color)
-    if bold[1]:
-        color = curses.color_pair(2) + curses.A_BOLD
-    else:
-        color = curses.color_pair(2)
-    log.addstr(line + 3, 1, "Нажмите любую клавишу.", color)
-    log.getch()
-    stdscr.clear()
-
 def outcount():
     outpath = "out/" + nodes[node]["nodename"].split("/")[0]
     if not os.path.exists(outpath):
@@ -560,6 +424,26 @@ def find_new(cursor):
             ret = n - 1
             lock = True
     return ret
+
+def fetch_mail():
+    curses.echo()
+    curses.curs_set(True)
+    curses.endwin()
+    echoareas = []
+    for echoarea in nodes[node]["echoareas"][2:]:
+        echoareas.append(echoarea[0])
+    if len(nodes[node]["clone"]) > 0:
+        p = subprocess.Popen("./fetcher.py -w -n " + nodes[node]["node"] + " -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]), shell=True)
+        nodes[node]["clone"] = []
+    else:
+        p = subprocess.Popen("./fetcher.py -w -n " + nodes[node]["node"] + " -e " + ",".join(echoareas), shell=True)
+    p.wait()
+    stdscr = curses.initscr()
+    curses.start_color()
+    curses.noecho()
+    curses.curs_set(False)
+    stdscr.keypad(True)
+    get_term_size()
 
 def echo_selector():
     global echo_cursor, archive_cursor, counts, counts_rescan, next_echoarea, node
