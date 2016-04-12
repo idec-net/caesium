@@ -47,7 +47,6 @@ def separate(l, step=48):
 
 def get_bundle(msgids):
     bundle = []
-#    print("fetch: " + node + "u/m/" + msgids + "\r")
     r = urllib.request.Request(node + "u/m/" + msgids)
     with urllib.request.urlopen(r) as f:
         bundle = f.read().decode("utf-8").split("\n")
@@ -102,7 +101,10 @@ if "-f" in sys.argv:
         print("Не удаётся найти файл конфигурации")
 
 for echo in clone:
-    os.remove("echo/" + echo)
+    try:
+        os.remove("echo/" + echo)
+    except:
+        None
 
 try:
     r = urllib.request.Request(node + "x/features")
