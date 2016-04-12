@@ -23,8 +23,8 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
            "███      ███  ███ ███           ███ ███ ███  ███ ███ ██ ███",
            "████████ ████████ ████████ ████████ ███ ████████ ███ ██ ███",
            "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄",
-           "            ncurses ii-client             v.0.2",
-           "            Andrew Lobanov           12.04.2016"]
+           "           ncurses ii/idec client          v.0.2",
+           "           Andrew Lobanov             12.04.2016"]
 
 def check_directories():
     if not os.path.exists("echo"):
@@ -435,7 +435,8 @@ def fetch_mail():
     if len(nodes[node]["to"]) > 0:
         to = " -t \"" + ",".join(nodes[node]["to"]) + "\""
     for echoarea in nodes[node]["echoareas"][2:]:
-        echoareas.append(echoarea[0])
+        if not echoarea[2]:
+            echoareas.append(echoarea[0])
     if len(nodes[node]["clone"]) > 0:
         p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]) + to, shell=True)
         nodes[node]["clone"] = []
@@ -559,7 +560,7 @@ def echo_selector():
             counts_rescan = True
             cursor = 0
         elif key in s_clone or key in s_PLONE:
-            if cursor > 1:
+            if cursor > 1 and not echoareas[cursor][2]:
                 if echoareas[cursor][0] in nodes[node]["clone"]:
                     nodes[node]["clone"].remove(echoareas[cursor][0])
                 else:
