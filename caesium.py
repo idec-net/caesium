@@ -429,6 +429,7 @@ def fetch_mail():
     curses.echo()
     curses.curs_set(True)
     curses.endwin()
+    os.system('cls' if os.name == 'nt' else 'clear')
     echoareas = []
     to = ""
     if len(nodes[node]["to"]) > 0:
@@ -439,7 +440,6 @@ def fetch_mail():
         p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]) + to, shell=True)
         nodes[node]["clone"] = []
     else:
-        print("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to)
         p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to, shell=True)
     p.wait()
     stdscr = curses.initscr()
