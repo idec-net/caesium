@@ -119,6 +119,7 @@ except:
 
 remote = False
 remote_msg_list = []
+print("Поиск новых сообщений...")
 for echo in echoareas:
     if old:
         try:
@@ -153,6 +154,8 @@ for echo in echoareas:
     except:
         print("Не удаётся связаться с узлом: " + node)
         remote = False
+if len(remote_msg_list) == 0:
+    print("Новых сообщений не найдено.")
 if remote and len(remote_msg_list) > 0:
     msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
     msg_list_len = str(len(msg_list))
