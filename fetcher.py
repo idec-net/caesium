@@ -146,6 +146,9 @@ for echo in echoareas:
                 tmp = []
                 remote = get_msg_list(echo, True, start)
                 remote.reverse()
+                if len(remote) == 0:
+                    print("\nEmpty echoarea.")
+                    loop = False
                 for msgid in remote:
                     if not msgid in local_msg_list:
                         tmp.append(msgid)
