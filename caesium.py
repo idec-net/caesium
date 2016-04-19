@@ -329,6 +329,8 @@ def rescan_counts(echoareas):
         except:
             echocount = 0
             last = 1
+        if last - 1 < 0:
+            last = 1
         counts.append([str(echocount), str(last - 1)])
     return counts
 
@@ -535,6 +537,8 @@ def echo_selector():
             echo_length = get_echo_length(echoareas[cursor][0])
             if last < echo_length:
                 last = last + 1
+            if last > echo_length:
+                last = echo_length
             if cursor == 1:
                 go = not echo_reader(echoareas[cursor][0], last, archive, True, False, True)
             elif cursor == 0 or echoareas[cursor][2]:
