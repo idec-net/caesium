@@ -5,24 +5,43 @@ import os, urllib.request, base64, codecs, sys
 config = ""
 clone = []
 old = False
-node = ""
-echoareas = []
+nodes = []
 ue_ext = False
 wait = False
-to = []
 debug = False
+node = ""
+echoareas = []
+to = []
 
 def load_config():
     global node, echoareas
     cfg = open(config, "r").read().split("\n")
+    first = True
+    node = {}
+    echoareas = []
     for line in cfg:
         param = line.split(" ")
         if param[0] == "node":
-            node = param[1]
+            if not first:
+                node["echoareas"] = echoareas
+                if not "to" in node:
+                    node["to"] = []
+                nodes.append(node)
+            else:
+                first = False
+            node = {}
+            echoareas = []
+            node["node"] = param[1]
         elif param[0] == "echo":
             echoareas.append(param[1])
+        elif param[0] == "to":
+            node["to"] = " ".join(param[1:]).split(",")
+    if not "to" in node:
+        node["to"] = []
+    node["echoareas"] = echoareas
+    nodes.append(node)
 
-def get_msg_list(echo, ext = False, start = -48):
+def get_msg_list(node, echo, ext = False, start = -48):
     msg_list = []
     if not ext or echo in clone or old:
         r = urllib.request.Request(node + "u/e/" + echo)
@@ -46,14 +65,14 @@ def separate(l, step=48):
     for x in range(0, len(l), step):
         yield l[x:x+step]
 
-def get_bundle(msgids):
+def get_bundle(node, msgids):
     bundle = []
     r = urllib.request.Request(node + "u/m/" + msgids)
     with urllib.request.urlopen(r) as f:
         bundle = f.read().decode("utf-8").split("\n")
     return bundle
 
-def debundle(bundle):
+def debundle(bundle, to):
     for msg in bundle:
         if msg:
             m = msg.split(":")
@@ -69,6 +88,11 @@ def debundle(bundle):
                         codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
                 codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
                 codecs.open("echo/" + msgbody.split("\n")[1], "a", "utf-8").write(msgid + "\n")
+
+if not os.path.exists("echo"):
+    os.mkdir("echo")
+if not os.path.exists("msg"):
+    os.mkdir("msg")
 
 if "-f" in sys.argv:
     config = sys.argv[sys.argv.index("-f") + 1]
@@ -86,6 +110,13 @@ if "-w" in sys.argv:
     wait = True
 if "-d" in sys.argv:
     debug = True
+
+if not "-f" in sys.argv:
+    node = {}
+    node["node"] = node
+    node["to"] = to
+    node["echoareas"] = echoareas
+    nodes.append(node)
 
 if len(sys.argv) == 1:
     print("Использование: fetcher.py -f config_file [-c cloned_echoarea1,cloned_echoarea2,...] [-o] или")
@@ -112,73 +143,75 @@ for echo in clone:
     except:
         None
 
-try:
-    r = urllib.request.Request(node + "x/features")
-    with urllib.request.urlopen(r) as f:
-        if "u/e" in f.read().decode("utf-8").split("\n"):
-            ue_ext = True
-            print("Расширенная схема u/e поддерживается.")
-        else:
-            print("Расширенная схема u/e не поддерживается.")
-except:
-    print("Не поддерживается схема x/features.")
-
-remote = False
-remote_msg_list = []
 print("Поиск новых сообщений...")
-for echo in echoareas:
-    if old:
-        try:
-            os.remove("echo/" + echo)
-        except:
-            None
-    local_msg_list = get_local_msg_list(echo)
+
+for node in nodes:
+    remote = False
+    remote_msg_list = []
+    print("Работа с " + node["node"])
     try:
-        if not os.path.exists("echo/" + echo) and ue_ext:
-            remote_msg_list = remote_msg_list + get_msg_list(echo, True)
-            remote = True
-        elif ue_ext:
-            loop = True
-            start = -48
-            while loop:
-                if debug:
-                    print("{0:26}{1:54}".format("Поиск в " + echo, " Смещение индекса: " + str(start)), end="\r")
-                tmp = []
-                remote = get_msg_list(echo, True, start)
-                remote.reverse()
-                if len(remote) == 0:
-                    print("\nEmpty echoarea.")
-                    loop = False
-                for msgid in remote:
-                    if not msgid in local_msg_list:
-                        tmp.append(msgid)
-                    else:
-                        loop = False
-                        break
-                tmp.reverse()
-                remote_msg_list = remote_msg_list + tmp
-                start = start - 48
-            if debug:
-                print()
-            remote = True
-        else:
-            remote_msg_list = remote_msg_list + get_msg_list(echo)
-            remote = True
+        r = urllib.request.Request(node["node"] + "x/features")
+        with urllib.request.urlopen(r) as f:
+            if "u/e" in f.read().decode("utf-8").split("\n"):
+                ue_ext = True
+                print("Расширенная схема u/e поддерживается.")
+            else:
+                print("Расширенная схема u/e не поддерживается.")
     except:
-        print("Не удаётся связаться с узлом: " + node)
-        remote = False
-if len(remote_msg_list) == 0:
-    print("Новых сообщений не найдено.")
-if remote and len(remote_msg_list) > 0:
-    msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
-    msg_list_len = str(len(msg_list))
-    if len(msg_list) > 0:
-        count = 0
-        for get_list in separate(msg_list):
-            count = count + len(get_list)
-            print("Получение: " + str(count) + "/"  + msg_list_len, end="\r")
-            debundle(get_bundle("/".join(get_list)))
-    print()
+        print("Не поддерживается схема x/features.")
+    for echo in node["echoareas"]:
+        if old:
+            try:
+                os.remove("echo/" + echo)
+            except:
+                None
+        local_msg_list = get_local_msg_list(echo)
+        try:
+            if not os.path.exists("echo/" + echo) and ue_ext:
+                remote_msg_list = remote_msg_list + get_msg_list(node["node"], echo, True)
+                remote = True
+            elif ue_ext:
+                loop = True
+                start = -48
+                while loop:
+                    if debug:
+                        print("{0:26}{1:54}".format("Поиск в " + echo, " Смещение индекса: " + str(start)), end="\r")
+                    tmp = []
+                    remote = get_msg_list(node["node"], echo, True, start)
+                    remote.reverse()
+                    if len(remote) == 0:
+                        print("\nEmpty echoarea.")
+                        loop = False
+                    for msgid in remote:
+                        if not msgid in local_msg_list:
+                            tmp.append(msgid)
+                        else:
+                            loop = False
+                            break
+                    tmp.reverse()
+                    remote_msg_list = remote_msg_list + tmp
+                    start = start - 48
+                if debug:
+                    print()
+                remote = True
+            else:
+                remote_msg_list = remote_msg_list + get_msg_list(node["node"], echo)
+                remote = True
+        except:
+            print("Не удаётся связаться с узлом: " + node["node"])
+            remote = False
+    if len(remote_msg_list) == 0:
+        print("Новых сообщений не найдено.")
+    if remote and len(remote_msg_list) > 0:
+        msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
+        msg_list_len = str(len(msg_list))
+        if len(msg_list) > 0:
+            count = 0
+            for get_list in separate(msg_list):
+                count = count + len(get_list)
+                print("Получение: " + str(count) + "/"  + msg_list_len, end="\r")
+                debundle(get_bundle(node["node"], "/".join(get_list)), node["to"])
+            print()
 
 if wait:
     input("Нажмите Enter для продолжения.")
