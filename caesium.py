@@ -975,8 +975,8 @@ def echo_reader(echo, last, archive, favorites, out):
         elif key in r_npage:
             if len(msgids) > 0 and len(msgbody) > height - 6:
                 y = y + height - 6
-                if y >= len(msgbody) - (height - 5):
-                    y = len(msgbody) - height + 5
+                if y + height - 6 >= len(msgbody):
+                    y = len(msgbody) - height + 6
         elif key in r_ukeys:
             if len(msgids) == 0 or y >= len(msgbody) - height + 6:
                 y = 0
