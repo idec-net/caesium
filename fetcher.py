@@ -10,6 +10,7 @@ echoareas = []
 ue_ext = False
 wait = False
 to = []
+debug = False
 
 def load_config():
     global node, echoareas
@@ -83,6 +84,8 @@ if "-t" in sys.argv:
     to = sys.argv[sys.argv.index("-t") + 1].split(",")
 if "-w" in sys.argv:
     wait = True
+if "-d" in sys.argv:
+    debug = True
 
 if len(sys.argv) == 1:
     print("Использование: fetcher.py -f config_file [-c cloned_echoarea1,cloned_echoarea2,...] [-o] или")
@@ -91,7 +94,10 @@ if len(sys.argv) == 1:
     print("  -n указывает адрес подключения к ноде;")
     print("  -e указывает эхоконференции для фетчинга (разделитель запятая);")
     print("  -c указывает эхконференции для клонирования (разделитель запятая);")
-    print("  -o опция включает клонирование все эхоконференции из конфига.")
+    print("  -o опция включает клонирование все эхоконференции из конфига;")
+    print("  -t указывает имя пользователя, по которому определяются сообщения для копирования в карбонку;")
+    print("  -w ожидать реакции пользователя после окончания фетчинга;")
+    print("  -d режим расширенного отображения действий программы.")
     quit()
 
 if "-f" in sys.argv:
@@ -135,6 +141,8 @@ for echo in echoareas:
             loop = True
             start = -48
             while loop:
+                if debug:
+                    print("{0:26}{1:54}".format("Поиск в " + echo, " Смещение индекса: " + str(start)), end="\r")
                 tmp = []
                 remote = get_msg_list(echo, True, start)
                 remote.reverse()
@@ -147,6 +155,8 @@ for echo in echoareas:
                 tmp.reverse()
                 remote_msg_list = remote_msg_list + tmp
                 start = start - 48
+            if debug:
+                print()
             remote = True
         else:
             remote_msg_list = remote_msg_list + get_msg_list(echo)
@@ -163,7 +173,7 @@ if remote and len(remote_msg_list) > 0:
         count = 0
         for get_list in separate(msg_list):
             count = count + len(get_list)
-            print("Fetch: " + str(count) + "/"  + msg_list_len, end="\r")
+            print("Получение: " + str(count) + "/"  + msg_list_len, end="\r")
             debundle(get_bundle("/".join(get_list)))
     print()
 

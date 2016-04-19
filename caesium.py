@@ -15,6 +15,7 @@ counts = []
 counts_rescan = True
 next_echoarea = False
 oldquote = False
+fetcher_debug = False
 
 splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
            "████████ ████████ ████████ ████████ ███ ███  ███ ██████████",
@@ -50,7 +51,7 @@ def separate(l, step=20):
         yield l[x:x+step]
 
 def load_config():
-    global nodes, editor, color_theme, show_splash, oldquote
+    global nodes, editor, color_theme, show_splash, oldquote, fetcher_debug
     first = True
     node = {}
     echoareas = []
@@ -103,6 +104,8 @@ def load_config():
             show_splash = False
         elif param[0] == "oldquote":
             oldquote = True
+        elif param[0] == "fetcher_debug":
+            fetcher_debug = True
     if not "nodename" in node:
         node["nodename"] = "untitled node"
     if not "to" in node:
@@ -436,10 +439,16 @@ def fetch_mail():
         if not echoarea[2]:
             echoareas.append(echoarea[0])
     if len(nodes[node]["clone"]) > 0:
-        p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]) + to, shell=True)
+        if fetcher_debug:
+            p = subprocess.Popen("./fetcher.py -d -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]) + to, shell=True)
+        else:
+            p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]) + to, shell=True)
         nodes[node]["clone"] = []
     else:
-        p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to, shell=True)
+        if fetcher_debug:
+            p = subprocess.Popen("./fetcher.py -d -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to, shell=True)
+        else:
+            p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to, shell=True)
     p.wait()
     stdscr = curses.initscr()
     curses.start_color()
