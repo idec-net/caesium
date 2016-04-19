@@ -24,7 +24,7 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
            "████████ ████████ ████████ ████████ ███ ████████ ███ ██ ███",
            "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄",
            "           ncurses ii/idec client          v.0.2",
-           "           Andrew Lobanov             18.04.2016"]
+           "           Andrew Lobanov             19.04.2016"]
 
 def check_directories():
     if not os.path.exists("echo"):
@@ -975,8 +975,8 @@ def echo_reader(echo, last, archive, favorites, out):
         elif key in r_npage:
             if len(msgids) > 0 and len(msgbody) > height - 6:
                 y = y + height - 6
-                if y + height - 6 >= len(msgbody):
-                    y = len(msgbody) - height + 6
+                if y >= len(msgbody) - (height - 5):
+                    y = len(msgbody) - height + 5
         elif key in r_ukeys:
             if len(msgids) == 0 or y >= len(msgbody) - height + 6:
                 y = 0
