@@ -803,6 +803,15 @@ def show_subject(subject):
         msg = msg + line
         message_box(msg)
 
+def calc_scrollbar_size(length):
+    if length > 0:
+        scrollbar_size = round((height - 6) * (height - 6) / length + 0.49)
+        if scrollbar_size < 1:
+            scrollbar_size = 1
+    else:
+        scrollbar_size = 1
+    return scrollbar_size
+
 def echo_reader(echo, last, archive, favorites, out):
     global lasts, next_echoarea
     stdscr.clear()
@@ -824,9 +833,9 @@ def echo_reader(echo, last, archive, favorites, out):
         else:
             msg, size = read_msg(msgids[msgn])
         msgbody = body_render(msg[8:])
-    scrollbar_size = round((height - 6) * (height - 6) / len(msgbody) + 0.49)
-    if scrollbar_size < 1:
-        scrollbar_size = 1
+    else:
+        msgbody = []
+    scrollbar_size = calc_scrollbar_size(len(msgbody))
     go = True
     stack = []
     while go:
@@ -915,9 +924,7 @@ def echo_reader(echo, last, archive, favorites, out):
             get_term_size()
             if len(msgids) > 0:
                 msgbody = body_render(msg[8:])
-                scrollbar_size = round((height - 6) * (height - 6) / len(msgbody) + 0.49)
-                if scrollbar_size < 1:
-                    scrollbar_size = 1
+                scrollbar_size = calc_scrollbar_size(len(msgbody))
             stdscr.clear()
         elif key in r_prev and msgn > 0:
             y = 0
@@ -930,9 +937,7 @@ def echo_reader(echo, last, archive, favorites, out):
                 else:
                     msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-                scrollbar_size = round((height - 6) * (height - 6) / len(msgbody) + 0.49)
-                if scrollbar_size < 1:
-                    scrollbar_size = 1
+                scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_next and msgn < len(msgids) - 1:
             y = 0
             if len(msgids) > 0:
@@ -944,9 +949,7 @@ def echo_reader(echo, last, archive, favorites, out):
                 else:
                     msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-                scrollbar_size = round((height - 6) * (height - 6) / len(msgbody) + 0.49)
-                if scrollbar_size < 1:
-                    scrollbar_size = 1
+                scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_next and (msgn == len(msgids) - 1 or len(msgids) == 0):
             go = False
             quit = False
@@ -957,16 +960,12 @@ def echo_reader(echo, last, archive, favorites, out):
                 msgn = msgids.index(repto)
                 msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-                scrollbar_size = round((height - 6) * (height - 6) / len(msgbody) + 0.49)
-                if scrollbar_size < 1:
-                    scrollbar_size = 1
+                scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_nrep and not out and len(stack) > 0:
             msgn = stack.pop()
             msg, size = read_msg(msgids[msgn])
             msgbody = body_render(msg[8:])
-            scrollbar_size = round((height - 6) * (height - 6) / len(msgbody) + 0.49)
-            if scrollbar_size < 1:
-                scrollbar_size = 1
+            scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_up and y > 0:
             if len(msgids) > 0:
                 y = y - 1
@@ -996,9 +995,7 @@ def echo_reader(echo, last, archive, favorites, out):
                     else:
                         msg, size = read_msg(msgids[msgn])
                     msgbody = body_render(msg[8:])
-                    scrollbar_size = round((height - 6) * (height - 6) / len(msgbody) + 0.49)
-                    if scrollbar_size < 1:
-                        scrollbar_size = 1
+                    scrollbar_size = calc_scrollbar_size(len(msgbody))
             else:
                 if len(msgids) > 0 and len(msgbody) > height - 6:
                     y = y + height - 6
@@ -1017,9 +1014,7 @@ def echo_reader(echo, last, archive, favorites, out):
                 else:
                     msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-                scrollbar_size = round((height - 6) * (height - 6) / len(msgbody) + 0.49)
-                if scrollbar_size < 1:
-                    scrollbar_size = 1
+                scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_end:
             if len(msgids) > 0:
                 y = 0
@@ -1031,9 +1026,7 @@ def echo_reader(echo, last, archive, favorites, out):
                 else:
                     msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-                scrollbar_size = round((height - 6) * (height - 6) / len(msgbody) + 0.49)
-                if scrollbar_size < 1:
-                    scrollbar_size = 1
+                scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif (key in r_ins) and not archive and not out:
             if not favorites:
                 f = open("temp", "w")
@@ -1081,9 +1074,7 @@ def echo_reader(echo, last, archive, favorites, out):
                 call_editor(msgids[msgn])
                 msg, size = read_out_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-                scrollbar_size = round((height - 6) * (height - 6) / len(msgbody) + 0.49)
-                if scrollbar_size < 1:
-                    scrollbar_size = 1
+                scrollbar_size = calc_scrollbar_size(len(msgbody))
             else:
                 message_box("Сообщение уже отправлено")
         elif key in f_delete and favorites:
@@ -1096,9 +1087,7 @@ def echo_reader(echo, last, archive, favorites, out):
                     msgn = len(msgids) - 1
                 msg, size = read_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
-                scrollbar_size = round((height - 6) * (height - 6) / len(msgbody) + 0.49)
-                if scrollbar_size < 1:
-                    scrollbar_size = 1
+                scrollbar_size = calc_scrollbar_size(len(msgbody))
                 stdscr.clear()
         elif key in r_quit:
             go = False
