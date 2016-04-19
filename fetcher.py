@@ -101,7 +101,7 @@ if "-o" in sys.argv:
 if "-c" in sys.argv:
     clone = sys.argv[sys.argv.index("-c") + 1].split(",")
 if "-n" in sys.argv:
-    node = sys.argv[sys.argv.index("-n") + 1]
+    node_addr = sys.argv[sys.argv.index("-n") + 1]
 if "-e" in sys.argv:
     echoareas = sys.argv[sys.argv.index("-e") + 1].split(",")
 if "-t" in sys.argv:
@@ -113,7 +113,7 @@ if "-d" in sys.argv:
 
 if not "-f" in sys.argv:
     node = {}
-    node["node"] = node
+    node["node"] = node_addr
     node["to"] = to
     node["echoareas"] = echoareas
     nodes.append(node)
@@ -143,8 +143,6 @@ for echo in clone:
     except:
         None
 
-print("Поиск новых сообщений...")
-
 for node in nodes:
     remote = False
     remote_msg_list = []
@@ -159,6 +157,7 @@ for node in nodes:
                 print("Расширенная схема u/e не поддерживается.")
     except:
         print("Не поддерживается схема x/features.")
+    print("Поиск новых сообщений...")
     for echo in node["echoareas"]:
         if old:
             try:
