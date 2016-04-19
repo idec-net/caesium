@@ -535,10 +535,12 @@ def echo_selector():
             echo_length = get_echo_length(echoareas[cursor][0])
             if last < echo_length:
                 last = last + 1
-            if cursor == 0 or echoareas[cursor][2]:
-                go = not echo_reader(echoareas[cursor][0], last, archive, True, False)
+            if cursor == 1:
+                go = not echo_reader(echoareas[cursor][0], last, archive, True, False, True)
+            elif cursor == 0 or echoareas[cursor][2]:
+                go = not echo_reader(echoareas[cursor][0], last, archive, True, False, False)
             else:
-                go = not echo_reader(echoareas[cursor][0], last, archive, False, False)
+                go = not echo_reader(echoareas[cursor][0], last, archive, False, False, False)
             counts_rescan = True
             if next_echoarea:
                 counts = rescan_counts(echoareas)
@@ -549,7 +551,7 @@ def echo_selector():
         elif key in s_out:
             out_length = get_out_length()
             if out_length > 0:
-                go = not echo_reader("out", out_length, archive, False, True)
+                go = not echo_reader("out", out_length, archive, False, True, False)
         elif key in s_nnode:
             node = node + 1
             if node == len(nodes):
@@ -819,7 +821,7 @@ def calc_scrollbar_size(length):
         scrollbar_size = 1
     return scrollbar_size
 
-def echo_reader(echo, last, archive, favorites, out):
+def echo_reader(echo, last, archive, favorites, out, carbonarea):
     global lasts, next_echoarea
     stdscr.clear()
     if bold[0]:
@@ -906,7 +908,7 @@ def echo_reader(echo, last, archive, favorites, out):
                 stdscr.attron(curses.A_BOLD)
             else:
                 stdscr.attroff(curses.A_BOLD)
-            if len(msgbody) > height - 6:
+            if len(msgbody) > height - 5:
                 for i in range(5, height - 1):
                     stdscr.addstr(i, width - 1, "░")
                 scrollbar_y = round(y * (height - 6) / len(msgbody) + 0.49)
@@ -1084,7 +1086,7 @@ def echo_reader(echo, last, archive, favorites, out):
                 scrollbar_size = calc_scrollbar_size(len(msgbody))
             else:
                 message_box("Сообщение уже отправлено")
-        elif key in f_delete and favorites:
+        elif key in f_delete and favorites and not carbonarea:
             if len(msgids) > 0:
                 favorites_list = open("echo/favorites", "r").read().split("\n")
                 favorites_list.remove(msgids[msgn])
