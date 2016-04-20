@@ -374,10 +374,13 @@ def draw_echo_selector(start, cursor, archive):
                 if y >= start:
                     if bold[2]:
                         color = curses.color_pair(3) + curses.A_BOLD
+                        stdscr.attron (curses.color_pair(3))
+                        stdscr.attron (curses.A_BOLD)
                     else:
                         color = curses.color_pair(3)
+                        stdscr.attron (curses.color_pair(3))
+                        stdscr.attroff (curses.A_BOLD)
                     draw_cursor(y - start, color)
-                stdscr.attron (color)
             else:
                 if y >= start:
                     if bold[3]:
@@ -511,6 +514,8 @@ def echo_selector():
             fetch_mail()
             counts = rescan_counts(echoareas)
             cursor = find_new(0)
+            if cursor >= height - 2:
+                start = cursor - height + 3
         elif key in s_send:
             make_toss()
             send_mail()
