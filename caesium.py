@@ -947,8 +947,6 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 if len(stack) > 0:
                     stack = []
                 if out:
-                    print(msgn)
-                    print(len(msgids))
                     msg, size = read_out_msg(msgids[msgn])
                 else:
                     msg, size = read_msg(msgids[msgn])
