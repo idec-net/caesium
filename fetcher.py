@@ -111,7 +111,7 @@ if "-w" in sys.argv:
 if "-d" in sys.argv:
     debug = True
 
-if not "-f" in sys.argv:
+if not "-f" in sys.argv and "-n" in sys.argv and "-e" in sys.argv:
     node = {}
     node["node"] = node_addr
     node["to"] = to
@@ -178,8 +178,7 @@ for node in nodes:
                     tmp = []
                     remote = get_msg_list(node["node"], echo, True, start)
                     remote.reverse()
-                    if len(remote) == 0:
-                        print("\nEmpty echoarea.")
+                    if len(remote) == 0 or len(remote) - start <= 0:
                         loop = False
                     for msgid in remote:
                         if not msgid in local_msg_list:
