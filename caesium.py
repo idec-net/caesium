@@ -196,7 +196,7 @@ def resave_out(filename):
     if len(new) <= 1:
         os.remove("temp")
     else:
-        codecs.open("out/" + nodes[node]["nodename"] + "/" + filename, "w", "utf-8").write("\n".join(new))
+        codecs.open("out/" + filename, "w", "utf-8").write("\n".join(new))
         os.remove("temp")
 
 def make_toss():
@@ -254,7 +254,7 @@ def send_mail():
 
 def get_out_length():
     try:
-        return len(os.listdir("out/")) - 2
+        return len([f for f in sorted(os.listdir("out/")) if f.endswith(".out") or f.endswith(".outmsg")]) - 1
     except:
         return 0
 
@@ -789,9 +789,7 @@ def get_out_msgids():
     msgids = []
     not_sended = []
     if os.path.exists("out/"):
-        for msg in sorted(os.listdir("out/")):
-            if not msg == ".outcount":
-                msgids.append(msg)
+        msgids = [f for f in sorted(os.listdir("out/")) if f.endswith(".out") or f.endswith(".outmsg")]
     return msgids
 
 def quote(to):
@@ -949,6 +947,8 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 if len(stack) > 0:
                     stack = []
                 if out:
+                    print(msgn)
+                    print(len(msgids))
                     msg, size = read_out_msg(msgids[msgn])
                 else:
                     msg, size = read_msg(msgids[msgn])
@@ -1086,7 +1086,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             show_subject(msg[6])
         elif key in o_edit and out:
             if msgids[msgn].endswith(".out"):
-                copyfile("out/" + nodes[node]["nodename"] + "/" + msgids[msgn], "temp")
+                copyfile("out/" + msgids[msgn], "temp")
                 call_editor(msgids[msgn])
                 msg, size = read_out_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])
