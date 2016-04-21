@@ -25,7 +25,7 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
            "████████ ████████ ████████ ████████ ███ ████████ ███ ██ ███",
            "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄",
            "           ncurses ii/idec client          v.0.2",
-           "           Andrew Lobanov             19.04.2016"]
+           "           Andrew Lobanov             21.04.2016"]
 
 def check_directories():
     if not os.path.exists("echo"):
@@ -169,7 +169,7 @@ def load_colors():
                 bold[6] = False
 
 def outcount():
-    outpath = "out/" + nodes[node]["nodename"].split("/")[0]
+    outpath = "out/"
     if not os.path.exists(outpath):
         os.mkdir(outpath)
     if not os.path.exists(outpath + "/.outcount"):
@@ -200,14 +200,12 @@ def resave_out(filename):
         os.remove("temp")
 
 def make_toss():
-    if not os.path.exists("out/" + nodes[node]["nodename"]):
-        os.mkdir("out/" + nodes[node]["nodename"])
-    lst = [x for x in os.listdir("out/" + nodes[node]["nodename"]) if x.endswith(".out")]
+    lst = [x for x in os.listdir("out/") if x.endswith(".out")]
     for msg in lst:
-        text = codecs.open("out/" + nodes[node]["nodename"] + "/%s" % msg, "r", "utf-8").read()
+        text = codecs.open("out/" + "/%s" % msg, "r", "utf-8").read()
         coded_text = base64.b64encode(text.encode("utf-8"))
-        codecs.open("out/" + nodes[node]["nodename"] + "/%s.toss" % msg, "w", "utf-8").write(coded_text.decode("utf-8"))
-        os.rename("out/" + nodes[node]["nodename"] + "/%s" % msg, "out/" + nodes[node]["nodename"] + "/%s%s" % (msg, "msg"))
+        codecs.open("out/" + "%s.toss" % msg, "w", "utf-8").write(coded_text.decode("utf-8"))
+        os.rename("out/" + "%s" % msg, "out/" + "%s%s" % (msg, "msg"))
 
 def send_mail():
     stdscr.clear()
@@ -220,7 +218,7 @@ def send_mail():
     draw_title(0, 1, "Отправка почты")
     draw_title(height - 1, 1, nodes[node]["nodename"])
     stdscr.refresh()
-    lst = [x for x in sorted(os.listdir("out/" + nodes[node]["nodename"])) if x.endswith(".toss")]
+    lst = [x for x in sorted(os.listdir("out/")) if x.endswith(".toss")]
     max = len(lst)
     n = 1
     try:
@@ -230,12 +228,12 @@ def send_mail():
             color = curses.color_pair(4)
         for msg in lst:
             stdscr.addstr(1, 2, "Отправка сообщения: " + str(n) + "/" + str(max), color)
-            text = codecs.open("out/" + nodes[node]["nodename"] + "/%s" % msg, "r", "utf-8").read()
+            text = codecs.open("out/" + "%s" % msg, "r", "utf-8").read()
             data = urllib.parse.urlencode({"tmsg": text,"pauth": nodes[node]["auth"]}).encode("utf-8")
             request = urllib.request.Request(nodes[node]["node"] + "u/point")
             result = urllib.request.urlopen(request, data).read().decode("utf-8")
             if result.startswith("msg ok"):
-                os.remove("out/" + nodes[node]["nodename"] + "/%s" % msg)
+                os.remove("out/" + "%s" % msg)
                 n = n + 1
             elif result == "msg big!":
                 print ("ERROR: very big message (limit 64K)!")
@@ -256,7 +254,7 @@ def send_mail():
 
 def get_out_length():
     try:
-        return len(os.listdir("out/" + nodes[node]["nodename"])) - 2
+        return len(os.listdir("out/")) - 2
     except:
         return 0
 
@@ -607,7 +605,7 @@ def read_msg(msgid):
 
 def read_out_msg(msgid):
     size = "0b"
-    f = open("out/" + nodes[node]["nodename"] + "/" + msgid, "r")
+    f = open("out/" + msgid, "r")
     temp = f.read().split("\n")
     f.close()
     msg = []
@@ -621,7 +619,7 @@ def read_out_msg(msgid):
     for line in temp[3:]:
         if not(line.startswith("@repto:")):
                msg.append(line)
-    size = os.stat("out/" + nodes[node]["nodename"] + "/" + msgid).st_size
+    size = os.stat("out/" + msgid).st_size
     if size < 1024:
         size = str(size) + " B"
     else:
@@ -790,8 +788,8 @@ def get_echo_msgids(echo):
 def get_out_msgids():
     msgids = []
     not_sended = []
-    if os.path.exists("out/" + nodes[node]["nodename"]):
-        for msg in sorted(os.listdir("out/" + nodes[node]["nodename"])):
+    if os.path.exists("out/"):
+        for msg in sorted(os.listdir("out/")):
             if not msg == ".outcount":
                 msgids.append(msg)
     return msgids
