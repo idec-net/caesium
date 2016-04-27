@@ -146,6 +146,7 @@ for echo in clone:
 for node in nodes:
     remote = False
     remote_msg_list = []
+    local_msg_list = []
     print("Работа с " + node["node"])
     try:
         r = urllib.request.Request(node["node"] + "x/features")
@@ -159,7 +160,7 @@ for node in nodes:
         print("Не поддерживается схема x/features.")
     print("Поиск новых сообщений...")
     for echo in node["echoareas"]:
-        local_msg_list = get_local_msg_list(echo)
+        local_msg_list = local_msg_list + get_local_msg_list(echo)
         try:
             if not os.path.exists("echo/" + echo) and ue_ext:
                 remote_msg_list = remote_msg_list + get_msg_list(node["node"], echo, True)
