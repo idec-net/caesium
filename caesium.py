@@ -307,7 +307,7 @@ def current_time():
 def get_echo_length(echo):
     if os.path.exists("echo/" + echo):
         f = open ("echo/" + echo, "r")
-        echo_length = len(f.read().split("\n")) - 2
+        echo_length = len(f.read().split("\n")) - 1
         f.close()
     else:
         echo_length = 0
@@ -397,9 +397,11 @@ def draw_echo_selector(start, cursor, archive):
                 if echo[0] in lasts:
                     last = lasts[echo[0]]
                 else:
-                    last = 0
-                if last < echo_length:
+                    last = -1
+                if last < echo_length - 1 or last == -1 and echo_length == 1:
                     stdscr.addstr(y + 1 - start, 1, "+")
+                if last < 0:
+                    last = 0
                 if echo[0] in nodes[node]["clone"]:
                     stdscr.addstr(y + 1 - start, 2, "*")
                 stdscr.addstr(y + 1 - start, 3, echo[0])
@@ -538,7 +540,7 @@ def echo_selector():
             else:
                 last = 0
             echo_length = get_echo_length(echoareas[cursor][0])
-            if last < echo_length:
+            if last < echo_length - 1:
                 last = last + 1
             if last > echo_length:
                 last = echo_length
