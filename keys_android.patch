@@ -2,3 +2,19 @@
 < from keys import *
 ---
 > from keys_android import *
+448c448
+<             p = subprocess.Popen("./fetcher.py -d -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]) + to, shell=True)
+---
+>             p = subprocess.Popen("python3 ./fetcher.py -d -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]) + to, shell=True)
+450c450
+<             p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]) + to, shell=True)
+---
+>             p = subprocess.Popen("python3 ./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]) + to, shell=True)
+454c454
+<             p = subprocess.Popen("./fetcher.py -d -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to, shell=True)
+---
+>             p = subprocess.Popen("python3 ./fetcher.py -d -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to, shell=True)
+456c456
+<             p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to, shell=True)
+---
+>             p = subprocess.Popen("python3 ./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to, shell=True)
