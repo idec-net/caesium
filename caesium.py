@@ -543,7 +543,7 @@ def echo_selector():
             if last < echo_length - 1:
                 last = last + 1
             if last > echo_length:
-                last = echo_length
+                last = echo_length - 1
             if cursor == 1:
                 go = not echo_reader(echoareas[cursor][0], last, archive, True, False, True)
             elif cursor == 0 or echoareas[cursor][2]:
