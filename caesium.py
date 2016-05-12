@@ -10,7 +10,7 @@ node = 0
 editor = ""
 lasts = {}
 color_theme = "default"
-bold = [False, False, False, False, False, False, False]
+bold = [False, False, False, False, False, False, False, False]
 counts = []
 counts_rescan = True
 next_echoarea = False
@@ -167,6 +167,12 @@ def load_colors():
                 bold[6] = True
             else:
                 bold[6] = False
+        if param[0] == "url":
+            curses.init_pair(8, colors.index(param[1]), colors.index(param[2]))
+            if len(param) == 4:
+                bold[7] = True
+            else:
+                bold[7] = False
 
 def outcount():
     outpath = "out/"
@@ -828,6 +834,32 @@ def calc_scrollbar_size(length):
         scrollbar_size = 1
     return scrollbar_size
 
+def set_attr(str):
+    if str == chr(15):
+        stdscr.attron(curses.color_pair(5))
+        if bold[4]:
+            stdscr.attron(curses.A_BOLD)
+        else:
+            stdscr.attroff(curses.A_BOLD)
+    elif str == chr(16):
+        stdscr.attron(curses.color_pair(6))
+        if bold[5]:
+            stdscr.attron(curses.A_BOLD)
+        else:
+            stdscr.attroff(curses.A_BOLD)
+    elif str == chr(17):
+        stdscr.attron(curses.color_pair(7))
+        if bold[6]:
+            stdscr.attron(curses.A_BOLD)
+        else:
+            stdscr.attroff(curses.A_BOLD)
+    else:
+        stdscr.attron(curses.color_pair(4))
+        if bold[3]:
+            stdscr.attron(curses.A_BOLD)
+        else:
+            stdscr.attroff(curses.A_BOLD)
+            
 def echo_reader(echo, last, archive, favorites, out, carbonarea):
     global lasts, next_echoarea
     stdscr.clear()
@@ -885,31 +917,21 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                     stdscr.addstr(i + 5, x, " ", 1)
                 if i < len(msgbody) - 1:
                     if y + i < len(msgbody) and len(msgbody[y+i]) > 0:
-                        if msgbody[y + i][0] == chr(15):
-                            stdscr.attron(curses.color_pair(5))
-                            if bold[4]:
-                                stdscr.attron(curses.A_BOLD)
+                        set_attr(msgbody[y + i][0])
+#                        stdscr.addstr(i + 5, 0, msgbody[y + i][1:])
+                        x = 0
+                        for word in msgbody[y + i][1:].split(" "):
+                            if word.startswith("http://") or word.startswith("https://") or word.startswith("ftp://"):
+                                stdscr.attron(curses.color_pair(8))
+                                if bold[7]:
+                                    stdscr.attron(curses.A_BOLD)
+                                else:
+                                    stdscr.attroff(curses.A_BOLD)
+                                stdscr.addstr(i + 5, x, word)
+                                set_attr(msgbody[y + i][0])
                             else:
-                                stdscr.attroff(curses.A_BOLD)
-                        elif msgbody[y + i][0] == chr(16):
-                            stdscr.attron(curses.color_pair(6))
-                            if bold[5]:
-                                stdscr.attron(curses.A_BOLD)
-                            else:
-                                stdscr.attroff(curses.A_BOLD)
-                        elif msgbody[y + i][0] == chr(17):
-                            stdscr.attron(curses.color_pair(7))
-                            if bold[6]:
-                                stdscr.attron(curses.A_BOLD)
-                            else:
-                                stdscr.attroff(curses.A_BOLD)
-                        else:
-                            stdscr.attron(curses.color_pair(4))
-                            if bold[3]:
-                                stdscr.attron(curses.A_BOLD)
-                            else:
-                                stdscr.attroff(curses.A_BOLD)
-                        stdscr.addstr(i + 5, 0, msgbody[y + i][1:])
+                                stdscr.addstr(i + 5, x, word)
+                            x += len(word) + 1
             stdscr.attron(curses.color_pair(4))
             if bold[3]:
                 stdscr.attron(curses.A_BOLD)
