@@ -862,6 +862,25 @@ def set_attr(str):
             stdscr.attron(curses.A_BOLD)
         else:
             stdscr.attroff(curses.A_BOLD)
+
+def get_msg(msgid):
+    r = urllib.request.Request(nodes[node]["node"] + "u/m/" + msgid)
+    with urllib.request.urlopen(r) as f:
+        bundle = f.read().decode("utf-8").split("\n")
+    for msg in bundle:
+        if msg:
+            m = msg.split(":")
+            msgid = m[0]
+            if len(msgid) == 20 and m[1]:
+                msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
+                if len(nodes[node]["to"]) > 0:
+                    try:
+                        carbonarea = open("echo/carbonarea", "r").read().split("\n")
+                    except:
+                        carbonarea = []
+                    if msgbody.split("\n")[5] in nodes[node]["to"] and not msgid in carbonarea:
+                        codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
+                codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
             
 def echo_reader(echo, last, archive, favorites, out, carbonarea):
     global lasts, next_echoarea
@@ -904,15 +923,14 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             else:
                 color = curses.color_pair(4)
             if not(out):
-                if len(msgbody) > 7:
-                    stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", color)
-                    stdscr.addstr(1, width  - len(msgtime) - 1, msgtime, color)
+                stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", color)
+                stdscr.addstr(1, width  - len(msgtime) - 1, msgtime, color)
             else:
                 if len(nodes[node]["to"]) > 0:
                     stdscr.addstr(1, 7, nodes[node]["to"][0], color)
             stdscr.addstr(2, 7, msg[5], color)
             stdscr.addstr(3, 7, msg[6][:width - 8], color)
-            draw_title(4, 1, size)
+            draw_title(4, 1, size) 
             tags = msg[0].split("/")
             if "repto" in tags:
                 repto = tags[tags.index("repto") + 1]
@@ -1133,6 +1151,11 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 msgbody = body_render(msg[8:])
                 scrollbar_size = calc_scrollbar_size(len(msgbody))
                 stdscr.clear()
+        elif key in r_getmsg and size == "0b":
+            get_msg(msgids[msgn])
+            msg, size = read_msg(msgids[msgn])
+            msgbody = body_render(msg[8:])
+            scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_quit:
             go = False
             quit = False
