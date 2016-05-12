@@ -119,7 +119,10 @@ def load_colors():
     global bold
     colors = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white", "gray"]
 
-    theme = open("themes/" + color_theme + ".cfg", "r").read().split("\n")
+    try:
+        theme = open("themes/" + color_theme + ".cfg", "r").read().split("\n")
+    except:
+        theme = open("themes/default.cfg", "r").read().split("\n")
     for line in theme:
         param = line.split(" ")
         if len(param) > 1:
@@ -918,7 +921,6 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 if i < len(msgbody) - 1:
                     if y + i < len(msgbody) and len(msgbody[y+i]) > 0:
                         set_attr(msgbody[y + i][0])
-#                        stdscr.addstr(i + 5, 0, msgbody[y + i][1:])
                         x = 0
                         for word in msgbody[y + i][1:].split(" "):
                             if word.startswith("http://") or word.startswith("https://") or word.startswith("ftp://"):
