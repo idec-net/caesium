@@ -895,14 +895,18 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             msg_string = str(msgn + 1) + " / " + str(len(msgids)) + " [" + str(len(msgids) - msgn - 1) + "]"
             draw_title (0, width - len(msg_string) - 3, msg_string)
             if not(out):
-                msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
+                try:
+                    msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
+                except:
+                    msgtime = ""
             if bold[3]:
                 color = curses.color_pair(4) + curses.A_BOLD
             else:
                 color = curses.color_pair(4)
             if not(out):
-                stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", color)
-                stdscr.addstr(1, width - len(msgtime) - 1, msgtime, color)
+                if len(msgbody) > 7:
+                    stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", color)
+                    stdscr.addstr(1, width  - len(msgtime) - 1, msgtime, color)
             else:
                 if len(nodes[node]["to"]) > 0:
                     stdscr.addstr(1, 7, nodes[node]["to"][0], color)
