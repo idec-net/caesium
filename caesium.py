@@ -402,7 +402,10 @@ def draw_echo_selector(start, cursor, archive):
                     stdscr.attron (curses.color_pair(4))
                     stdscr.attroff (curses.A_BOLD)
             if y + 1 >= start + 1:
-                echo_length = get_echo_length(echo[0])
+                if counts_rescan:
+                    counts = rescan_counts(echoareas)
+                    counts_rescan = False
+                echo_length = int(counts[y][0])
                 if echo[0] in lasts:
                     last = lasts[echo[0]]
                 else:
@@ -414,9 +417,6 @@ def draw_echo_selector(start, cursor, archive):
                 if echo[0] in nodes[node]["clone"]:
                     stdscr.addstr(y + 1 - start, 2, "*")
                 stdscr.addstr(y + 1 - start, 3, echo[0])
-                if counts_rescan:
-                    counts = rescan_counts(echoareas)
-                    counts_rescan = False
                 if width >= 80:
                     if width - 38 >= len(echo[1]):
                         stdscr.addstr(y + 1 - start, width - 2 - dsc_lens[y], echo[1])
@@ -661,7 +661,7 @@ def body_render(tbody):
             line = " " + line
         body = body + code
         for word in line.split(" "):
-            if n + len(word) + 1 < width:
+            if n + len(word) < width:
                 n = n + len(word)
                 body = body + word
                 if not word[-1:] == "\n":
@@ -669,11 +669,11 @@ def body_render(tbody):
                     body = body + " "
             else:
                 body = body[:-1]
-                if len(word) < width - 1:
+                if len(word) < width:
                     body = body + "\n" + code + word
                     n = len (word)
                 else:
-                    chunks, chunksize = len(word), width - 1
+                    chunks, chunksize = len(word), width
                     chunk_list = [ word[i:i+chunksize] for i in range(0, chunks, chunksize) ]
                     for line in chunk_list:
                         body = body + "\n" + code + line
