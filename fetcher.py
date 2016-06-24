@@ -203,7 +203,7 @@ for node in nodes:
             count = 0
             for get_list in separate(msg_list):
                 count = count + len(get_list)
-                print("Получение: " + str(count) + "/"  + msg_list_len, end="\r")
+                print("\rПолучение: " + str(count) + "/"  + msg_list_len, end="")
                 debundle(get_bundle(node["node"], "/".join(get_list)), node["to"])
             print()
 
