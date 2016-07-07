@@ -1,69 +1,129 @@
 #!/usr/bin/env python3
 
-import os, urllib.request, base64, codecs, sys
+import urllib.request, base64, codecs, re, os, sys, pickle
 
-config = ""
 clone = []
-old = False
-nodes = []
-ue_ext = False
-wait = False
-debug = False
-node = ""
-echoareas = []
-to = []
+counts = {}
+remote_counts = {}
+full = False
+h = False
+features = []
+ue = False
+xc = False
+to = False
+depth = "200"
 
 def load_config():
-    global node, echoareas
-    cfg = open(config, "r").read().split("\n")
-    first = True
-    node = {}
+    node = ""
+    depth = "200"
     echoareas = []
-    for line in cfg:
+    f = open(config, "r").read().split("\n")
+    for line in f:
         param = line.split(" ")
         if param[0] == "node":
-            if not first:
-                node["echoareas"] = echoareas
-                if not "to" in node:
-                    node["to"] = []
-                nodes.append(node)
-            else:
-                first = False
-            node = {}
-            echoareas = []
-            node["node"] = param[1]
+            node = param[1]
+        elif param[0] == "depth":
+            depth = param[1]
         elif param[0] == "echo":
             echoareas.append(param[1])
-        elif param[0] == "to":
-            node["to"] = " ".join(param[1:]).split(",")
-    if not "to" in node:
-        node["to"] = []
-    node["echoareas"] = echoareas
-    nodes.append(node)
+    return node, depth, echoareas
 
-def get_msg_list(node, echo, ext = False, start = -48):
-    msg_list = []
-    if not ext or echo in clone or old:
-        r = urllib.request.Request(node + "u/e/" + echo)
-    else:
-        r = urllib.request.Request(node + "u/e/" + echo + "/" + str(start) + ":48")
-    with urllib.request.urlopen(r) as f:
-        lines = f.read().decode("utf-8").split("\n")
-        for line in lines:
-            if line != echo and len(line) > 0:
-                msg_list.append(line)
-    return msg_list
+def check_directories():
+    if not os.path.exists("echo"):
+        os.makedirs("echo")
+    if not os.path.exists("msg"):
+        os.makedirs("msg")
 
-def get_local_msg_list(echo):
-    if not os.path.exists("echo/" + echo):
-        return []
-    else:
-        local_msg_list = codecs.open("echo/" + echo, "r", "utf-8").read().split("\n")
-        return local_msg_list
-
-def separate(l, step=48):
+def separate(l, step=40):
     for x in range(0, len(l), step):
         yield l[x:x+step]
+
+def get_features():
+    global features
+    try:
+        r = urllib.request.Request(node + "x/features")
+        with urllib.request.urlopen(r) as f:
+            features = f.read().decode("utf-8").split("\n")
+    except:
+        features = []
+
+def check_features():
+    global ue, xc
+    ue = "u/e" in features
+    xc = "x/c" in features
+
+def load_counts():
+    global counts
+    if os.path.exists("counts.lst"):
+        f = open("counts.lst", "rb")
+        counts = pickle.load(f)
+        f.close()
+    else:
+        counts[node] = {}
+    if not node in counts:
+        counts[node] = {}
+
+def save_counts():
+    counts[node] = remote_counts
+    f = open("counts.lst", "wb")
+    pickle.dump(counts, f)
+    f.close()
+
+def get_remote_counts():
+    counts = {}
+    r = urllib.request.Request(node + "x/c/" + "/".join(echoareas))
+    with urllib.request.urlopen(r) as f:
+        c = f.read().decode("utf-8").split("\n")
+    for count in c:
+        echoarea = count.split(":")
+        if len(echoarea) > 1:
+            counts[echoarea[0]] = echoarea[1]
+    return counts
+
+def calculate_offset():
+    global depth
+    n = False
+    offset = 0
+    for echoarea in echoareas:
+        if not echoarea in counts[node]:
+            n = True
+        else:
+            if not echoarea in clone and int(remote_counts[echoarea]) - int(counts[node][echoarea]) > offset:
+                offset = int(remote_counts[echoarea]) - int(counts[node][echoarea])
+    if not n:
+        depth = offset
+
+def get_echoarea(echoarea):
+    try:
+        return open("echo/" + echoarea, "r").read().split("\n")
+    except:
+        return []
+
+def get_msg_list():
+    global clone
+    msg_list = []
+    fetch_echoareas = []
+    if not full and ue:
+        for echoarea in echoareas:
+            if not echoarea in clone and (not echoarea in counts[node] or int(counts[node][echoarea]) < int(remote_counts[echoarea])):
+                fetch_echoareas.append(echoarea)
+    else:
+        clone = echoareas
+    if len(clone) > 0:
+        r = urllib.request.Request(node + "u/e/" + "/".join(clone))
+        with urllib.request.urlopen(r) as f:
+            lines = f.read().decode("utf-8").split("\n")
+            for line in lines:
+                if len(line) > 0:
+                    msg_list.append(line)
+    if len(fetch_echoareas) > 0 and int(depth) > 0:
+        r = urllib.request.Request(node + "u/e/" + "/".join(fetch_echoareas) + "/-%s:%s" %(depth, depth))
+        with urllib.request.urlopen(r) as f:
+            lines = f.read().decode("utf-8").split("\n")
+            for line in lines:
+                if len(line) > 0:
+                    msg_list.append(line)
+    return msg_list
 
 def get_bundle(node, msgids):
     bundle = []
@@ -72,141 +132,117 @@ def get_bundle(node, msgids):
         bundle = f.read().decode("utf-8").split("\n")
     return bundle
 
-def debundle(bundle, to):
+def debundle(bundle):
     for msg in bundle:
         if msg:
             m = msg.split(":")
             msgid = m[0]
             if len(msgid) == 20 and m[1]:
                 msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
-                if len(to) > 0:
+                codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
+                codecs.open("echo/" + msgbody.split("\n")[1], "a", "utf-8").write(msgid + "\n")
+                if to:
                     try:
                         carbonarea = open("echo/carbonarea", "r").read().split("\n")
                     except:
                         carbonarea = []
                     if msgbody.split("\n")[5] in to and not msgid in carbonarea:
                         codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
-                codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
-                codecs.open("echo/" + msgbody.split("\n")[1], "a", "utf-8").write(msgid + "\n")
 
-if not os.path.exists("echo"):
-    os.mkdir("echo")
-if not os.path.exists("msg"):
-    os.mkdir("msg")
+def echo_filter(ea):
+    rr = re.compile(r'^[a-z0-9_!.-]{1,60}\.[a-z0-9_!.-]{1,60}$')
+    if rr.match(ea): return True
 
-if "-f" in sys.argv:
-    config = sys.argv[sys.argv.index("-f") + 1]
-if "-o" in sys.argv:
-    old = True
-if "-c" in sys.argv:
-    clone = sys.argv[sys.argv.index("-c") + 1].split(",")
-if "-n" in sys.argv:
-    node_addr = sys.argv[sys.argv.index("-n") + 1]
-if "-e" in sys.argv:
-    echoareas = sys.argv[sys.argv.index("-e") + 1].split(",")
-if "-t" in sys.argv:
-    to = sys.argv[sys.argv.index("-t") + 1].split(",")
-if "-w" in sys.argv:
-    wait = True
-if "-d" in sys.argv:
-    debug = True
+def get_mail():
+    fetch_msg_list = []
+    print("Получение индекса от ноды...")
+    remote_msg_list = get_msg_list()
+    print("Построение разностного индекса...")
+    for line in remote_msg_list:
+        if echo_filter(line):
+            if line in clone:
+                try:
+                    os.remove("echo/" + line)
+                except:
+                    None
+            local_index = get_echoarea(line)
+        else:
+            if not line in local_index:
+                fetch_msg_list.append(line)
+    msg_list_len = str(len(fetch_msg_list))
+    if len(fetch_msg_list) > 0:
+        count = 0
+        for get_list in separate(fetch_msg_list):
+            count = count + len(get_list)
+            print("\rПолучение сообщений: " + str(count) + "/"  + msg_list_len, end="")
+            debundle(get_bundle(node, "/".join(get_list)))
+    else:
+        print("Новых сообщений не обнаружено.", end="")
+    print()
 
-if not "-f" in sys.argv and "-n" in sys.argv and "-e" in sys.argv:
-    node = {}
-    node["node"] = node_addr
-    node["to"] = to
-    node["echoareas"] = echoareas
-    nodes.append(node)
+def check_new_echoareas():
+    local_base = os.listdir("echo/")
+    n = False
+    for echoarea in echoareas:
+        if not echoarea in local_base:
+            n = True
+    return n
 
-if len(sys.argv) == 1:
-    print("Использование: fetcher.py -f config_file [-c cloned_echoarea1,cloned_echoarea2,...] [-o] или")
-    print("               fetcher.py -n node_address -e echoarea.1,echoarea.2 [-c ...] [-o]\n")
-    print("  -f указывает путь к конфигурационному файлу;")
-    print("  -n указывает адрес подключения к ноде;")
-    print("  -e указывает эхоконференции для фетчинга (разделитель запятая);")
-    print("  -c указывает эхконференции для клонирования (разделитель запятая);")
-    print("  -o опция включает режим старого взаимодействия с нодой;")
-    print("  -t указывает имя пользователя, по которому определяются сообщения для копирования в карбонку;")
-    print("  -w ожидать реакции пользователя после окончания фетчинга;")
-    print("  -d режим расширенного отображения действий программы.")
+def show_help():
+    print("Usage: fetcher [-f filename] [-d depth] [-c echoarea1,echoarea2,...] [-h].")
+    print()
+    print("  -f filename load config file. Default idec-fetcher.cfg.")
+    print("  -d depth    fetch messages with an offset to a predetermined depth. Default 200.")
+    print("  -c          clone echoareas from node.")
+    print("  -o          old mode. Get full index from nore.")
+    print("  -h          this message.")
+    print()
+    print("If -f not exist, script will load config from current directory with name\nidec-fetcher.cfg.")
+
+args = sys.argv[1:]
+
+conf = "-f" in args
+if conf:
+    config = args[args.index("-f") + 1]
+else:
+    config = "fetcher.cfg"
+if "-c" in args:
+    clone = args[args.index("-c") + 1].split(",")
+full = "-o" in args
+if "-d" in args:
+    depth = args[args.index("-d") + 1]
+h = "-h" in args
+if "-n" in args:
+    node = args[args.index("-n") + 1]
+if "-e" in args:
+    echoareas = args[args.index("-e") + 1].split(",")
+if "-to" in args:
+    to = args[args.index("-to") + 1]
+wait = "-w" in args
+
+if h:
+    show_help()
     quit()
 
-if "-f" in sys.argv:
-    try:
-        load_config()
-    except:
-        print("Не удаётся найти файл конфигурации")
+if not "-n" in args and not "-e" in args and not os.path.exists(config):
+    print("Config file not found.")
+    quit()
 
-for echo in clone:
-    try:
-        os.remove("echo/" + echo)
-    except:
-        None
-
-for node in nodes:
-    remote = False
-    remote_msg_list = []
-    local_msg_list = []
-    print("Работа с " + node["node"])
-    try:
-        r = urllib.request.Request(node["node"] + "x/features")
-        with urllib.request.urlopen(r) as f:
-            if "u/e" in f.read().decode("utf-8").split("\n"):
-                ue_ext = True
-                print("Расширенная схема u/e поддерживается.")
-            else:
-                print("Расширенная схема u/e не поддерживается.")
-    except:
-        print("Не поддерживается схема x/features.")
-    print("Поиск новых сообщений...")
-    for echo in node["echoareas"]:
-        local_msg_list = local_msg_list + get_local_msg_list(echo)
-        try:
-            if not os.path.exists("echo/" + echo) and ue_ext:
-                remote_msg_list = remote_msg_list + get_msg_list(node["node"], echo, True)
-                remote = True
-            elif ue_ext:
-                loop = True
-                start = -48
-                while loop:
-                    if debug:
-                        print("{0:26}{1:54}".format("Поиск в " + echo, " Смещение индекса: " + str(start)), end="\r")
-                    tmp = []
-                    remote = get_msg_list(node["node"], echo, True, start)
-                    remote.reverse()
-                    if len(remote) == 0 or len(remote) - start <= 0:
-                        loop = False
-                    for msgid in remote:
-                        if not msgid in local_msg_list:
-                            tmp.append(msgid)
-                        else:
-                            loop = False
-                            break
-                    tmp.reverse()
-                    remote_msg_list = remote_msg_list + tmp
-                    start = start - 48
-                if debug:
-                    print()
-                remote = True
-            else:
-                remote_msg_list = remote_msg_list + get_msg_list(node["node"], echo)
-                remote = True
-        except:
-            print("Не удаётся связаться с узлом: " + node["node"])
-            remote = False
-    if len(remote_msg_list) == 0:
-        print("Новых сообщений не найдено.")
-    if remote and len(remote_msg_list) > 0:
-        msg_list = [x for x in remote_msg_list if x not in local_msg_list and x != ""]
-        msg_list_len = str(len(msg_list))
-        if len(msg_list) > 0:
-            count = 0
-            for get_list in separate(msg_list):
-                count = count + len(get_list)
-                print("\rПолучение: " + str(count) + "/"  + msg_list_len, end="")
-                debundle(get_bundle(node["node"], "/".join(get_list)), node["to"])
-            print()
-
+check_directories()
+if not "-n" in args or not "-e" in args:
+    node, depth, echoareas = load_config()
+print("Работа с " + node)
+print("Получение списка возможностей ноды...")
+get_features()
+check_features()
+if xc:
+    load_counts()
+    print("Получение количества сообщений в конференциях...")
+    remote_counts = get_remote_counts()
+    calculate_offset()
+get_mail()
+if xc:
+    save_counts()
 if wait:
     input("Нажмите Enter для продолжения.")
     print()

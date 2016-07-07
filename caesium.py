@@ -15,7 +15,6 @@ counts = []
 counts_rescan = True
 next_echoarea = False
 oldquote = False
-fetcher_debug = False
 
 splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
            "████████ ████████ ████████ ████████ ███ ███  ███ ██████████",
@@ -25,7 +24,7 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
            "████████ ████████ ████████ ████████ ███ ████████ ███ ██ ███",
            "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄",
            "           ncurses ii/idec client          v.0.2",
-           "           Andrew Lobanov             21.04.2016"]
+           "           Andrew Lobanov             06.07.2016"]
 
 def check_directories():
     if not os.path.exists("echo"):
@@ -51,14 +50,12 @@ def separate(l, step=20):
         yield l[x:x+step]
 
 def load_config():
-    global nodes, editor, color_theme, show_splash, oldquote, fetcher_debug
+    global nodes, editor, color_theme, show_splash, oldquote
     first = True
     node = {}
     echoareas = []
     archive = []
-    f = open("caesium.cfg")
-    config = f.read().split("\n")
-    f.close()
+    config = open("caesium.cfg").read().split("\n")
     for line in config:
         param = line.split(" ")
         if param[0] == "nodename":
@@ -104,8 +101,6 @@ def load_config():
             show_splash = False
         elif param[0] == "oldquote":
             oldquote = True
-        elif param[0] == "fetcher_debug":
-            fetcher_debug = True
     if not "nodename" in node:
         node["nodename"] = "untitled node"
     if not "to" in node:
@@ -315,9 +310,7 @@ def current_time():
 
 def get_echo_length(echo):
     if os.path.exists("echo/" + echo):
-        f = open ("echo/" + echo, "r")
-        echo_length = len(f.read().split("\n")) - 1
-        f.close()
+        echo_length = len(open ("echo/" + echo, "r").read().split("\n")) - 1
     else:
         echo_length = 0
     return echo_length
@@ -448,21 +441,15 @@ def fetch_mail():
     echoareas = []
     to = ""
     if len(nodes[node]["to"]) > 0:
-        to = " -t \"" + ",".join(nodes[node]["to"]) + "\""
+        to = " -to \"" + ",".join(nodes[node]["to"]) + "\""
     for echoarea in nodes[node]["echoareas"][2:]:
         if not echoarea[2]:
             echoareas.append(echoarea[0])
     if len(nodes[node]["clone"]) > 0:
-        if fetcher_debug:
-            p = subprocess.Popen("./fetcher.py -d -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]) + to, shell=True)
-        else:
-            p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]) + to, shell=True)
+        p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + " -c " + ",".join(nodes[node]["clone"]) + to, shell=True)
         nodes[node]["clone"] = []
     else:
-        if fetcher_debug:
-            p = subprocess.Popen("./fetcher.py -d -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to, shell=True)
-        else:
-            p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to, shell=True)
+        p = subprocess.Popen("./fetcher.py -w -n \"" + nodes[node]["node"] + "\" -e " + ",".join(echoareas) + to, shell=True)
     p.wait()
     stdscr = curses.initscr()
     curses.start_color()
@@ -602,9 +589,7 @@ def echo_selector():
 def read_msg(msgid):
     size = "0b"
     if os.path.exists("msg/" + msgid) and msgid != "":
-        f = open("msg/" + msgid, "r")
-        msg = f.read().split("\n")
-        f.close
+        msg = open("msg/" + msgid, "r").read().split("\n")
         size = os.stat("msg/" + msgid).st_size
         if size < 1024:
             size = str(size) + " B"
@@ -616,9 +601,7 @@ def read_msg(msgid):
 
 def read_out_msg(msgid):
     size = "0b"
-    f = open("out/" + msgid, "r")
-    temp = f.read().split("\n")
-    f.close()
+    temp = open("out/" + msgid, "r").read().split("\n")
     msg = []
     msg.append("")
     msg.append(temp[0])
@@ -789,9 +772,7 @@ def save_to_favorites(msgid):
 
 def get_echo_msgids(echo):
     if os.path.exists("echo/" + echo):
-        f = open("echo/" + echo, "r")
-        msgids = f.read().split("\n")[:-1]
-        f.close()
+        msgids = open("echo/" + echo, "r").read().split("\n")[:-1]
     else:
         msgids = []
     return msgids
