@@ -447,7 +447,7 @@ def fetch_mail():
     echoareas = []
     to = ""
     if len(nodes[node]["to"]) > 0:
-        to = " -to \"" + ",".join(nodes[node]["to"]) + "\""
+        to = "\"" + ",".join(nodes[node]["to"]) + "\""
     else:
         to = False
     for echoarea in nodes[node]["echoareas"][2:]:

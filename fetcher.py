@@ -217,7 +217,7 @@ if "-n" in args:
 if "-e" in args:
     echoareas = args[args.index("-e") + 1].split(",")
 if "-to" in args:
-    to = args[args.index("-to") + 1]
+    to = args[args.index("-to") + 1].split(",")
 wait = "-w" in args
 
 if h:
