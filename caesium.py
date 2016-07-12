@@ -1032,12 +1032,12 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 if y < 0:
                     y = 0
         elif key in r_npage:
-            if len(msgids) > 0 and len(msgbody) > height - 6:
+            if len(msgids) > 0 and len(msgbody) > height - 5:
                 y = y + height - 6
-                if y + height - 6 >= len(msgbody):
+                if y + height - 5 >= len(msgbody):
                     y = len(msgbody) - height + 6
         elif key in r_ukeys:
-            if len(msgids) == 0 or y >= len(msgbody) - height + 6:
+            if len(msgids) == 0 or y >= len(msgbody) - height + 5:
                 y = 0
                 if msgn == len(msgids) - 1 or len(msgids) == 0:
                     next_echoarea = True
@@ -1054,7 +1054,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                     msgbody = body_render(msg[8:])
                     scrollbar_size = calc_scrollbar_size(len(msgbody))
             else:
-                if len(msgids) > 0 and len(msgbody) > height - 6:
+                if len(msgids) > 0 and len(msgbody) > height - 5:
                     y = y + height - 6
         elif key in r_down:
             if len(msgids) > 0:
