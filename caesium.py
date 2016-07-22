@@ -10,13 +10,15 @@ node = 0
 editor = ""
 lasts = {}
 color_theme = "default"
-bold = [False, False, False, False, False, False, False, False]
+bold = [False, False, False, False, False, False, False, False, False]
 counts = []
 counts_rescan = True
 next_echoarea = False
 oldquote = False
 fetch_cmd = ""
 clone_cmd = ""
+
+version = "Caesium/0.3 │"
 
 splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
            "████████ ████████ ████████ ████████ ███ ███  ███ ██████████",
@@ -25,8 +27,8 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
            "███      ███  ███ ███           ███ ███ ███  ███ ███ ██ ███",
            "████████ ████████ ████████ ████████ ███ ████████ ███ ██ ███",
            "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄",
-           "           ncurses ii/idec client          v.0.2",
-           "           Andrew Lobanov             06.07.2016"]
+           "           ncurses ii/idec client          v.0.3",
+           "           Andrew Lobanov             22.07.2016"]
 
 def check_directories():
     if not os.path.exists("echo"):
@@ -177,6 +179,12 @@ def load_colors():
                 bold[7] = True
             else:
                 bold[7] = False
+        if param[0] == "statusline":
+            curses.init_pair(9, colors.index(param[1]), colors.index(param[2]))
+            if len(param) == 4:
+                bold[8] = True
+            else:
+                bold[8] = False
 
 def outcount():
     outpath = "out/"
@@ -307,12 +315,19 @@ def draw_title(y, x, title):
         color = curses.color_pair(2)
     stdscr.addstr(y, x + 1, title, curses.color_pair(2) + curses.A_BOLD)
 
+def draw_status(x, title):
+    if bold[8]:
+        color = curses.color_pair(9) + curses.A_BOLD
+    else:
+        color = curses.color_pair(9)
+    stdscr.addstr(height - 1, x, title, color)
+
 def draw_cursor(y, color):
-    for i in range (1, width - 1):
+    for i in range (0, width):
         stdscr.addstr(y + 1, i, " ", color)
 
 def current_time():
-    draw_title (height - 1, width - 8, datetime.now().strftime("%H:%M"))
+    draw_status(width - 8, "│ " + datetime.now().strftime("%H:%M"))
 
 def get_echo_length(echo):
     if os.path.exists("echo/" + echo):
@@ -349,14 +364,25 @@ def draw_echo_selector(start, cursor, archive):
         stdscr.attron(curses.A_BOLD)
     else:
         stdscr.attron(curses.color_pair(1))
-    stdscr.border()
+    for i in range(0, width):
+        if bold[0]:
+            color = curses.color_pair(1) + curses.A_BOLD
+        else:
+            color = curses.color_pair(1)
+        stdscr.insstr(0, i, "─", color)
+        if bold[2]:
+            color = curses.color_pair(3) + curses.A_BOLD
+        else:
+            color = curses.color_pair(3)
+        stdscr.insstr(height - 1, i, " ", color)
     if archive:
         echoareas = nodes[node]["archive"]
         draw_title(0, 1, "Архив")
     else:
         echoareas = nodes[node]["echoareas"]
         draw_title(0, 1, "Эхоконференции")
-    draw_title(height - 1, 1, nodes[node]["nodename"])
+    draw_status(1, version)
+    draw_status(len(version) + 2, nodes[node]["nodename"])
     for echo in echoareas:
         l = len(echo[1])
         if l > m:
@@ -370,10 +396,10 @@ def draw_echo_selector(start, cursor, archive):
     description = "Описание"
     if width < 80:
         m = len(unread) - 7
-    draw_title(0, width - 11 - m - len(count) - 1, count);
-    draw_title(0, width - 9 - m - 1, unread);
+    draw_title(0, width - 10 - m - len(count) - 1, count);
+    draw_title(0, width - 8 - m - 1, unread);
     if width >= 80:
-        draw_title(0, width - len(description) - 3, description)
+        draw_title(0, width - len(description) - 2, description)
     for echo in echoareas:
         if y - start < height - 2:
             if y == cursor:
@@ -410,20 +436,20 @@ def draw_echo_selector(start, cursor, archive):
                 else:
                     last = -1
                 if last < echo_length - 1 or last == -1 and echo_length == 1:
-                    stdscr.addstr(y + 1 - start, 1, "+")
+                    stdscr.addstr(y + 1 - start, 0, "+")
                 if last < 0:
                     last = 0
                 if echo[0] in nodes[node]["clone"]:
-                    stdscr.addstr(y + 1 - start, 2, "*")
-                stdscr.addstr(y + 1 - start, 3, echo[0])
+                    stdscr.addstr(y + 1 - start, 1, "*")
+                stdscr.addstr(y + 1 - start, 2, echo[0])
                 if width >= 80:
                     if width - 38 >= len(echo[1]):
-                        stdscr.addstr(y + 1 - start, width - 2 - dsc_lens[y], echo[1])
+                        stdscr.addstr(y + 1 - start, width - 1 - dsc_lens[y], echo[1])
                     else:
                         cut_index = width - 38 - len(echo[1])
-                        stdscr.addstr(y + 1 - start, width - 2 - len(echo[1][:cut_index]), echo[1][:cut_index])
-                stdscr.addstr(y + 1 - start, width - 11 - m - len(counts[y][0]), counts[y][0])
-                stdscr.addstr(y + 1 - start, width - 3 - m - len(counts[y][1]), counts[y][1])
+                        stdscr.addstr(y + 1 - start, width - 1 - len(echo[1][:cut_index]), echo[1][:cut_index])
+                stdscr.addstr(y + 1 - start, width - 10 - m - len(counts[y][0]), counts[y][0])
+                stdscr.addstr(y + 1 - start, width - 2 - m - len(counts[y][1]), counts[y][1])
         y = y + 1
     current_time()
     stdscr.refresh()
@@ -555,11 +581,11 @@ def echo_selector():
             if last >= echo_length:
                 last = echo_length - 1
             if cursor == 1:
-                go = not echo_reader(echoareas[cursor][0], last, archive, True, False, True)
+                go = not echo_reader(echoareas[cursor], last, archive, True, False, True)
             elif cursor == 0 or echoareas[cursor][2]:
-                go = not echo_reader(echoareas[cursor][0], last, archive, True, False, False)
+                go = not echo_reader(echoareas[cursor], last, archive, True, False, False)
             else:
-                go = not echo_reader(echoareas[cursor][0], last, archive, False, False, False)
+                go = not echo_reader(echoareas[cursor], last, archive, False, False, False)
             counts_rescan = True
             if next_echoarea:
                 counts = rescan_counts(echoareas)
@@ -691,7 +717,11 @@ def draw_reader(echo, msgid, out):
             color = curses.color_pair(1)
         stdscr.insstr(0, i, "─", color)
         stdscr.insstr(4, i, "─", color)
-        stdscr.insstr(height - 1, i, "─", color)
+        if bold[2]:
+            color = curses.color_pair(3) + curses.A_BOLD
+        else:
+            color = curses.color_pair(3)
+        stdscr.insstr(height - 1, i, " ", color)
     if out:
         draw_title(0, 1, echo)
         if msgid.endswith(".out"):
@@ -699,6 +729,7 @@ def draw_reader(echo, msgid, out):
             draw_title(4, width - len(ns) - 3, ns)
     else:
         draw_title(0, 1, echo + " / " + msgid)
+    draw_status(1, version)
     current_time()
     for i in range(0, 3):
         draw_cursor(i, 1)
@@ -891,7 +922,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
     if out:
         msgids = get_out_msgids()
     else:
-        msgids = get_echo_msgids(echo)
+        msgids = get_echo_msgids(echo[0])
     if len(msgids) > 0:
         if out:
             msg, size = read_out_msg(msgids[msgn])
@@ -906,8 +937,9 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
     while go:
         if len(msgids) > 0:
             draw_reader(msg[1], msgids[msgn], out)
-            msg_string = str(msgn + 1) + " / " + str(len(msgids)) + " [" + str(len(msgids) - msgn - 1) + "]"
-            draw_title (0, width - len(msg_string) - 3, msg_string)
+            msg_string = "Сообщение " + str(msgn + 1) + " из " + str(len(msgids)) + " (" + str(len(msgids) - msgn - 1) + " осталось)"
+            draw_status(len(version) + 2, msg_string)
+            draw_title(0, width - 2 - len(echo[1]), echo[1])
             if not(out):
                 try:
                     msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
@@ -968,7 +1000,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                     if i < height - 1:
                         stdscr.addstr(i, width - 1, "█")
         else:
-            draw_reader(echo, "", out)
+            draw_reader(echo[0], "", out)
         stdscr.attron(curses.color_pair(1))
         if bold[0]:
             stdscr.attron(curses.A_BOLD)
@@ -1011,7 +1043,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             go = False
             quit = False
             next_echoarea = True
-        elif key in r_prep and not echo == "carbonarea" and not echo == "favorites" and not out and repto:
+        elif key in r_prep and not echo[0] == "carbonarea" and not echo[0] == "favorites" and not out and repto:
             if repto in msgids:
                 stack.append(msgn)
                 msgn = msgids.index(repto)
@@ -1087,7 +1119,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
         elif (key in r_ins) and not archive and not out:
             if not favorites:
                 f = open("temp", "w")
-                f.write(echo + "\n")
+                f.write(echo[0] + "\n")
                 f.write("All\n")
                 f.write("No subject\n\n")
                 f.close()
@@ -1139,7 +1171,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 favorites_list = open("echo/favorites", "r").read().split("\n")
                 favorites_list.remove(msgids[msgn])
                 open("echo/favorites", "w").write("\n".join(favorites_list))
-                msgids = get_echo_msgids(echo)
+                msgids = get_echo_msgids(echo[0])
                 if msgn >= len(msgids):
                     msgn = len(msgids) - 1
                 msg, size = read_msg(msgids[msgn])
@@ -1158,7 +1190,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
         elif key in g_quit:
             go = False
             quit = True
-    lasts[echo] = msgn
+    lasts[echo[0]] = msgn
     f = open("lasts.lst", "wb")
     pickle.dump(lasts, f)
     f.close()
