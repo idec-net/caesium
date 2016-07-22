@@ -377,10 +377,10 @@ def draw_echo_selector(start, cursor, archive):
         stdscr.insstr(height - 1, i, " ", color)
     if archive:
         echoareas = nodes[node]["archive"]
-        draw_title(0, 1, "Архив")
+        draw_title(0, 0, "Архив")
     else:
         echoareas = nodes[node]["echoareas"]
-        draw_title(0, 1, "Эхоконференции")
+        draw_title(0, 0, "Эхоконференции")
     draw_status(1, version)
     draw_status(len(version) + 2, nodes[node]["nodename"])
     for echo in echoareas:
@@ -723,12 +723,12 @@ def draw_reader(echo, msgid, out):
             color = curses.color_pair(3)
         stdscr.insstr(height - 1, i, " ", color)
     if out:
-        draw_title(0, 1, echo)
+        draw_title(0, 0, echo)
         if msgid.endswith(".out"):
             ns = "не отправлено"
-            draw_title(4, width - len(ns) - 3, ns)
+            draw_title(4, width - len(ns) - 2, ns)
     else:
-        draw_title(0, 1, echo + " / " + msgid)
+        draw_title(0, 0, echo + " / " + msgid)
     draw_status(1, version)
     current_time()
     for i in range(0, 3):
@@ -957,11 +957,11 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                     stdscr.addstr(1, 7, nodes[node]["to"][0], color)
             stdscr.addstr(2, 7, msg[5], color)
             stdscr.addstr(3, 7, msg[6][:width - 8], color)
-            draw_title(4, 1, size) 
+            draw_title(4, 0, size) 
             tags = msg[0].split("/")
             if "repto" in tags:
                 repto = tags[tags.index("repto") + 1]
-                draw_title(4, len(size) + 4, "Ответ на " + repto)
+                draw_title(4, len(size) + 3, "Ответ на " + repto)
             else:
                 repto = False
             for i in range (0, height - 6):
