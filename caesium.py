@@ -28,7 +28,7 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
            "████████ ████████ ████████ ████████ ███ ████████ ███ ██ ███",
            "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄",
            "           ncurses ii/idec client          v.0.3",
-           "           Andrew Lobanov             22.07.2016"]
+           "           Andrew Lobanov             23.07.2016"]
 
 def check_directories():
     if not os.path.exists("echo"):
@@ -934,7 +934,11 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             draw_reader(msg[1], msgids[msgn], out)
             msg_string = "Сообщение " + str(msgn + 1) + " из " + str(len(msgids)) + " (" + str(len(msgids) - msgn - 1) + " осталось)"
             draw_status(len(version) + 2, msg_string)
-            draw_title(0, width - 2 - len(echo[1]), echo[1])
+            outgoing = "Исхоящие"
+            if out:
+                draw_title(0, width - 2 - len(outgoing), outgoing)
+            else:
+                draw_title(0, width - 2 - len(echo[1]), echo[1])
             if not(out):
                 try:
                     msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
