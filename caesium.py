@@ -188,12 +188,7 @@ def load_colors():
 
 def outcount():
     outpath = "out/"
-    if not os.path.exists(outpath):
-        os.mkdir(outpath)
-    if not os.path.exists(outpath + "/.outcount"):
-        codecs.open(outpath + "/.outcount", "w", "utf-8").write("0")
-    i = str(int(codecs.open(outpath + "/.outcount", "r", "utf-8").read()) + 1)
-    codecs.open(outpath + "/.outcount", "w", "utf-8").write(i)
+    i = str(len([x for x in os.listdir(outpath) if not x.endswith(".toss")]) + 1)
     return outpath + "/%s.out" % i.zfill(5)
 
 def save_out():
