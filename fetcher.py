@@ -160,7 +160,7 @@ def get_mail():
     print("Построение разностного индекса...")
     for line in remote_msg_list:
         if echo_filter(line):
-            if line in clone:
+            if line in clone and ue:
                 try:
                     os.remove("echo/" + line)
                 except:
@@ -189,15 +189,18 @@ def check_new_echoareas():
     return n
 
 def show_help():
-    print("Usage: fetcher [-f filename] [-d depth] [-c echoarea1,echoarea2,...] [-h].")
+    print("Usage: fetcher.py [-f filename] [-n node] [-e echoarea1,echoarea2,...] [-d depth] [-c echoarea1,echoarea2,...] [-o] [-to name1,name2...] [-h].")
     print()
-    print("  -f filename load config file. Default idec-fetcher.cfg.")
-    print("  -d depth    fetch messages with an offset to a predetermined depth. Default 200.")
-    print("  -c          clone echoareas from node.")
-    print("  -o          old mode. Get full index from nore.")
-    print("  -h          this message.")
+    print("  -f filename  load config file. Default idec-fetcher.cfg.")
+    print("  -n node      node address.")
+    print("  -e echoareas echoareas for fetch.")
+    print("  -d depth     fetch messages with an offset to a predetermined depth. Default 200.")
+    print("  -c echoareas clone echoareas from node.")
+    print("  -o           old mode. Get full index from nore.")
+    print("  -to names    names for put messages to carbonarea.")
+    print("  -h           this message.")
     print()
-    print("If -f not exist, script will load config from current directory with name\nidec-fetcher.cfg.")
+    print("If -f not exist, script will load config from current directory with name\nfetcher.cfg.")
 
 args = sys.argv[1:]
 
