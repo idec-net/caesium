@@ -3,7 +3,7 @@
 import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re, hashlib
 from datetime import datetime
 from shutil import copyfile
-from keys import *
+from keys_android import *
 
 nodes = []
 node = 0
@@ -723,7 +723,10 @@ def draw_reader(echo, msgid, out):
             ns = "не отправлено"
             draw_title(4, width - len(ns) - 2, ns)
     else:
-        draw_title(0, 0, echo + " / " + msgid)
+        if width >= 80:
+            draw_title(0, 0, echo + " / " + msgid)
+        else:
+            draw_title(0, 0, echo)
     draw_status(1, version)
     current_time()
     for i in range(0, 3):
@@ -932,7 +935,10 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
     while go:
         if len(msgids) > 0:
             draw_reader(msg[1], msgids[msgn], out)
-            msg_string = "Сообщение " + str(msgn + 1) + " из " + str(len(msgids)) + " (" + str(len(msgids) - msgn - 1) + " осталось)"
+            if width >= 80:
+                msg_string = "Сообщение " + str(msgn + 1) + " из " + str(len(msgids)) + " (" + str(len(msgids) - msgn - 1) + " осталось)"
+            else:
+                msg_string = str(msgn + 1) + "/" + str(len(msgids)) + " [" + str(len(msgids) - msgn - 1) + "]"
             draw_status(len(version) + 2, msg_string)
             outgoing = "Исхоящие"
             if out:
