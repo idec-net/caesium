@@ -940,14 +940,18 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             else:
                 msg_string = str(msgn + 1) + "/" + str(len(msgids)) + " [" + str(len(msgids) - msgn - 1) + "]"
             draw_status(len(version) + 2, msg_string)
-            outgoing = "Исхоящие"
             if out:
-                draw_title(0, width - 2 - len(outgoing), outgoing)
+                dsc = "Исходящие"
             else:
-                draw_title(0, width - 2 - len(echo[1]), echo[1])
+                dsc = echo[1]
+            if len(dsc) > 0 and width >= 80:
+                draw_title(0, width - 2 - len(dsc), dsc)
             if not(out):
                 try:
-                    msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
+                    if width >= 80:
+                        msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
+                    else:
+                        msgtime = time.strftime("%Y.%m.%d %H:%M", time.gmtime(int(msg[2])))
                 except:
                     msgtime = ""
             if bold[3]:
@@ -955,7 +959,10 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             else:
                 color = curses.color_pair(4)
             if not(out):
-                stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", color)
+                if width >= 80:
+                    stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", color)
+                else:
+                    stdscr.addstr(1, 7, msg[3], color)
                 stdscr.addstr(1, width  - len(msgtime) - 1, msgtime, color)
             else:
                 if len(nodes[node]["to"]) > 0:
