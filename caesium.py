@@ -366,9 +366,9 @@ def draw_echo_selector(start, cursor, archive):
             color = curses.color_pair(1)
         stdscr.insstr(0, i, "─", color)
         if bold[2]:
-            color = curses.color_pair(3) + curses.A_BOLD
+            color = curses.color_pair(9) + curses.A_BOLD
         else:
-            color = curses.color_pair(3)
+            color = curses.color_pair(9)
         stdscr.insstr(height - 1, i, " ", color)
     if archive:
         echoareas = nodes[node]["archive"]
@@ -713,9 +713,9 @@ def draw_reader(echo, msgid, out):
         stdscr.insstr(0, i, "─", color)
         stdscr.insstr(4, i, "─", color)
         if bold[2]:
-            color = curses.color_pair(3) + curses.A_BOLD
+            color = curses.color_pair(9) + curses.A_BOLD
         else:
-            color = curses.color_pair(3)
+            color = curses.color_pair(9)
         stdscr.insstr(height - 1, i, " ", color)
     if out:
         draw_title(0, 0, echo)
