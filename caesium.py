@@ -793,8 +793,8 @@ def draw_message_box(smsg, wait):
 
 def message_box(smsg):
     draw_message_box(smsg, True)
-    msgwin.getch()
-    msgwin.clear()
+    stdscr.getch()
+    stdscr.clear()
 
 def save_message_to_file(msgid, echoarea):
     msg, size = read_msg(msgid, echoarea)
@@ -1130,6 +1130,8 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             save_message_to_file(msgids[msgn], echo)
         elif key in r_favorites and not out:
             saved = save_to_favorites(msgids[msgn], msg)
+            draw_message_box("Подождите", False)
+            get_counts()
             if saved:
                 message_box("Собщение добавлено в избранные")
             else:
@@ -1175,12 +1177,17 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
         elif key in f_delete and favorites and not carbonarea:
             if len(msgids) > 0:
                 remove_from_favorites(msgids[msgn])
+                draw_message_box("Подождите", False)
+                get_counts()
                 msgids = get_echo_msgids(echo[0])
-                if msgn >= len(msgids):
-                    msgn = len(msgids) - 1
-                msg, size = read_msg(msgids[msgn], echo[0])
-                msgbody = body_render(msg[8:])
-                scrollbar_size = calc_scrollbar_size(len(msgbody))
+                if len(msgids) > 0:
+                    if msgn >= len(msgids):
+                        msgn = len(msgids) - 1
+                    msg, size = read_msg(msgids[msgn], echo[0])
+                    msgbody = body_render(msg[8:])
+                    scrollbar_size = calc_scrollbar_size(len(msgbody))
+                else:
+                    msgbody = []
                 stdscr.clear()
         elif key in r_getmsg and size == "0b":
             get_msg(msgids[msgn])

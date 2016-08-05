@@ -7,7 +7,7 @@ def get_echo_length(echo):
         echo_length = 0
     return echo_length
 
-def save_to_favorites(msgid):
+def save_to_favorites(msgid, msg):
     if os.path.exists("aio/favorites.aio"):
         f = open("aio/favorites.aio", "r").read().split("\n")
         favorites = []
@@ -57,7 +57,7 @@ def remove_from_favorites(msgid):
     for item in favorites_list:
         if not item.startswith(msgid):
             favorites.append(item)
-    codecs.open("aio/favorites.aio", "a", "utf-8").write("\n".join(favorites))
+    codecs.open("aio/favorites.aio", "w", "utf-8").write("\n".join(favorites))
 
 def read_msg(msgid, echoarea):
     size = "0b"
