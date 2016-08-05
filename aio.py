@@ -2,13 +2,10 @@ import os, codecs, sys
 
 def get_echo_length(echo):
     if os.path.exists("aio/" + echo + ".aio"):
-        echo_length = len(codecs.open ("aio/" + echo + ".aio", "r", "utf-8").read().split("\n")) - 1
+        echo_length = sum(1 for l in open("aio/" + echo + ".aio", "r", newline="\n"))
     else:
         echo_length = 0
     return echo_length
-
-def get_echocount(echoarea):
-    return len(codecs.open("aio/" + echoarea + ".aio", "r", "utf-8").read().split("\n")) - 1
 
 def save_to_favorites(msgid):
     if os.path.exists("aio/favorites.aio"):

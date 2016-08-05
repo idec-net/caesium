@@ -13,6 +13,7 @@ color_theme = "default"
 bold = [False, False, False, False, False, False, False, False, False]
 counts = []
 counts_rescan = True
+echo_counts = {}
 next_echoarea = False
 oldquote = False
 fetch_cmd = ""
@@ -334,11 +335,16 @@ def draw_cursor(y, color):
 def current_time():
     draw_status(width - 8, "│ " + datetime.now().strftime("%H:%M"))
 
+def get_counts():
+    global echo_counts
+    for echoarea in nodes[node]["echoareas"]:
+        echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
+
 def rescan_counts(echoareas):
     counts = []
     for echo in echoareas:
         try:
-            echocount = get_echo_length(echo[0])
+            echocount = echo_counts[echo[0]]
             if echo[0] in lasts: 
                 last = echocount - lasts[echo[0]]
                 if echocount == 0 and lasts[echo[0]] == 0:
@@ -546,6 +552,7 @@ def echo_selector():
                 start = len(echoareas) - height + 2
         elif key in s_get:
             fetch_mail()
+            get_counts()
             counts = rescan_counts(echoareas)
             cursor = find_new(0)
             if cursor >= height - 2:
@@ -1031,7 +1038,6 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             go = False
             quit = False
             next_echoarea = True
-            draw_message_box("Подождите", False)
         elif key in r_prep and not echo[0] == "carbonarea" and not echo[0] == "favorites" and not out and repto:
             if repto in msgids:
                 stack.append(msgn)
@@ -1070,7 +1076,6 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                     next_echoarea = True
                     go = False
                     quit = False
-                    draw_message_box("Подождите", False)
                 else:
                     msgn = msgn +1
                     if len(stack) > 0:
@@ -1185,11 +1190,9 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             go = False
             quit = False
             next_echoarea = False
-            draw_message_box("Подождите", False)
         elif key in g_quit:
             go = False
             quit = True
-            draw_message_box("Подождите", False)
     lasts[echo[0]] = msgn
     f = open("lasts.lst", "wb")
     pickle.dump(lasts, f)
@@ -1221,6 +1224,7 @@ stdscr.bkgd(" ", curses.color_pair(1))
 get_term_size()
 if show_splash:
     splash_screen()
+get_counts()
 echo_selector()
 curses.echo()
 curses.curs_set(True)
