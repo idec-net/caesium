@@ -338,7 +338,7 @@ def rescan_counts(echoareas):
     counts = []
     for echo in echoareas:
         try:
-            echocount = get_echocount(echo[0])
+            echocount = get_echo_length(echo[0])
             if echo[0] in lasts: 
                 last = echocount - lasts[echo[0]]
                 if echocount == 0 and lasts[echo[0]] == 0:
@@ -1041,7 +1041,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_nrep and not out and len(stack) > 0:
             msgn = stack.pop()
-            msg, size = read_msg(msgids[msgn]. echo[0])
+            msg, size = read_msg(msgids[msgn], echo[0])
             msgbody = body_render(msg[8:])
             scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_up and y > 0:
