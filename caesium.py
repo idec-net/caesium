@@ -552,6 +552,7 @@ def echo_selector():
                 start = len(echoareas) - height + 2
         elif key in s_get:
             fetch_mail()
+            draw_message_box("Подождите", False)
             get_counts()
             counts = rescan_counts(echoareas)
             cursor = find_new(0)
@@ -1224,6 +1225,7 @@ stdscr.bkgd(" ", curses.color_pair(1))
 get_term_size()
 if show_splash:
     splash_screen()
+draw_message_box("Подождите", False)
 get_counts()
 echo_selector()
 curses.echo()
