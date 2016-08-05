@@ -68,7 +68,7 @@ def read_msg(msgid, echoarea):
             if item.startswith(msgid):
                 msg = ":".join(item.split(":")[1:]).split(chr(15))
         if msg:
-            size = sys.getsizeof("\n".join(msg[1:]))
+            size = len ("\n".join(msg).encode("utf-8"))
         else:
             size = 0
         if size < 1024:
