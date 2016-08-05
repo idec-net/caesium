@@ -339,6 +339,8 @@ def get_counts():
     global echo_counts
     for echoarea in nodes[node]["echoareas"]:
         echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
+    for echoarea in nodes[node]["archive"]:
+        echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
 
 def rescan_counts(echoareas):
     counts = []
