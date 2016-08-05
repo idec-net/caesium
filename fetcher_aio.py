@@ -91,11 +91,16 @@ def calculate_offset():
     if not n:
         depth = offset
 
-def get_echoarea(echoarea):
-    try:
-        return open("echo/" + echoarea, "r").read().split("\n")
-    except:
-        return []
+def get_echoarea(echo):
+    if os.path.exists("aio/" + echo + ".aio"):
+        f = codecs.open("aio/" + echo + ".aio", "r", "utf-8").read().split("\n")
+        msgids = []
+        for line in f:
+            if len(line) > 0:
+                msgids.append(line.split(":")[0])
+    else:
+        msgids = []
+    return msgids
 
 def get_msg_list():
     global clone
