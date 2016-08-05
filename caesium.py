@@ -17,6 +17,7 @@ next_echoarea = False
 oldquote = False
 fetch_cmd = ""
 clone_cmd = ""
+db = 0
 
 version = "Caesium/0.3 │"
 
@@ -31,16 +32,20 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
            "           Andrew Lobanov             23.07.2016"]
 
 def check_directories():
-    if not os.path.exists("echo"):
-        os.mkdir("echo")
-    if not os.path.exists("msg"):
-        os.mkdir("msg")
     if not os.path.exists("out"):
         os.mkdir("out")
-    if not os.path.exists("echo/favorites"):
-        open("echo/favorites", "w")
-    if not os.path.exists("echo/carbonarea"):
-        open("echo/carbonarea", "w")
+    if db == 0:
+        if not os.path.exists("echo"):
+            os.mkdir("echo")
+        if not os.path.exists("msg"):
+            os.mkdir("msg")
+        if not os.path.exists("echo/favorites"):
+            open("echo/favorites", "w")
+        if not os.path.exists("echo/carbonarea"):
+            open("echo/carbonarea", "w")
+    elif db == 1:
+        if not os.path.exists("aio"):
+            os.mkdir("aio")
     if not os.path.exists("caesium.cfg"):
         default_config = open("caesium.def.cfg", "r").read()
         open("caesium.cfg","w").write(default_config)
@@ -54,7 +59,7 @@ def separate(l, step=20):
         yield l[x:x+step]
 
 def load_config():
-    global nodes, editor, color_theme, show_splash, oldquote, fetch_cmd, clone_cmd
+    global nodes, editor, color_theme, show_splash, oldquote, fetch_cmd, clone_cmd, db
     first = True
     node = {}
     echoareas = []
@@ -109,6 +114,11 @@ def load_config():
             fetch_cmd = " ".join(param[1:])
         elif param[0] == "clone":
             clone_cmd = " ".join(param[1:])
+        elif param[0] == "db":
+            if param[1] == "txt":
+                db = 0
+            elif param[1] == "aio":
+                db = 1
     if not "nodename" in node:
         node["nodename"] = "untitled node"
     if not "to" in node:
@@ -324,18 +334,11 @@ def draw_cursor(y, color):
 def current_time():
     draw_status(width - 8, "│ " + datetime.now().strftime("%H:%M"))
 
-def get_echo_length(echo):
-    if os.path.exists("echo/" + echo):
-        echo_length = len(open ("echo/" + echo, "r").read().split("\n")) - 1
-    else:
-        echo_length = 0
-    return echo_length
-
 def rescan_counts(echoareas):
     counts = []
     for echo in echoareas:
         try:
-            echocount = len(open("echo/" + echo[0], "r").read().split("\n")) - 1
+            echocount = get_echocount(echo[0])
             if echo[0] in lasts: 
                 last = echocount - lasts[echo[0]]
                 if echocount == 0 and lasts[echo[0]] == 0:
@@ -621,19 +624,6 @@ def echo_selector():
     else:
         echo_cursor = cursor
 
-def read_msg(msgid):
-    size = "0b"
-    if os.path.exists("msg/" + msgid) and msgid != "":
-        msg = open("msg/" + msgid, "r").read().split("\n")
-        size = os.stat("msg/" + msgid).st_size
-        if size < 1024:
-            size = str(size) + " B"
-        else:
-            size = str(format(size / 1024, ".2f")) + " KB"
-    else:
-        msg = ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"]
-    return msg, size
-
 def read_out_msg(msgid):
     size = "0b"
     temp = open("out/" + msgid, "r").read().split("\n")
@@ -691,7 +681,7 @@ def body_render(tbody):
                     body = body + "\n" + code + word
                     n = len (word)
                 else:
-                    chunks, chunksize = len(word), width
+                    chunks, chunksize = len(word), width - 1
                     chunk_list = [ word[i:i+chunksize] for i in range(0, chunks, chunksize) ]
                     for line in chunk_list:
                         body = body + "\n" + code + line
@@ -761,13 +751,16 @@ def call_editor(out = False):
     stdscr.keypad(True)
     get_term_size()
 
-def message_box(smsg):
+def draw_message_box(smsg, wait):
     maxlen = 0
     msg = smsg.split("\n")
     for line in msg:
         if len(line) > maxlen:
             maxlen = len(line)
-    msgwin = curses.newwin(len(msg) + 4, maxlen + 2, int(height / 2 - 2) , int(width / 2 - maxlen / 2 - 2))
+    if wait:
+        msgwin = curses.newwin(len(msg) + 4, maxlen + 2, int(height / 2 - 2) , int(width / 2 - maxlen / 2 - 2))
+    else:
+        msgwin = curses.newwin(len(msg) + 2, maxlen + 2, int(height / 2 - 2) , int(width / 2 - maxlen / 2 - 2))
     if bold[0]:
         msgwin.attron(curses.color_pair(1))
         msgwin.attron(curses.A_BOLD)
@@ -786,13 +779,17 @@ def message_box(smsg):
         color = curses.color_pair(2) + curses.A_BOLD
     else:
         color = curses.color_pair(2)
-    msgwin.addstr(len(msg) + 2, int((maxlen + 2 - 21) / 2), "Нажмите любую клавишу", color)
+    if wait:
+        msgwin.addstr(len(msg) + 2, int((maxlen + 2 - 21) / 2), "Нажмите любую клавишу", color)
     msgwin.refresh()
+
+def message_box(smsg):
+    draw_message_box(smsg, True)
     msgwin.getch()
     msgwin.clear()
 
-def save_message(msgid):
-    msg, size = read_msg(msgid)
+def save_message_to_file(msgid, echoarea):
+    msg, size = read_msg(msgid, echoarea)
     f = open(msgid + ".txt", "w")
     f.write("== " + msg[1] + " ==================== " + str(msgid) + "\n")
     f.write("От:   " + msg[3] + " (" + msg[4] + ")\n")
@@ -801,24 +798,6 @@ def save_message(msgid):
     f.write("\n".join(msg[7:]))
     f.close
     message_box("Сообщение сохранено в файл\n" + str(msgid) + ".txt")
-
-def save_to_favorites(msgid):
-    if os.path.exists("echo/favorites"):
-        favorites = open("echo/favorites", "r").read().split("\n")
-    else:
-        favorites = []
-    if not msgid in favorites:
-        open("echo/favorites", "a").write(msgid + "\n")
-        message_box("Собщение добавлено в избранные")
-    else:
-        message_box("Собщение уже есть в избранных")
-
-def get_echo_msgids(echo):
-    if os.path.exists("echo/" + echo):
-        msgids = open("echo/" + echo, "r").read().split("\n")[:-1]
-    else:
-        msgids = []
-    return msgids
 
 def get_out_msgids():
     msgids = []
@@ -898,13 +877,10 @@ def get_msg(msgid):
             if len(msgid) == 20 and m[1]:
                 msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
                 if len(nodes[node]["to"]) > 0:
-                    try:
-                        carbonarea = open("echo/carbonarea", "r").read().split("\n")
-                    except:
-                        carbonarea = []
+                    carbonarea = get_carbonarea()
                     if msgbody.split("\n")[5] in nodes[node]["to"] and not msgid in carbonarea:
-                        codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
-                codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
+                        add_to_carbonarea(msgid, msbbody)
+                save_message(msgid, msgbody)
             
 def echo_reader(echo, last, archive, favorites, out, carbonarea):
     global lasts, next_echoarea
@@ -925,7 +901,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
         if out:
             msg, size = read_out_msg(msgids[msgn])
         else:
-            msg, size = read_msg(msgids[msgn])
+            msg, size = read_msg(msgids[msgn], echo[0])
         msgbody = body_render(msg[8:])
     else:
         msgbody = []
@@ -1036,7 +1012,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 if out:
                     msg, size = read_out_msg(msgids[msgn])
                 else:
-                    msg, size = read_msg(msgids[msgn])
+                    msg, size = read_msg(msgids[msgn], echo[0])
                 msgbody = body_render(msg[8:])
                 scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_next and msgn < len(msgids) - 1:
@@ -1048,23 +1024,24 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 if out:
                     msg, size = read_out_msg(msgids[msgn])
                 else:
-                    msg, size = read_msg(msgids[msgn])
+                    msg, size = read_msg(msgids[msgn], echo[0])
                 msgbody = body_render(msg[8:])
                 scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_next and (msgn == len(msgids) - 1 or len(msgids) == 0):
             go = False
             quit = False
             next_echoarea = True
+            draw_message_box("Подождите", False)
         elif key in r_prep and not echo[0] == "carbonarea" and not echo[0] == "favorites" and not out and repto:
             if repto in msgids:
                 stack.append(msgn)
                 msgn = msgids.index(repto)
-                msg, size = read_msg(msgids[msgn])
+                msg, size = read_msg(msgids[msgn], echo[0])
                 msgbody = body_render(msg[8:])
                 scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_nrep and not out and len(stack) > 0:
             msgn = stack.pop()
-            msg, size = read_msg(msgids[msgn])
+            msg, size = read_msg(msgids[msgn]. echo[0])
             msgbody = body_render(msg[8:])
             scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_up and y > 0:
@@ -1078,8 +1055,14 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
         elif key in r_npage:
             if len(msgids) > 0 and len(msgbody) > height - 5:
                 y = y + height - 6
-                if y + height - 5 >= len(msgbody):
-                    y = len(msgbody) - height + 6
+                if y + height - 5 >= len(msgbody) - height - 5:
+                    y = len(msgbody) - height + 5
+        elif key in r_home:
+            if len(msgids) > 0:
+                y = 0
+        elif key in r_mend:
+            if len(msgids) > 0 and len(msgbody) > height - 5:
+                y = len(msgbody) - height + 5
         elif key in r_ukeys:
             if len(msgids) == 0 or y >= len(msgbody) - height + 5:
                 y = 0
@@ -1087,6 +1070,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                     next_echoarea = True
                     go = False
                     quit = False
+                    draw_message_box("Подождите", False)
                 else:
                     msgn = msgn +1
                     if len(stack) > 0:
@@ -1094,7 +1078,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                     if out:
                         msg, size = read_out_msg(msgids[msgn])
                     else:
-                        msg, size = read_msg(msgids[msgn])
+                        msg, size = read_msg(msgids[msgn], echo[0])
                     msgbody = body_render(msg[8:])
                     scrollbar_size = calc_scrollbar_size(len(msgbody))
             else:
@@ -1113,7 +1097,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 if out:
                     msg, size = read_out_msg(msgids[msgn])
                 else:
-                    msg, size = read_msg(msgids[msgn])
+                    msg, size = read_msg(msgids[msgn], echo[0])
                 msgbody = body_render(msg[8:])
                 scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_end:
@@ -1125,7 +1109,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 if out:
                     msg, size = read_out_msg(msgids[msgn])
                 else:
-                    msg, size = read_msg(msgids[msgn])
+                    msg, size = read_msg(msgids[msgn], echo[0])
                 msgbody = body_render(msg[8:])
                 scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif (key in r_ins) and not archive and not out:
@@ -1137,9 +1121,13 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 f.close()
                 call_editor()
         elif key in r_save and not out:
-            save_message(msgids[msgn])
+            save_message_to_file(msgids[msgn], echo)
         elif key in r_favorites and not out:
-            save_to_favorites(msgids[msgn])
+            saved = save_to_favorites(msgids[msgn], msg)
+            if saved:
+                message_box("Собщение добавлено в избранные")
+            else:
+                message_box("Собщение уже есть в избранных")
         elif (key in r_quote) and not archive and not out:
             if len(msgids) > 0:
                 f = open("temp", "w")
@@ -1180,28 +1168,28 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 message_box("Сообщение уже отправлено")
         elif key in f_delete and favorites and not carbonarea:
             if len(msgids) > 0:
-                favorites_list = open("echo/favorites", "r").read().split("\n")
-                favorites_list.remove(msgids[msgn])
-                open("echo/favorites", "w").write("\n".join(favorites_list))
+                remove_from_favorites(msgids[msgn])
                 msgids = get_echo_msgids(echo[0])
                 if msgn >= len(msgids):
                     msgn = len(msgids) - 1
-                msg, size = read_msg(msgids[msgn])
+                msg, size = read_msg(msgids[msgn], echo[0])
                 msgbody = body_render(msg[8:])
                 scrollbar_size = calc_scrollbar_size(len(msgbody))
                 stdscr.clear()
         elif key in r_getmsg and size == "0b":
             get_msg(msgids[msgn])
-            msg, size = read_msg(msgids[msgn])
+            msg, size = read_msg(msgids[msgn], echo[0])
             msgbody = body_render(msg[8:])
             scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_quit:
             go = False
             quit = False
             next_echoarea = False
+            draw_message_box("Подождите", False)
         elif key in g_quit:
             go = False
             quit = True
+            draw_message_box("Подождите", False)
     lasts[echo[0]] = msgn
     f = open("lasts.lst", "wb")
     pickle.dump(lasts, f)
@@ -1209,8 +1197,12 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
     stdscr.clear()
     return quit
 
-check_directories()
 load_config()
+if db == 0:
+    from txt import *
+elif db == 1:
+    from aio import *
+check_directories()
 for i in range(0, len(nodes)):
     nodes[i]["echoareas"].insert(0, ["favorites", "Избранные сообщения", True])
     nodes[i]["echoareas"].insert(1, ["carbonarea", "Карбонка", True])
