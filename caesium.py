@@ -35,6 +35,9 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
 def check_directories():
     if not os.path.exists("out"):
         os.mkdir("out")
+    for n in nodes:
+        if not os.path.exists("out/" + n["nodename"]):
+            os.mkdir("out/" + n["nodename"])
     if db == 0:
         if not os.path.exists("echo"):
             os.mkdir("echo")
@@ -209,7 +212,7 @@ def save_out():
             buf = new
         elif header == 4:
             buf = new[1:5] + ["@repto:%s" % new[0]] + new[5:]
-        codecs.open(outcount(), "w", "utf-8").write("\n".join(buf))
+        codecs.open(outcount(), "w", "utf-8").write("\n".join(new))
         os.remove("temp")
 
 def resave_out(filename):
@@ -217,17 +220,17 @@ def resave_out(filename):
     if len(new) <= 1:
         os.remove("temp")
     else:
-        codecs.open("out/" + filename, "w", "utf-8").write("\n".join(new))
+        codecs.open("out/" + nodes[node]["nodename"] + "/" + filename, "w", "utf-8").write("\n".join(new))
         os.remove("temp")
 
 def outcount():
-    outpath = "out/"
+    outpath = "out/" + nodes[node]["nodename"]
     i = str(len([x for x in os.listdir(outpath) if not x.endswith(".toss")]) + 1)
     return outpath + "/%s.out" % i.zfill(5)
 
 def get_out_length():
     try:
-        return len([f for f in sorted(os.listdir("out/")) if f.endswith(".out") or f.endswith(".outmsg")]) - 1
+        return len([f for f in sorted(os.listdir("out/" + nodes[node]["nodename"])) if f.endswith(".out") or f.endswith(".outmsg")]) - 1
     except:
         return 0
 
@@ -435,13 +438,13 @@ def fetch_mail():
         if not echoarea[2]:
             echoareas.append(echoarea[0])
     if len(nodes[node]["clone"]) > 0:
-        cmd = clone_cmd.replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%clone", ",".join(nodes[node]["clone"])).replace("%auth",nodes[node]["auth"])
+        cmd = clone_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%clone", ",".join(nodes[node]["clone"])).replace("%auth", nodes[node]["auth"])
         if to:
             cmd = cmd.replace("%to", to)
         p = subprocess.Popen(cmd, shell=True)
         nodes[node]["clone"] = []
     else:
-        cmd = fetch_cmd.replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%auth",nodes[node]["auth"])
+        cmd = fetch_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%auth",nodes[node]["auth"])
         if to:
             cmd = cmd.replace("%to", to)
         p = subprocess.Popen(cmd, shell=True)
@@ -550,7 +553,7 @@ def echo_selector():
                 next_echoarea = False
         elif key in s_out:
             out_length = get_out_length()
-            if out_length > 0:
+            if out_length > -1:
                 go = not echo_reader("out", out_length, archive, False, True, False)
         elif key in s_nnode:
             node = node + 1
@@ -583,7 +586,7 @@ def echo_selector():
 
 def read_out_msg(msgid):
     size = "0b"
-    temp = open("out/" + msgid, "r").read().split("\n")
+    temp = open("out/" + nodes[node]["nodename"] + "/" + msgid, "r").read().split("\n")
     msg = []
     msg.append("")
     msg.append(temp[0])
@@ -595,7 +598,7 @@ def read_out_msg(msgid):
     for line in temp[3:]:
         if not(line.startswith("@repto:")):
                msg.append(line)
-    size = os.stat("out/" + msgid).st_size
+    size = os.stat("out/" + nodes[node]["nodename"] + "/" + msgid).st_size
     if size < 1024:
         size = str(size) + " B"
     else:
@@ -759,8 +762,8 @@ def save_message_to_file(msgid, echoarea):
 def get_out_msgids():
     msgids = []
     not_sended = []
-    if os.path.exists("out/"):
-        msgids = [f for f in sorted(os.listdir("out/")) if f.endswith(".out") or f.endswith(".outmsg")]
+    if os.path.exists("out/" + nodes[node]["nodename"]):
+        msgids = [f for f in sorted(os.listdir("out/" + nodes[node]["nodename"])) if f.endswith(".out") or f.endswith(".outmsg")]
     return msgids
 
 def quote(to):
@@ -1116,7 +1119,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             show_subject(msg[6])
         elif key in o_edit and out:
             if msgids[msgn].endswith(".out"):
-                copyfile("out/" + msgids[msgn], "temp")
+                copyfile("out/" + nodes[node]["nodename"] + "/" + msgids[msgn], "temp")
                 call_editor(msgids[msgn])
                 msg, size = read_out_msg(msgids[msgn])
                 msgbody = body_render(msg[8:])

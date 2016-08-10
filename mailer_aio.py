@@ -18,44 +18,47 @@ def load_config():
     depth = "200"
     echoareas = []
     auth = False
+    nodename = "unknown"
     f = open(config, "r").read().split("\n")
     for line in f:
         param = line.split(" ")
         if param[0] == "node":
             node = param[1]
+        elif param[0] == "nodename":
+            nodename = param[1:]
         elif param[0] == "auth":
             auth = param[1]
         elif param[0] == "depth":
             depth = param[1]
         elif param[0] == "echo":
             echoareas.append(param[1])
-    return node, auth, depth, echoareas
+    return node, nodename, auth, depth, echoareas
 
 def check_directories():
     if not os.path.exists("aio"):
         os.makedirs("aio")
 
 def make_toss():
-    lst = [x for x in os.listdir("out/") if x.endswith(".out")]
+    lst = [x for x in os.listdir("out/" + nodename) if x.endswith(".out")]
     for msg in lst:
-        text = codecs.open("out/" + "/%s" % msg, "r", "utf-8").read()
+        text = codecs.open("out/" + nodename + "/%s" % msg, "r", "utf-8").read()
         coded_text = base64.b64encode(text.encode("utf-8"))
-        codecs.open("out/" + "%s.toss" % msg, "w", "utf-8").write(coded_text.decode("utf-8"))
-        os.rename("out/" + "%s" % msg, "out/" + "%s%s" % (msg, "msg"))
+        codecs.open("out/" + nodename + "/%s.toss" % msg, "w", "utf-8").write(coded_text.decode("utf-8"))
+        os.rename("out/" + nodename + "/%s" % msg, "out/" + nodename + "/%s%s" % (msg, "msg"))
 
 def send_mail():
-    lst = [x for x in sorted(os.listdir("out/")) if x.endswith(".toss")]
+    lst = [x for x in sorted(os.listdir("out/" + nodename)) if x.endswith(".toss")]
     max = len(lst)
     n = 1
     try:
         for msg in lst:
             print("\rОтправка сообщения: " + str(n) + "/" + str(max), end="")
-            text = codecs.open("out/" + "%s" % msg, "r", "utf-8").read()
+            text = codecs.open("out/" + nodename + "/%s" % msg, "r", "utf-8").read()
             data = urllib.parse.urlencode({"tmsg": text,"pauth": auth}).encode("utf-8")
             request = urllib.request.Request(node + "u/point")
             result = urllib.request.urlopen(request, data).read().decode("utf-8")
             if result.startswith("msg ok"):
-                os.remove("out/" + "%s" % msg)
+                os.remove("out/" + nodename + "/%s" % msg)
                 n = n + 1
             elif result == "msg big!":
                 print("\nERROR: very big message (limit 64K)!")
@@ -63,9 +66,10 @@ def send_mail():
                 print("\nERROR: unknown auth!")
             else:
                 print("\nERROR: unknown error!")
-        print()
+        if len(lst) > 0:
+            print()
     except:
-        print("Ошибка: не удаётся связаться с нодой.")
+        print("\nОшибка: не удаётся связаться с нодой.")
 
 def separate(l, step=40):
     for x in range(0, len(l), step):
@@ -241,6 +245,7 @@ def show_help():
     print()
     print("  -f filename  load config file. Default idec-fetcher.cfg.")
     print("  -n node      node address.")
+    print("  -m nodename  nodename for search .out messages.")
     print("  -a authkey   authkey.")
     print("  -e echoareas echoareas for fetch.")
     print("  -d depth     fetch messages with an offset to a predetermined depth. Default 200.")
@@ -266,6 +271,8 @@ if "-d" in args:
 h = "-h" in args
 if "-n" in args:
     node = args[args.index("-n") + 1]
+if "-m" in args:
+    nodename = args[args.index("-m") + 1]
 if "-a" in args:
     auth = args[args.index("-a") + 1]
 if "-e" in args:
@@ -284,7 +291,7 @@ if not "-n" in args and not "-e" in args and not os.path.exists(config):
 
 check_directories()
 if not "-n" in args or not "-e" in args:
-    node, auth, depth, echoareas = load_config()
+    node, nodename, auth, depth, echoareas = load_config()
 print("Работа с " + node)
 make_toss()
 send_mail()
