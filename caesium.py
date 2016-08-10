@@ -199,11 +199,6 @@ def load_colors():
             else:
                 bold[8] = False
 
-def outcount():
-    outpath = "out/"
-    i = str(len([x for x in os.listdir(outpath) if not x.endswith(".toss")]) + 1)
-    return outpath + "/%s.out" % i.zfill(5)
-
 def save_out():
     new = codecs.open("temp", "r", "utf-8").read().strip().split("\n")
     if len(new) <= 1:
@@ -225,58 +220,10 @@ def resave_out(filename):
         codecs.open("out/" + filename, "w", "utf-8").write("\n".join(new))
         os.remove("temp")
 
-def make_toss():
-    lst = [x for x in os.listdir("out/") if x.endswith(".out")]
-    for msg in lst:
-        text = codecs.open("out/" + "/%s" % msg, "r", "utf-8").read()
-        coded_text = base64.b64encode(text.encode("utf-8"))
-        codecs.open("out/" + "%s.toss" % msg, "w", "utf-8").write(coded_text.decode("utf-8"))
-        os.rename("out/" + "%s" % msg, "out/" + "%s%s" % (msg, "msg"))
-
-def send_mail():
-    stdscr.clear()
-    if bold[0]:
-        stdscr.attron(curses.color_pair(1))
-        stdscr.attron(curses.A_BOLD)
-    else:
-        stdscr.attron(curses.color_pair(1))
-    stdscr.border()
-    draw_title(0, 1, "Отправка почты")
-    draw_title(height - 1, 1, nodes[node]["nodename"])
-    stdscr.refresh()
-    lst = [x for x in sorted(os.listdir("out/")) if x.endswith(".toss")]
-    max = len(lst)
-    n = 1
-    try:
-        if bold[3]:
-            color = curses.color_pair(4) + curses.A_BOLD
-        else:
-            color = curses.color_pair(4)
-        for msg in lst:
-            stdscr.addstr(1, 2, "Отправка сообщения: " + str(n) + "/" + str(max), color)
-            text = codecs.open("out/" + "%s" % msg, "r", "utf-8").read()
-            data = urllib.parse.urlencode({"tmsg": text,"pauth": nodes[node]["auth"]}).encode("utf-8")
-            request = urllib.request.Request(nodes[node]["node"] + "u/point")
-            result = urllib.request.urlopen(request, data).read().decode("utf-8")
-            if result.startswith("msg ok"):
-                os.remove("out/" + "%s" % msg)
-                n = n + 1
-            elif result == "msg big!":
-                print ("ERROR: very big message (limit 64K)!")
-            elif result == "auth error!":
-                print ("ERROR: unknown auth!")
-            else:
-                print ("ERROR: unknown error!")
-        stdscr.addstr(3, 2, "Отправка завершена.", color)
-    except:
-        stdscr.addstr(2, 2, "Ошибка: не удаётся связаться с нодой.", color)
-    if bold[1]:
-        color = curses.color_pair(2) + curses.A_BOLD
-    else:
-        curses.color_pair(2)
-    stdscr.addstr(3, 2, "Нажмите любую клавишу.", color)
-    stdscr.getch()
-    stdscr.clear()
+def outcount():
+    outpath = "out/"
+    i = str(len([x for x in os.listdir(outpath) if not x.endswith(".toss")]) + 1)
+    return outpath + "/%s.out" % i.zfill(5)
 
 def get_out_length():
     try:
@@ -488,13 +435,13 @@ def fetch_mail():
         if not echoarea[2]:
             echoareas.append(echoarea[0])
     if len(nodes[node]["clone"]) > 0:
-        cmd = clone_cmd.replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%clone", ",".join(nodes[node]["clone"]))
+        cmd = clone_cmd.replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%clone", ",".join(nodes[node]["clone"])).replace("%auth",nodes[node]["auth"])
         if to:
             cmd = cmd.replace("%to", to)
         p = subprocess.Popen(cmd, shell=True)
         nodes[node]["clone"] = []
     else:
-        cmd = fetch_cmd.replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas))
+        cmd = fetch_cmd.replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%auth",nodes[node]["auth"])
         if to:
             cmd = cmd.replace("%to", to)
         p = subprocess.Popen(cmd, shell=True)
@@ -563,9 +510,6 @@ def echo_selector():
             cursor = find_new(0)
             if cursor >= height - 2:
                 start = cursor - height + 3
-        elif key in s_send:
-            make_toss()
-            send_mail()
         elif key in s_archive and not len(nodes[node]["archive"]) == 0:
             if archive:
                 archive = False

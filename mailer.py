@@ -17,20 +17,57 @@ def load_config():
     node = ""
     depth = "200"
     echoareas = []
+    auth = False
     f = open(config, "r").read().split("\n")
     for line in f:
         param = line.split(" ")
         if param[0] == "node":
             node = param[1]
+        elif param[0] == "auth":
+            auth = param[1]
         elif param[0] == "depth":
             depth = param[1]
         elif param[0] == "echo":
             echoareas.append(param[1])
-    return node, depth, echoareas
+    return node, auth, depth, echoareas
 
 def check_directories():
-    if not os.path.exists("aio"):
-        os.makedirs("aio")
+    if not os.path.exists("echo"):
+        os.makedirs("echo")
+    if not os.path.exists("msg"):
+        os.makedirs("msg")
+
+def make_toss():
+    lst = [x for x in os.listdir("out/") if x.endswith(".out")]
+    for msg in lst:
+        text = codecs.open("out/" + "/%s" % msg, "r", "utf-8").read()
+        coded_text = base64.b64encode(text.encode("utf-8"))
+        codecs.open("out/" + "%s.toss" % msg, "w", "utf-8").write(coded_text.decode("utf-8"))
+        os.rename("out/" + "%s" % msg, "out/" + "%s%s" % (msg, "msg"))
+
+def send_mail():
+    lst = [x for x in sorted(os.listdir("out/")) if x.endswith(".toss")]
+    max = len(lst)
+    n = 1
+    try:
+        for msg in lst:
+            print("\rОтправка сообщения: " + str(n) + "/" + str(max), end="")
+            text = codecs.open("out/" + "%s" % msg, "r", "utf-8").read()
+            data = urllib.parse.urlencode({"tmsg": text,"pauth": auth}).encode("utf-8")
+            request = urllib.request.Request(node + "u/point")
+            result = urllib.request.urlopen(request, data).read().decode("utf-8")
+            if result.startswith("msg ok"):
+                os.remove("out/" + "%s" % msg)
+                n = n + 1
+            elif result == "msg big!":
+                print("\nERROR: very big message (limit 64K)!")
+            elif result == "auth error!":
+                print("\nERROR: unknown auth!")
+            else:
+                print("\nERROR: unknown error!")
+        print()
+    except:
+        print("Ошибка: не удаётся связаться с нодой.")
 
 def separate(l, step=40):
     for x in range(0, len(l), step):
@@ -91,16 +128,11 @@ def calculate_offset():
     if not n:
         depth = offset
 
-def get_echoarea(echo):
-    if os.path.exists("aio/" + echo + ".aio"):
-        f = codecs.open("aio/" + echo + ".aio", "r", "utf-8").read().split("\n")
-        msgids = []
-        for line in f:
-            if len(line) > 0:
-                msgids.append(line.split(":")[0])
-    else:
-        msgids = []
-    return msgids
+def get_echoarea(echoarea):
+    try:
+        return open("echo/" + echoarea, "r").read().split("\n")
+    except:
+        return []
 
 def get_msg_list():
     global clone
@@ -135,31 +167,22 @@ def get_bundle(node, msgids):
         bundle = f.read().decode("utf-8").split("\n")
     return bundle
 
-def get_carbonarea():
-    try:
-        f = open("aio/carbonarea.aio", "r").read().split("\n")
-        carbonarea = []
-        for line in f:
-            carbonarea.append(line.split(":")[0])
-        return carbonarea
-    except:
-        return []
-
-def add_to_carbonarea(msgid, msgbody):
-    codecs.open("aio/carbonarea.aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
-
 def debundle(bundle):
     for msg in bundle:
         if msg:
             m = msg.split(":")
             msgid = m[0]
             if len(msgid) == 20 and m[1]:
-                msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8").split("\n")
-                codecs.open("aio/" + msgbody[1] + ".aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
+                msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
+                codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
+                codecs.open("echo/" + msgbody.split("\n")[1], "a", "utf-8").write(msgid + "\n")
                 if to:
-                    carbonarea = get_carbonarea()
-                    if msgbody[5] in to and not msgid in carbonarea:
-                        add_to_carbonarea(msgid, msgbody)
+                    try:
+                        carbonarea = open("echo/carbonarea", "r").read().split("\n")
+                    except:
+                        carbonarea = []
+                    if msgbody.split("\n")[5] in to and not msgid in carbonarea:
+                        codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
 
 def echo_filter(ea):
     rr = re.compile(r'^[a-z0-9_!.-]{1,60}\.[a-z0-9_!.-]{1,60}$')
@@ -174,7 +197,7 @@ def get_mail():
         if echo_filter(line):
             if line in clone and ue:
                 try:
-                    os.remove("aio/" + line + ".aio")
+                    os.remove("echo/" + line)
                 except:
                     None
             local_index = get_echoarea(line)
@@ -201,10 +224,11 @@ def check_new_echoareas():
     return n
 
 def show_help():
-    print("Usage: fetcher.py [-f filename] [-n node] [-e echoarea1,echoarea2,...] [-d depth] [-c echoarea1,echoarea2,...] [-o] [-to name1,name2...] [-h].")
+    print("Usage: mailer.py [-f filename] [-n node] [-e echoarea1,echoarea2,...] [-d depth] [-c echoarea1,echoarea2,...] [-o] [-to name1,name2...] [-h].")
     print()
     print("  -f filename  load config file. Default idec-fetcher.cfg.")
     print("  -n node      node address.")
+    print("  -a authkey   authkey.")
     print("  -e echoareas echoareas for fetch.")
     print("  -d depth     fetch messages with an offset to a predetermined depth. Default 200.")
     print("  -c echoareas clone echoareas from node.")
@@ -229,6 +253,8 @@ if "-d" in args:
 h = "-h" in args
 if "-n" in args:
     node = args[args.index("-n") + 1]
+if "-a" in args:
+    auth = args[args.index("-a") + 1]
 if "-e" in args:
     echoareas = args[args.index("-e") + 1].split(",")
 if "-to" in args:
@@ -245,11 +271,13 @@ if not "-n" in args and not "-e" in args and not os.path.exists(config):
 
 check_directories()
 if not "-n" in args or not "-e" in args:
-    node, depth, echoareas = load_config()
+    node, auth, depth, echoareas = load_config()
 print("Работа с " + node)
+send_mail()
 print("Получение списка возможностей ноды...")
-get_features()
-check_features()
+if auth:
+    get_features()
+    check_features()
 if xc:
     load_counts()
     print("Получение количества сообщений в конференциях...")

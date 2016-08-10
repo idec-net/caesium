@@ -8,7 +8,6 @@ s_npage =     [curses.KEY_NPAGE, ord("J")] # страница вниз
 s_home =      [curses.KEY_HOME, ord("H")]  # в начало
 s_end =       [curses.KEY_END, ord("L")]   # в конец
 s_get =       [ord("g"), ord("G")]         # получить сообщения
-s_send =      [ord("s"), ord("S")]         # отправить сообщения
 s_archive =   [9, ord("t")]                # переключение в архив и обратно
 s_enter =     [10, curses.KEY_RIGHT, ord(" "), ord("l")]         # открыть эху
 s_out =       [ord("o"), ord("O")]         # исходящие сообщения
