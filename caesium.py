@@ -47,6 +47,8 @@ def check_directories():
     elif db == 1:
         if not os.path.exists("aio"):
             os.mkdir("aio")
+
+def check_config():
     if not os.path.exists("caesium.cfg"):
         default_config = open("caesium.def.cfg", "r").read()
         open("caesium.cfg","w").write(default_config)
@@ -556,6 +558,7 @@ def echo_selector():
             fetch_mail()
             draw_message_box("Подождите", False)
             get_counts()
+            stdscr.clear()
             counts = rescan_counts(echoareas)
             cursor = find_new(0)
             if cursor >= height - 2:
@@ -1193,6 +1196,9 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 stdscr.clear()
         elif key in r_getmsg and size == "0b":
             get_msg(msgids[msgn])
+            draw_message_box("Подождите", False)
+            get_counts()
+            stdscr.clear()
             msg, size = read_msg(msgids[msgn], echo[0])
             msgbody = body_render(msg[8:])
             scrollbar_size = calc_scrollbar_size(len(msgbody))
@@ -1210,6 +1216,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
     stdscr.clear()
     return quit
 
+check_config()
 load_config()
 if db == 0:
     from txt import *
@@ -1236,6 +1243,7 @@ if show_splash:
     splash_screen()
 draw_message_box("Подождите", False)
 get_counts()
+stdscr.clear()
 echo_selector()
 curses.echo()
 curses.curs_set(True)
