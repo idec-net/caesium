@@ -578,6 +578,7 @@ def echo_selector():
             if out_length > -1:
                 go = not echo_reader("out", out_length, archive, False, True, False)
         elif key in s_nnode:
+            archive = False
             node = node + 1
             if node == len(nodes):
                 node = 0
@@ -586,6 +587,7 @@ def echo_selector():
             counts_rescan = True
             cursor = 0
         elif key in s_pnode:
+            archive = False
             node = node - 1
             if node == -1:
                 node = len(nodes) - 1
