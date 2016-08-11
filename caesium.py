@@ -18,6 +18,7 @@ next_echoarea = False
 oldquote = False
 fetch_cmd = ""
 clone_cmd = ""
+send_cmd = False
 db = 0
 
 version = "Caesium/0.3 │"
@@ -65,7 +66,7 @@ def separate(l, step=20):
         yield l[x:x+step]
 
 def load_config():
-    global nodes, editor, color_theme, show_splash, oldquote, fetch_cmd, clone_cmd, db
+    global nodes, editor, color_theme, show_splash, oldquote, fetch_cmd, clone_cmd, send_cmd, db
     first = True
     node = {}
     echoareas = []
@@ -120,6 +121,8 @@ def load_config():
             fetch_cmd = " ".join(param[1:])
         elif param[0] == "clone":
             clone_cmd = " ".join(param[1:])
+        elif param[0] == "send":
+            send_cmd = " ".join(param[1:])
         elif param[0] == "db":
             if param[1] == "txt":
                 db = 0
@@ -456,6 +459,21 @@ def fetch_mail():
     stdscr.keypad(True)
     get_term_size()
 
+def send_mail():
+    curses.echo()
+    curses.curs_set(True)
+    curses.endwin()
+    os.system('cls' if os.name == 'nt' else 'clear')
+    cmd = send_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%auth", nodes[node]["auth"])
+    p = subprocess.Popen(cmd, shell=True)
+    p.wait()
+    stdscr = curses.initscr()
+    curses.start_color()
+    curses.noecho()
+    curses.curs_set(False)
+    stdscr.keypad(True)
+    get_term_size()
+
 def echo_selector():
     global echo_cursor, archive_cursor, counts, counts_rescan, next_echoarea, node
     archive = False
@@ -513,6 +531,10 @@ def echo_selector():
             cursor = find_new(0)
             if cursor >= height - 2:
                 start = cursor - height + 3
+        elif key in s_send:
+            if send_cmd:
+                send_mail()
+                stdscr.clear()
         elif key in s_archive and not len(nodes[node]["archive"]) == 0:
             if archive:
                 archive = False

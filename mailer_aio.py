@@ -37,6 +37,8 @@ def load_config():
 def check_directories():
     if not os.path.exists("aio"):
         os.makedirs("aio")
+    if not os.path.exists("out"):
+        os.makedirs("out")
 
 def make_toss():
     lst = [x for x in os.listdir("out/" + nodename) if x.endswith(".out")]

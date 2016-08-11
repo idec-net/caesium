@@ -17,22 +17,16 @@ def load_config():
     node = ""
     depth = "200"
     echoareas = []
-    auth = False
-    nodename = "unknown"
     f = open(config, "r").read().split("\n")
     for line in f:
         param = line.split(" ")
         if param[0] == "node":
             node = param[1]
-        elif param[0] == "nodename":
-            nodename = param[1:]
-        elif param[0] == "auth":
-            auth = param[1]
         elif param[0] == "depth":
             depth = param[1]
         elif param[0] == "echo":
             echoareas.append(param[1])
-    return node, nodename, auth, depth, echoareas
+    return node, depth, echoareas
 
 def check_directories():
     if not os.path.exists("aio"):
@@ -176,7 +170,6 @@ def get_mail():
     print("Получение индекса от ноды...")
     remote_msg_list = get_msg_list()
     print("Построение разностного индекса...")
-    local_index = []
     for line in remote_msg_list:
         if echo_filter(line):
             if line in clone and ue:
@@ -208,12 +201,10 @@ def check_new_echoareas():
     return n
 
 def show_help():
-    print("Usage: mailer_aio.py [-f filename] [-n node] [-e echoarea1,echoarea2,...] [-d depth] [-c echoarea1,echoarea2,...] [-o] [-to name1,name2...] [-h].")
+    print("Usage: fetcher.py [-f filename] [-n node] [-e echoarea1,echoarea2,...] [-d depth] [-c echoarea1,echoarea2,...] [-o] [-to name1,name2...] [-h].")
     print()
     print("  -f filename  load config file. Default idec-fetcher.cfg.")
     print("  -n node      node address.")
-    print("  -m nodename  nodename for search .out messages.")
-    print("  -a authkey   authkey.")
     print("  -e echoareas echoareas for fetch.")
     print("  -d depth     fetch messages with an offset to a predetermined depth. Default 200.")
     print("  -c echoareas clone echoareas from node.")
@@ -238,10 +229,6 @@ if "-d" in args:
 h = "-h" in args
 if "-n" in args:
     node = args[args.index("-n") + 1]
-if "-m" in args:
-    nodename = args[args.index("-m") + 1]
-if "-a" in args:
-    auth = args[args.index("-a") + 1]
 if "-e" in args:
     echoareas = args[args.index("-e") + 1].split(",")
 if "-to" in args:
@@ -258,12 +245,11 @@ if not "-n" in args and not "-e" in args and not os.path.exists(config):
 
 check_directories()
 if not "-n" in args or not "-e" in args:
-    node, nodename, auth, depth, echoareas = load_config()
+    node, depth, echoareas = load_config()
 print("Работа с " + node)
 print("Получение списка возможностей ноды...")
-if auth:
-    get_features()
-    check_features()
+get_features()
+check_features()
 if xc:
     load_counts()
     print("Получение количества сообщений в конференциях...")

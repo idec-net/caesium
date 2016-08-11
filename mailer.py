@@ -39,6 +39,8 @@ def check_directories():
         os.makedirs("echo")
     if not os.path.exists("msg"):
         os.makedirs("msg")
+    if not os.path.exists("out"):
+        os.makedirs("out")
 
 def make_toss():
     lst = [x for x in os.listdir("out/" + nodename) if x.endswith(".out")]
@@ -241,7 +243,7 @@ def show_help():
     print("  -to names    names for put messages to carbonarea.")
     print("  -h           this message.")
     print()
-    print("If -f not exist, script will load config from current directory with name\nfetcher.cfg.")
+    print("If -f not exist, script will load config from current directory with name\nmailer.cfg.")
 
 args = sys.argv[1:]
 
@@ -249,7 +251,7 @@ conf = "-f" in args
 if conf:
     config = args[args.index("-f") + 1]
 else:
-    config = "fetcher.cfg"
+    config = "mailer.cfg"
 if "-c" in args:
     clone = args[args.index("-c") + 1].split(",")
 full = "-o" in args
