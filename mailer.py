@@ -280,6 +280,7 @@ check_directories()
 if not "-n" in args or not "-e" in args:
     node, nodename, auth, depth, echoareas = load_config()
 print("Работа с " + node)
+make_toss()
 send_mail()
 print("Получение списка возможностей ноды...")
 if auth:
