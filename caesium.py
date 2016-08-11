@@ -212,7 +212,7 @@ def save_out():
             buf = new
         elif header == 4:
             buf = new[1:5] + ["@repto:%s" % new[0]] + new[5:]
-        codecs.open(outcount(), "w", "utf-8").write("\n".join(new))
+        codecs.open(outcount(), "w", "utf-8").write("\n".join(buf))
         os.remove("temp")
 
 def resave_out(filename):
