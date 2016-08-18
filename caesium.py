@@ -1103,7 +1103,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 f.close()
                 call_editor()
         elif key in r_save and not out:
-            save_message_to_file(msgids[msgn], echo)
+            save_message_to_file(msgids[msgn], echo[0])
         elif key in r_favorites and not out:
             saved = save_to_favorites(msgids[msgn], msg)
             draw_message_box("Подождите", False)
