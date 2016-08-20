@@ -474,6 +474,19 @@ def send_mail():
     stdscr.keypad(True)
     get_term_size()
 
+def edit_config(out = False):
+    curses.echo()
+    curses.curs_set(True)
+    curses.endwin()
+    p = subprocess.Popen(editor + " ./caesium.cfg", shell=True)
+    p.wait()
+    stdscr = curses.initscr()
+    curses.start_color()
+    curses.noecho()
+    curses.curs_set(False)
+    stdscr.keypad(True)
+    get_term_size()
+
 def echo_selector():
     global echo_cursor, archive_cursor, counts, counts_rescan, next_echoarea, node
     archive = False
@@ -595,12 +608,16 @@ def echo_selector():
             stdscr.clear()
             counts_rescan = True
             cursor = 0
-        elif key in s_clone or key in s_PLONE:
+        elif key in s_clone:
             if cursor > 1 and not echoareas[cursor][2]:
                 if echoareas[cursor][0] in nodes[node]["clone"]:
                     nodes[node]["clone"].remove(echoareas[cursor][0])
                 else:
                     nodes[node]["clone"].append(echoareas[cursor][0])
+        elif key in s_config:
+            edit_config()
+            load_config()
+            node = 0
         elif key in g_quit:
             go = False
     if archive:

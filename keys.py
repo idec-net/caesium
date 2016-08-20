@@ -14,8 +14,8 @@ s_enter =     [10, curses.KEY_RIGHT, ord(" ")]         # открыть эху
 s_out =       [ord("o"), ord("O")]         # исходящие сообщения
 s_nnode =     [ord(".")]         # следующая нода
 s_pnode =     [ord(",")]         # предыдущая нода
-s_clone =     [ord("c")]         # клонировать эху
-s_PLONE =     [ord("C")]         # плонировать эху
+s_clone =     [ord("c"), ord("C")] # клонировать эху
+s_config =    [ord("e"), ord("E")] # редактировать конфиг
 
 # Клавиши для экрана чтения
 r_prev =      [curses.KEY_LEFT]  # предыдущее сообщение
