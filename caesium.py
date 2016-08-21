@@ -1158,6 +1158,8 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 call_editor()
         elif key in r_subj:
             show_subject(msg[6])
+        elif key in r_info and not out and width < 80:
+            message_box("id  : " + msgids[msgn] + "\naddr: " + msg[4])
         elif key in o_edit and out:
             if msgids[msgn].endswith(".out"):
                 copyfile("out/" + nodes[node]["nodename"] + "/" + msgids[msgn], "temp")
