@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re, hashlib
+import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re, hashlib, webbrowser
 from datetime import datetime
 from shutil import copyfile
 from keys import *
@@ -32,6 +32,8 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
            "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄",
            "           ncurses ii/idec client          v.0.3",
            "           Andrew Lobanov             23.07.2016"]
+
+urltemplate=re.compile("((https?|ftp|file)://?[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|])")
 
 def check_directories():
     if not os.path.exists("out"):
@@ -66,11 +68,13 @@ def separate(l, step=20):
         yield l[x:x+step]
 
 def load_config():
-    global nodes, editor, color_theme, show_splash, oldquote, fetch_cmd, clone_cmd, send_cmd, db
+    global nodes, editor, color_theme, show_splash, oldquote, fetch_cmd, clone_cmd, send_cmd, db, browser
     first = True
     node = {}
     echoareas = []
     archive = []
+    browser = webbrowser
+
     config = open("caesium.cfg").read().split("\n")
     for line in config:
         param = line.split(" ")
@@ -128,6 +132,9 @@ def load_config():
                 db = 0
             elif param[1] == "aio":
                 db = 1
+        elif param[0] == "browser":
+            browser = webbrowser.GenericBrowser(param[1])
+
     if not "nodename" in node:
         node["nodename"] = "untitled node"
     if not "to" in node:
@@ -341,7 +348,7 @@ def draw_echo_selector(start, cursor, archive):
         draw_title(0, 0, "Архив")
     else:
         echoareas = nodes[node]["echoareas"]
-        draw_title(0, 0, "Эхоконференции")
+        draw_title(0, 0, "Конференция")
     draw_status(1, version)
     draw_status(len(version) + 2, nodes[node]["nodename"])
     for echo in echoareas:
@@ -882,7 +889,91 @@ def get_msg(msgid):
                     if msgbody.split("\n")[5] in nodes[node]["to"] and not msgid in carbonarea:
                         add_to_carbonarea(msgid, msbbody)
                 save_message(msgid, msgbody)
-            
+
+def menu(items):
+    h = len(items)
+    w = 0
+    for item in items:
+        if len(item) > w:
+            w = len(item)
+        if len(item) > width - 2:
+            item = item[:width - 1]
+    if w >= width - 3:
+        w = width - 3
+    t = "Выберите ссылку"
+    e = "Esc - отмена"
+    if w < len(t):
+        w = len(t) + 2
+    menu_win = curses.newwin(h + 2, w + 2, int(height / 2 - h / 2 - 2) , int(width / 2 - w / 2 - 2))
+    if bold[0]:
+        menu_win.attron(curses.color_pair(1))
+        menu_win.attron(curses.A_BOLD)
+    else:
+        menu_win.attron(curses.color_pair(1))
+    menu_win.border()
+    if bold[0]:
+        color = curses.color_pair(1) + curses.A_BOLD
+    else:
+        color = curses.color_pair(1)
+    menu_win.addstr(0, 1, "[", color)
+    menu_win.addstr(0, 2 + len(t), "]", color)
+    menu_win.addstr(h + 1, 1, "[", color)
+    menu_win.addstr(h + 1, 2 + len(e), "]", color)
+    if bold[1]:
+        color = curses.color_pair(2) + curses.A_BOLD
+    else:
+        color = curses.color_pair(2)
+    menu_win.addstr(0, 2, t, curses.color_pair(2) + curses.A_BOLD)
+    menu_win.addstr(h + 1, 2, e, curses.color_pair(2) + curses.A_BOLD)
+    if bold[0]:
+        color = curses.color_pair(1) + curses.A_BOLD
+    else:
+        color = curses.color_pair(1)
+    y = 1
+    quit = False
+    cancel = False
+    while not quit:
+        i = 1
+        for item in items:
+            if i == y :
+                if bold[2]:
+                    color = curses.color_pair(3) + curses.A_BOLD
+                else:
+                    color = curses.color_pair(3)
+                for x in range(1, w + 1):
+                    menu_win.addstr(i, x, " ", color)
+            else:
+                if bold[3]:
+                    color = curses.color_pair(4) + curses.A_BOLD
+                else:
+                    color = curses.color_pair(4)
+                for x in range(1, w + 1):
+                    menu_win.addstr(i, x, " ", color)
+            if len(item) < w - 2:
+                menu_win.addstr(i, 1, item, color)
+            else:
+                menu_win.addstr(i, 1, item[:w], color)
+            i = i + 1
+        menu_win.refresh()
+        key = stdscr.getch()
+        if key in r_up and y > 1:
+            y -= 1
+        elif key in r_down and y < h:
+            y += 1
+        elif key in s_enter:
+            quit = True
+        elif key in r_quit:
+            cancel = True
+            quit = True
+    if cancel:
+        return False
+    else:
+        return y
+
+def open_link(link):
+    global browser
+    browser.open(link)
+
 def echo_reader(echo, last, archive, favorites, out, carbonarea):
     global lasts, next_echoarea
     stdscr.clear()
@@ -1192,6 +1283,18 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             msg, size = read_msg(msgids[msgn], echo[0])
             msgbody = body_render(msg[8:])
             scrollbar_size = calc_scrollbar_size(len(msgbody))
+        elif key in r_links:
+            results = urltemplate.findall("\n".join(msg[8:]))
+            links = []
+            for item in results:
+                links.append(item[0])
+            if len(links) == 1:
+                open_link(links[0])
+            else:
+                i = menu(links)
+                if i:
+                    open_link(links[i - 1])
+            stdscr.clear()
         elif key in r_quit:
             go = False
             quit = False
