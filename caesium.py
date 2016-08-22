@@ -69,6 +69,7 @@ def separate(l, step=20):
 
 def load_config():
     global nodes, editor, color_theme, show_splash, oldquote, fetch_cmd, clone_cmd, send_cmd, db, browser
+    nodes = []
     first = True
     node = {}
     echoareas = []
@@ -143,6 +144,9 @@ def load_config():
     node["archive"] = archive
     node["clone"] = []
     nodes.append(node)
+    for i in range(0, len(nodes)):
+        nodes[i]["echoareas"].insert(0, ["favorites", "Избранные сообщения", True])
+        nodes[i]["echoareas"].insert(1, ["carbonarea", "Карбонка", True])
 
 def load_colors():
     global bold
@@ -466,6 +470,13 @@ def fetch_mail():
     stdscr.keypad(True)
     get_term_size()
 
+def load_lasts():
+    global lasts
+    if os.path.exists("lasts.lst"):
+        f = open("lasts.lst", "rb")
+        lasts = pickle.load(f)
+        f.close()
+
 def send_mail():
     curses.echo()
     curses.curs_set(True)
@@ -624,6 +635,7 @@ def echo_selector():
         elif key in s_config:
             edit_config()
             load_config()
+            counts_rescan = True
             node = 0
         elif key in g_quit:
             go = False
@@ -1316,13 +1328,7 @@ if db == 0:
 elif db == 1:
     from aio import *
 check_directories()
-for i in range(0, len(nodes)):
-    nodes[i]["echoareas"].insert(0, ["favorites", "Избранные сообщения", True])
-    nodes[i]["echoareas"].insert(1, ["carbonarea", "Карбонка", True])
-if os.path.exists("lasts.lst"):
-    f = open("lasts.lst", "rb")
-    lasts = pickle.load(f)
-    f.close()
+load_lasts()
 stdscr = curses.initscr()
 curses.start_color()
 load_colors()
