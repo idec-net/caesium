@@ -301,12 +301,17 @@ def draw_cursor(y, color):
 def current_time():
     draw_status(width - 8, "│ " + datetime.now().strftime("%H:%M"))
 
-def get_counts():
+def get_counts(new = False):
     global echo_counts
     for echoarea in nodes[node]["echoareas"]:
-        echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
+        if not new:
+            if not echoarea[0] in echo_counts:
+                echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
+        else:
+            echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
     for echoarea in nodes[node]["archive"]:
-        echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
+        if not echoarea[0] in echo_counts:
+            echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
 
 def rescan_counts(echoareas):
     counts = []
@@ -455,13 +460,15 @@ def fetch_mail():
         cmd = clone_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%clone", ",".join(nodes[node]["clone"])).replace("%auth", nodes[node]["auth"])
         if to:
             cmd = cmd.replace("%to", to)
-        p = subprocess.Popen(cmd, shell=True)
+#        p = subprocess.Popen(cmd, shell=True)
         nodes[node]["clone"] = []
     else:
         cmd = fetch_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%auth",nodes[node]["auth"])
         if to:
             cmd = cmd.replace("%to", to)
-        p = subprocess.Popen(cmd, shell=True)
+    if not "auth" in nodes[node]:
+        cmd = cmd.replace(" -a %auth", "")
+    p = subprocess.Popen(cmd, shell=True)
     p.wait()
     stdscr = curses.initscr()
     curses.start_color()
@@ -614,18 +621,24 @@ def echo_selector():
             if node == len(nodes):
                 node = 0
             echoareas = nodes[node]["echoareas"]
+            draw_message_box("Подождите", False)
+            get_counts()
             stdscr.clear()
             counts_rescan = True
             cursor = 0
+            start = 0
         elif key in s_pnode:
             archive = False
             node = node - 1
             if node == -1:
                 node = len(nodes) - 1
             echoareas = nodes[node]["echoareas"]
+            draw_message_box("Подождите", False)
+            get_counts()
             stdscr.clear()
             counts_rescan = True
             cursor = 0
+            start = 0
         elif key in s_clone:
             if cursor > 1 and not echoareas[cursor][2]:
                 if echoareas[cursor][0] in nodes[node]["clone"]:
