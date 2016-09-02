@@ -301,17 +301,20 @@ def draw_cursor(y, color):
 def current_time():
     draw_status(width - 8, "│ " + datetime.now().strftime("%H:%M"))
 
-def get_counts(new = False):
+def get_counts(new = False, favorites = False):
     global echo_counts
-    for echoarea in nodes[node]["echoareas"]:
-        if not new:
+    if not favorites:
+        for echoarea in nodes[node]["echoareas"]:
+            if not new:
+                if not echoarea[0] in echo_counts:
+                    echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
+            else:
+                echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
+        for echoarea in nodes[node]["archive"]:
             if not echoarea[0] in echo_counts:
                 echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
-        else:
-            echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
-    for echoarea in nodes[node]["archive"]:
-        if not echoarea[0] in echo_counts:
-            echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
+    else:
+        echo_counts["favorites"] = get_echo_length("favorites")
 
 def rescan_counts(echoareas):
     counts = []
@@ -1240,7 +1243,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
         elif key in r_favorites and not out:
             saved = save_to_favorites(msgids[msgn], msg)
             draw_message_box("Подождите", False)
-            get_counts()
+            get_counts(False, True)
             if saved:
                 message_box("Собщение добавлено в избранные")
             else:
@@ -1289,7 +1292,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             if len(msgids) > 0:
                 remove_from_favorites(msgids[msgn])
                 draw_message_box("Подождите", False)
-                get_counts()
+                get_counts(False, True)
                 msgids = get_echo_msgids(echo[0])
                 if len(msgids) > 0:
                     if msgn >= len(msgids):
@@ -1303,7 +1306,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
         elif key in r_getmsg and size == "0b":
             get_msg(msgids[msgn])
             draw_message_box("Подождите", False)
-            get_counts()
+            get_counts(True)
             stdscr.clear()
             msg, size = read_msg(msgids[msgn], echo[0])
             msgbody = body_render(msg[8:])
