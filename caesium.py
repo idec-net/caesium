@@ -216,7 +216,7 @@ def load_colors():
             else:
                 bold[8] = False
 
-def save_out():
+def save_out(draft = False):
     new = codecs.open("temp", "r", "utf-8").read().strip().split("\n")
     if len(new) <= 1:
         os.remove("temp")
@@ -226,25 +226,34 @@ def save_out():
             buf = new
         elif header == 4:
             buf = new[1:5] + ["@repto:%s" % new[0]] + new[5:]
-        codecs.open(outcount(), "w", "utf-8").write("\n".join(buf))
+        if draft:
+            codecs.open(outcount() + ".draft", "w", "utf-8").write("\n".join(buf))
+        else:
+            codecs.open(outcount() + ".out", "w", "utf-8").write("\n".join(buf))
         os.remove("temp")
 
-def resave_out(filename):
+def resave_out(filename, draft = False):
     new = codecs.open("temp", "r", "utf-8").read().strip().split("\n")
     if len(new) <= 1:
         os.remove("temp")
     else:
-        codecs.open("out/" + nodes[node]["nodename"] + "/" + filename, "w", "utf-8").write("\n".join(new))
+        if draft:
+            codecs.open("out/" + nodes[node]["nodename"] + "/" + filename.replace(".out", ".draft"), "w", "utf-8").write("\n".join(new))
+        else:
+            codecs.open("out/" + nodes[node]["nodename"] + "/" + filename, "w", "utf-8").write("\n".join(new))
         os.remove("temp")
 
 def outcount():
     outpath = "out/" + nodes[node]["nodename"]
     i = str(len([x for x in os.listdir(outpath) if not x.endswith(".toss")]) + 1)
-    return outpath + "/%s.out" % i.zfill(5)
+    return outpath + "/%s" % i.zfill(5)
 
-def get_out_length():
+def get_out_length(drafts = False):
     try:
-        return len([f for f in sorted(os.listdir("out/" + nodes[node]["nodename"])) if f.endswith(".out") or f.endswith(".outmsg")]) - 1
+        if drafts:
+            return len([f for f in sorted(os.listdir("out/" + nodes[node]["nodename"])) if f.endswith(".draft")]) - 1
+        else:
+            return len([f for f in sorted(os.listdir("out/" + nodes[node]["nodename"])) if f.endswith(".out") or f.endswith(".outmsg")]) - 1
     except:
         return 0
 
@@ -621,6 +630,10 @@ def echo_selector():
             out_length = get_out_length()
             if out_length > -1:
                 go = not echo_reader("out", out_length, archive, False, True, False)
+        elif key in s_drafts:
+            out_length = get_out_length(True)
+            if out_length > -1:
+                go = not echo_reader("out", out_length, archive, False, True, False, True)
         elif key in s_nnode:
             archive = False
             node = node + 1
@@ -769,26 +782,33 @@ def draw_reader(echo, msgid, out):
     stdscr.addstr(3, 1, "Тема: ", color)
 
 
-def call_editor(out = False):
+def call_editor(out = False, draft = False):
     curses.echo()
     curses.curs_set(True)
     curses.endwin()
     h = hashlib.sha1(str.encode(open("temp", "r",).read())).hexdigest()
     p = subprocess.Popen(editor + " ./temp", shell=True)
     p.wait()
-    if h != hashlib.sha1(str.encode(open("temp", "r",).read())).hexdigest():
-        if not out:
-            save_out()
-        else:
-            resave_out(out)
-    else:
-        os.remove("temp")
     stdscr = curses.initscr()
     curses.start_color()
     curses.noecho()
     curses.curs_set(False)
     stdscr.keypad(True)
     get_term_size()
+    if h != hashlib.sha1(str.encode(open("temp", "r",).read())).hexdigest():
+        d = menu(["Сохранить в исходящие", "Сохранить как черновик"])
+        if d == 2:
+            if not out:
+                save_out(True)
+            else:
+                resave_out(out, True)
+        else:
+            if not out:
+                save_out()
+            else:
+                resave_out(out.replace(".draft", ".out"))
+    else:
+        os.remove("temp")
 
 def draw_message_box(smsg, wait):
     maxlen = 0
@@ -838,11 +858,14 @@ def save_message_to_file(msgid, echoarea):
     f.close
     message_box("Сообщение сохранено в файл\n" + str(msgid) + ".txt")
 
-def get_out_msgids():
+def get_out_msgids(drafts = False):
     msgids = []
     not_sended = []
     if os.path.exists("out/" + nodes[node]["nodename"]):
-        msgids = [f for f in sorted(os.listdir("out/" + nodes[node]["nodename"])) if f.endswith(".out") or f.endswith(".outmsg")]
+        if drafts:
+            msgids = [f for f in sorted(os.listdir("out/" + nodes[node]["nodename"])) if f.endswith(".draft")]
+        else:
+            msgids = [f for f in sorted(os.listdir("out/" + nodes[node]["nodename"])) if f.endswith(".out") or f.endswith(".outmsg")]
     return msgids
 
 def quote(to):
@@ -1005,7 +1028,13 @@ def open_link(link):
     global browser
     browser.open(link)
 
-def echo_reader(echo, last, archive, favorites, out, carbonarea):
+def get_out(drafts=False):
+    if drafts:
+        return get_out_msgids(True)
+    else:
+        return get_out_msgids()
+
+def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False):
     global lasts, next_echoarea
     stdscr.clear()
     if bold[0]:
@@ -1016,12 +1045,18 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
     y = 0
     msgn = last
     key = 0
-    if out:
+    if drafts:
+        msgids = get_out_msgids(True)
+    elif out:
         msgids = get_out_msgids()
     else:
         msgids = get_echo_msgids(echo[0])
+    if msgn > len(msgids) - 1:
+        msgn = len(msgids) - 1
     if len(msgids) > 0:
-        if out:
+        if drafts:
+            msg, size = read_out_msg(msgids[msgn])
+        elif out:
             msg, size = read_out_msg(msgids[msgn])
         else:
             msg, size = read_msg(msgids[msgn], echo[0])
@@ -1039,7 +1074,9 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
             else:
                 msg_string = str(msgn + 1) + "/" + str(len(msgids)) + " [" + str(len(msgids) - msgn - 1) + "]"
             draw_status(len(version) + 2, msg_string)
-            if out:
+            if drafts:
+                dsc = "Черновики"
+            elif out:
                 dsc = "Исходящие"
             else:
                 dsc = echo[1]
@@ -1241,6 +1278,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 f.write("No subject\n\n")
                 f.close()
                 call_editor()
+                stdscr.clear()
         elif key in r_save and not out:
             save_message_to_file(msgids[msgn], echo[0])
         elif key in r_favorites and not out:
@@ -1283,14 +1321,28 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
         elif key in r_info and not out and width < 80:
             message_box("id  : " + msgids[msgn] + "\naddr: " + msg[4])
         elif key in o_edit and out:
-            if msgids[msgn].endswith(".out"):
+            if msgids[msgn].endswith(".out") or msgids[msgn].endswith(".draft"):
                 copyfile("out/" + nodes[node]["nodename"] + "/" + msgids[msgn], "temp")
-                call_editor(msgids[msgn])
-                msg, size = read_out_msg(msgids[msgn])
-                msgbody = body_render(msg[8:])
+                os.remove("out/" + nodes[node]["nodename"] + "/" + msgids[msgn])
+                if drafts:
+                    call_editor(msgids[msgn], drafts)
+                    msgids = get_out(True)
+                else:
+                    call_editor(msgids[msgn])
+                    msgids = get_out()
+                if msgn > len(msgids) - 1:
+                    msgn = len(msgids) -1
+                if len(msgids) > 0:
+                    msg, size = read_out_msg(msgids[msgn])
+                    msgbody = body_render(msg[8:])
+                else:
+                    go = False
+                    quit = False
                 scrollbar_size = calc_scrollbar_size(len(msgbody))
+                stdscr.clear()
             else:
                 message_box("Сообщение уже отправлено")
+                stdscr.clear()
         elif key in f_delete and favorites and not carbonarea:
             if len(msgids) > 0:
                 remove_from_favorites(msgids[msgn])
@@ -1326,6 +1378,36 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
                 if i:
                     open_link(links[i - 1])
             stdscr.clear()
+        elif key in r_to_out and drafts:
+            copyfile("out/" + nodes[node]["nodename"] + "/" + msgids[msgn], "out/" + nodes[node]["nodename"] + "/" + msgids[msgn].replace(".draft", ".out"))
+            os.remove("out/" + nodes[node]["nodename"] + "/" + msgids[msgn])
+            if drafts:
+                msgids = get_out(True)
+            else:
+                msgids = get_out()
+            if msgn > len(msgids) - 1:
+                msgn = len(msgids) -1
+            if len(msgids) > 0:
+                msg, size = read_out_msg(msgids[msgn])
+                msgbody = body_render(msg[8:])
+            else:
+                go = False
+                quit = False
+        elif key in r_to_drafts and out and not drafts and msgids[msgn].endswith(".out"):
+            copyfile("out/" + nodes[node]["nodename"] + "/" + msgids[msgn], "out/" + nodes[node]["nodename"] + "/" + msgids[msgn].replace(".out", ".draft"))
+            os.remove("out/" + nodes[node]["nodename"] + "/" + msgids[msgn])
+            if drafts:
+                msgids = get_out(True)
+            else:
+                msgids = get_out()
+            if msgn > len(msgids) - 1:
+                msgn = len(msgids) -1
+            if len(msgids) > 0:
+                msg, size = read_out_msg(msgids[msgn])
+                msgbody = body_render(msg[8:])
+            else:
+                go = False
+                quit = False
         elif key in r_quit:
             go = False
             quit = False
