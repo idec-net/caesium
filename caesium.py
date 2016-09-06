@@ -795,18 +795,29 @@ def call_editor(out = False, draft = False):
     curses.curs_set(False)
     stdscr.keypad(True)
     get_term_size()
+    d = menu("Куда сохранить?", ["Сохранить в исходящие", "Сохранить как черновик"])
     if h != hashlib.sha1(str.encode(open("temp", "r",).read())).hexdigest():
-        d = menu(["Сохранить в исходящие", "Сохранить как черновик"])
-        if d == 2:
-            if not out:
-                save_out(True)
-            else:
-                resave_out(out, True)
-        else:
-            if not out:
-                save_out()
-            else:
-                resave_out(out.replace(".draft", ".out"))
+        if d:
+            if d == 2:
+                if not out:
+                    save_out(True)
+                else:
+                    if out.endswith(".out"):
+                        try:
+                            os.remove("out/" + nodes[node]["nodename"] + "/" + out)
+                        except:
+                            None
+                    resave_out(out, True)
+            elif d == 1:
+                if not out:
+                    save_out()
+                else:
+                    if out.endswith(".draft"):
+                        try:
+                            os.remove("out/" + nodes[node]["nodename"] + "/" + out)
+                        except:
+                            None
+                    resave_out(out.replace(".draft", ".out"))
     else:
         os.remove("temp")
 
@@ -944,7 +955,7 @@ def get_msg(msgid):
                         add_to_carbonarea(msgid, msbbody)
                 save_message(msgid, msgbody)
 
-def menu(items):
+def menu(title, items):
     h = len(items)
     w = 0
     for item in items:
@@ -954,10 +965,9 @@ def menu(items):
             item = item[:width - 1]
     if w >= width - 3:
         w = width - 3
-    t = "Выберите ссылку"
     e = "Esc - отмена"
-    if w < len(t):
-        w = len(t) + 2
+    if w < len(title):
+        w = len(title) + 2
     menu_win = curses.newwin(h + 2, w + 2, int(height / 2 - h / 2 - 2) , int(width / 2 - w / 2 - 2))
     if bold[0]:
         menu_win.attron(curses.color_pair(1))
@@ -970,14 +980,14 @@ def menu(items):
     else:
         color = curses.color_pair(1)
     menu_win.addstr(0, 1, "[", color)
-    menu_win.addstr(0, 2 + len(t), "]", color)
+    menu_win.addstr(0, 2 + len(title), "]", color)
     menu_win.addstr(h + 1, 1, "[", color)
     menu_win.addstr(h + 1, 2 + len(e), "]", color)
     if bold[1]:
         color = curses.color_pair(2) + curses.A_BOLD
     else:
         color = curses.color_pair(2)
-    menu_win.addstr(0, 2, t, curses.color_pair(2) + curses.A_BOLD)
+    menu_win.addstr(0, 2, title, curses.color_pair(2) + curses.A_BOLD)
     menu_win.addstr(h + 1, 2, e, curses.color_pair(2) + curses.A_BOLD)
     if bold[0]:
         color = curses.color_pair(1) + curses.A_BOLD
@@ -1323,7 +1333,6 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
         elif key in o_edit and out:
             if msgids[msgn].endswith(".out") or msgids[msgn].endswith(".draft"):
                 copyfile("out/" + nodes[node]["nodename"] + "/" + msgids[msgn], "temp")
-                os.remove("out/" + nodes[node]["nodename"] + "/" + msgids[msgn])
                 if drafts:
                     call_editor(msgids[msgn], drafts)
                     msgids = get_out(True)
@@ -1374,7 +1383,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
             if len(links) == 1:
                 open_link(links[0])
             else:
-                i = menu(links)
+                i = menu("Выберите ссылку", links)
                 if i:
                     open_link(links[i - 1])
             stdscr.clear()
