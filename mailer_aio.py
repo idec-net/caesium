@@ -12,12 +12,13 @@ ue = False
 xc = False
 to = False
 depth = "200"
+auth = False
 
 def load_config():
+    global node, depth, echoareas, nodename
     node = ""
     depth = "200"
     echoareas = []
-    auth = False
     nodename = "unknown"
     f = open(config, "r").read().split("\n")
     for line in f:
@@ -295,12 +296,12 @@ check_directories()
 if not "-n" in args or not "-e" in args:
     node, nodename, auth, depth, echoareas = load_config()
 print("Работа с " + node)
-make_toss()
-send_mail()
-print("Получение списка возможностей ноды...")
 if auth:
-    get_features()
-    check_features()
+    make_toss()
+    send_mail()
+print("Получение списка возможностей ноды...")
+get_features()
+check_features()
 if xc:
     load_counts()
     print("Получение количества сообщений в конференциях...")
