@@ -463,10 +463,13 @@ def fetch_mail():
         cmd = clone_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%clone", ",".join(nodes[node]["clone"])).replace("%auth", nodes[node]["auth"])
         if to:
             cmd = cmd.replace("%to", to)
-#        p = subprocess.Popen(cmd, shell=True)
         nodes[node]["clone"] = []
     else:
-        cmd = fetch_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%auth",nodes[node]["auth"])
+        cmd = fetch_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas))
+        if "auth" in nodes[node]:
+            cmd = cmd.replace("%auth", nodes[node]["auth"])
+        else:
+            cmd = cmd.replace("-a %auth", "")
         if to:
             cmd = cmd.replace("%to", to)
     if not "auth" in nodes[node]:
@@ -566,7 +569,7 @@ def echo_selector():
         elif key in s_get:
             fetch_mail()
             draw_message_box("Подождите", False)
-            get_counts()
+            get_counts(True)
             stdscr.clear()
             counts = rescan_counts(echoareas)
             cursor = find_new(0)
@@ -1340,9 +1343,9 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea):
 check_config()
 load_config()
 if db == 0:
-    from txt import *
+    from api.txt import *
 elif db == 1:
-    from aio import *
+    from api.aio import *
 check_directories()
 load_lasts()
 stdscr = curses.initscr()
