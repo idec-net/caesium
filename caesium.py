@@ -1020,10 +1020,16 @@ def menu(title, items):
             i = i + 1
         menu_win.refresh()
         key = stdscr.getch()
-        if key in r_up and y > 1:
-            y -= 1
-        elif key in r_down and y < h:
-            y += 1
+        if key in r_up:
+            if y > 1:
+                y -= 1
+            else:
+                y = h
+        elif key in r_down:
+            if y < h:
+                y += 1
+            else:
+                y = 1
         elif key in s_enter:
             quit = True
         elif key in r_quit:
