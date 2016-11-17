@@ -56,6 +56,9 @@ def check_directories():
     elif db == 1:
         if not os.path.exists("aio"):
             os.mkdir("aio")
+    elif db == 2:
+        if not os.path.exists("ait"):
+            os.mkdir("ait")
 
 def check_config():
     if not os.path.exists("caesium.cfg"):
@@ -136,6 +139,8 @@ def load_config():
                 db = 0
             elif param[1] == "aio":
                 db = 1
+            elif param[1] == "ait":
+                db = 2
         elif param[0] == "browser":
             browser = webbrowser.GenericBrowser(param[1])
 
@@ -1470,6 +1475,8 @@ if db == 0:
     from api.txt import *
 elif db == 1:
     from api.aio import *
+elif db == 2:
+    from api.ait import *
 check_directories()
 load_lasts()
 stdscr = curses.initscr()
