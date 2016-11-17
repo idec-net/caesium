@@ -49,7 +49,7 @@ def save_message(msgid, msgbody):
     codecs.open("aio/" + msgbody[1] + ".aio", "w", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
 
 def get_favorites_list():
-    return open("aio/favorites.aio", "r").read().split("\n")
+    return codecs.open("aio/favorites.aio", "r", "utf-8").read().split("\n")
 
 def remove_from_favorites(msgid):
     favorites_list = get_favorites_list()

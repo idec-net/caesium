@@ -5,21 +5,13 @@ from datetime import datetime
 from shutil import copyfile
 from keys import *
 
-nodes = []
-node = 0
-editor = ""
 lasts = {}
 color_theme = "default"
-bold = [False, False, False, False, False, False, False, False, False]
+bold = [False, False, False, False, False, False, False, False, False, False]
 counts = []
 counts_rescan = True
 echo_counts = {}
 next_echoarea = False
-oldquote = False
-fetch_cmd = ""
-clone_cmd = ""
-send_cmd = False
-db = 0
 
 version = "Caesium/0.3 │"
 
@@ -34,6 +26,17 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
            "           Andrew Lobanov             24.08.2016"]
 
 urltemplate=re.compile("((https?|ftp|file)://?[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|])")
+
+def reset_config():
+    global nodes, node, editor, oldquote, fetch_cmd, clone_cmd, send_cmd, db
+    nodes = []
+    node = 0
+    editor = ""
+    oldquote = False
+    fetch_cmd = ""
+    clone_cmd = ""
+    send_cmd = False
+    db = 0
 
 def check_directories():
     if not os.path.exists("out"):
@@ -215,6 +218,12 @@ def load_colors():
                 bold[8] = True
             else:
                 bold[8] = False
+        if param[0] == "header":
+            curses.init_pair(10, colors.index(param[1]), colors.index(param[2]))
+            if len(param) == 4:
+                bold[9] = True
+            else:
+                bold[9] = False
 
 def save_out(draft = False):
     new = codecs.open("temp", "r", "utf-8").read().strip().split("\n")
@@ -520,6 +529,8 @@ def edit_config(out = False):
     curses.endwin()
     p = subprocess.Popen(editor + " ./caesium.cfg", shell=True)
     p.wait()
+    reset_config()
+    load_config()
     stdscr = curses.initscr()
     curses.start_color()
     curses.noecho()
@@ -604,6 +615,7 @@ def echo_selector():
                 stdscr.clear()
                 counts_rescan = True
         elif key in s_enter:
+            draw_message_box("Подождите", False)
             if echoareas[cursor][0] in lasts:
                 last = lasts[echoareas[cursor][0]]
             else:
@@ -700,6 +712,9 @@ def read_out_msg(msgid):
 def body_render(tbody):
     body = ""
     code = ""
+    sep = ""
+    for i in range(0, width - 1):
+        sep += "─"
     for line in tbody:
         n = 0
         rr = re.compile(r"^[a-zA-Zа-яА-Я0-9_-]{0,20}>{1,20}")
@@ -715,9 +730,14 @@ def body_render(tbody):
                 code = chr(16)
         elif cc.match(line):
             code = chr(17)
+        elif line.startswith("== "):
+            code = chr(18)
         else:
             code = " "
-        if code != " " and code != chr(17):
+        if line == "----":
+            code = chr(17)
+            line = sep 
+        if code != " " and code != chr(17) and code != chr(18):
             line = " " + line
         body = body + code
         for word in line.split(" "):
@@ -795,8 +815,8 @@ def call_editor(out = False, draft = False):
     curses.curs_set(False)
     stdscr.keypad(True)
     get_term_size()
-    d = menu("Куда сохранить?", ["Сохранить в исходящие", "Сохранить как черновик"])
     if h != hashlib.sha1(str.encode(open("temp", "r",).read())).hexdigest():
+        d = menu("Куда сохранить?", ["Сохранить в исходящие", "Сохранить как черновик"])
         if d:
             if d == 2:
                 if not out:
@@ -929,6 +949,12 @@ def set_attr(str):
     elif str == chr(17):
         stdscr.attron(curses.color_pair(7))
         if bold[6]:
+            stdscr.attron(curses.A_BOLD)
+        else:
+            stdscr.attroff(curses.A_BOLD)
+    elif str == chr(18):
+        stdscr.attron(curses.color_pair(10))
+        if bold[9]:
             stdscr.attron(curses.A_BOLD)
         else:
             stdscr.attroff(curses.A_BOLD)
@@ -1438,6 +1464,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
     return quit
 
 check_config()
+reset_config()
 load_config()
 if db == 0:
     from api.txt import *
