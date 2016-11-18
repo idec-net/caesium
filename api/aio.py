@@ -43,7 +43,7 @@ def get_carbonarea():
         return []
 
 def add_to_carbonarea(msgid, msgbody):
-    codecs.open("aio/carbonarea.aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msg) + "\n")
+    codecs.open("aio/carbonarea.aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
 
 def save_message(msgid, msgbody):
     codecs.open("aio/" + msgbody[1] + ".aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
