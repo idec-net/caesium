@@ -479,16 +479,21 @@ def fetch_mail():
         to = "\"" + ",".join(nodes[node]["to"]) + "\""
     else:
         to = False
+    d = "txt"
+    if db == 1:
+        d = "aio"
+    elif db == 2:
+        d = "ait"
     for echoarea in nodes[node]["echoareas"][2:]:
         if not echoarea[2]:
             echoareas.append(echoarea[0])
     if len(nodes[node]["clone"]) > 0:
-        cmd = clone_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%clone", ",".join(nodes[node]["clone"])).replace("%auth", nodes[node]["auth"])
+        cmd = clone_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%clone", ",".join(nodes[node]["clone"])).replace("%auth", nodes[node]["auth"]).replace("%db", d)
         if to:
             cmd = cmd.replace("%to", to)
         nodes[node]["clone"] = []
     else:
-        cmd = fetch_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas))
+        cmd = fetch_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%db", d)
         if "auth" in nodes[node]:
             cmd = cmd.replace("%auth", nodes[node]["auth"])
         else:
