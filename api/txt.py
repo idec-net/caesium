@@ -1,4 +1,4 @@
-import os
+import os, codecs
 
 def get_echo_length(echo):
     if os.path.exists("echo/" + echo):
@@ -38,7 +38,8 @@ def add_to_carbonarea(msgid, msgbody):
     codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
 
 def save_message(msgid, msgbody):
-    codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
+    codecs.open("echo/" + msgbody[1], "a", "utf-8").write(msgid + "\n")
+    codecs.open("msg/" + msgid, "w", "utf-8").write("\n".join(msgbody))
 
 def get_favorites_list():
     return open("echo/favorites", "r").read().split("\n")

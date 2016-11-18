@@ -13,9 +13,11 @@ xc = False
 to = False
 depth = "200"
 auth = False
+db = 0
+fetchonly = False
+sendonly = False
 
 def load_config():
-    global node, depth, echoareas, nodename
     node = ""
     depth = "200"
     echoareas = []
@@ -33,15 +35,38 @@ def load_config():
             depth = param[1]
         elif param[0] == "echo":
             echoareas.append(param[1])
-    return node, nodename, auth, depth, echoareas
+        elif param[0] == "db":
+            db = param[1]
+        elif param[0] == "oldmode":
+            full = True
+        elif param[0] == "to":
+            to = param[1].split(",")
+        elif param[0] == "fetchonly":
+            fetchonly = True
+        elif param[0] == "sendonly":
+            sendonly = True
+    return node, nodename, auth, depth, echoareas, db, oldmode, to, fetchonly, sendonly
 
 def check_directories():
-    if not os.path.exists("echo"):
-        os.makedirs("echo")
-    if not os.path.exists("msg"):
-        os.makedirs("msg")
     if not os.path.exists("out"):
-        os.makedirs("out")
+        os.mkdir("out")
+    if not fetchonly and not os.path.exists("out/" + nodename):
+        os.mkdir("out/" + nodename)
+    if db == 0:
+        if not os.path.exists("echo"):
+            os.mkdir("echo")
+        if not os.path.exists("msg"):
+            os.mkdir("msg")
+        if not os.path.exists("echo/favorites"):
+            open("echo/favorites", "w")
+        if not os.path.exists("echo/carbonarea"):
+            open("echo/carbonarea", "w")
+    elif db == 1:
+        if not os.path.exists("aio"):
+            os.mkdir("aio")
+    elif db == 2:
+        if not os.path.exists("ait"):
+            os.mkdir("ait")
 
 def make_toss():
     lst = [x for x in os.listdir("out/" + nodename) if x.endswith(".out")]
@@ -135,12 +160,6 @@ def calculate_offset():
     if not n:
         depth = offset
 
-def get_echoarea(echoarea):
-    try:
-        return open("echo/" + echoarea, "r").read().split("\n")
-    except:
-        return []
-
 def get_msg_list():
     global clone
     msg_list = []
@@ -180,16 +199,15 @@ def debundle(bundle):
             m = msg.split(":")
             msgid = m[0]
             if len(msgid) == 20 and m[1]:
-                msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
-                codecs.open("msg/" + msgid, "w", "utf-8").write(msgbody)
-                codecs.open("echo/" + msgbody.split("\n")[1], "a", "utf-8").write(msgid + "\n")
+                msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8").split("\n")
+                save_message(msgid, msgbody)
                 if to:
                     try:
-                        carbonarea = open("echo/carbonarea", "r").read().split("\n")
+                        carbonarea = get_carbonarea()
                     except:
                         carbonarea = []
-                    if msgbody.split("\n")[5] in to and not msgid in carbonarea:
-                        codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
+                    if msgbody[5] in to and not msgid in carbonarea:
+                        add_to_carbonarea(msgid, msgbody)
 
 def echo_filter(ea):
     rr = re.compile(r'^[a-z0-9_!.-]{1,60}\.[a-z0-9_!.-]{1,60}$')
@@ -207,7 +225,7 @@ def get_mail():
                     os.remove("echo/" + line)
                 except:
                     None
-            local_index = get_echoarea(line)
+            local_index = get_echo_msgids(line)
         else:
             if not line in local_index:
                 fetch_msg_list.append(line)
@@ -234,6 +252,7 @@ def show_help():
     print("Usage: mailer.py [-f filename] [-n node] [-e echoarea1,echoarea2,...] [-d depth] [-c echoarea1,echoarea2,...] [-o] [-to name1,name2...] [-h].")
     print()
     print("  -f filename  load config file. Default idec-fetcher.cfg.")
+    print("  -db db type  set database type (txt, aio or ait).")
     print("  -n node      node address.")
     print("  -m nodename  nodename for search .out messages.")
     print("  -a authkey   authkey.")
@@ -242,6 +261,8 @@ def show_help():
     print("  -c echoareas clone echoareas from node.")
     print("  -o           old mode. Get full index from nore.")
     print("  -to names    names for put messages to carbonarea.")
+    print("  -fetchonly   fetch messages only.")
+    print("  -sendonly    send messages only.")
     print("  -h           this message.")
     print()
     print("If -f not exist, script will load config from current directory with name\nmailer.cfg.")
@@ -269,7 +290,19 @@ if "-e" in args:
     echoareas = args[args.index("-e") + 1].split(",")
 if "-to" in args:
     to = args[args.index("-to") + 1].split(",")
+if "-db" in args:
+    db = args[args.index("-db") + 1]
+if db == "txt":
+        db = 0
+    elif db == "aio":
+        db = 1
+    elif db == "ait":
+        db = 2
 wait = "-w" in args
+if "-fetchonly" in args:
+    fetchonly = True
+if "-sendonly" in args:
+    sendonly = True
 
 if h:
     show_help()
@@ -280,23 +313,30 @@ if not "-n" in args and not "-e" in args and not os.path.exists(config):
     quit()
 
 check_directories()
-if not "-n" in args or not "-e" in args:
-    node, nodename, auth, depth, echoareas = load_config()
+if (not sendonly and (not "-n" in args or not "-e" in args)) or (not fetchonly and not "-n" in args and not "-a" in args):
+    node, nodename, auth, depth, echoareas, db, oldmode, to, fetchonly, sendonly = load_config()
+if db == 0:
+    from api.txt import *
+elif db == 1:
+    from api.aio import *
+elif db == 2:
+    from api.ait import *
 print("Работа с " + node)
-if auth:
+if auth and not fetchonly:
     make_toss()
     send_mail()
-print("Получение списка возможностей ноды...")
-get_features()
-check_features()
-if xc:
-    load_counts()
-    print("Получение количества сообщений в конференциях...")
-    remote_counts = get_remote_counts()
-    calculate_offset()
-get_mail()
-if xc:
-    save_counts()
+if not sendonly:
+    print("Получение списка возможностей ноды...")
+    get_features()
+    check_features()
+    if xc:
+        load_counts()
+        print("Получение количества сообщений в конференциях...")
+        remote_counts = get_remote_counts()
+        calculate_offset()
+        get_mail()
+    if xc:
+        save_counts()
 if wait:
     input("Нажмите Enter для продолжения.")
     print()

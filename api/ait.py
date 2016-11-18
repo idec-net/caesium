@@ -49,8 +49,8 @@ def add_to_carbonarea(msgid, msgbody):
     codecs.open("ait/carbonarea.mat", "a", "utf-8").write(msgid + ":" + chr(15).join(msg) + "\n")
 
 def save_message(msgid, msgbody):
-    codecs.open("ait/" + msgbody[1] + ".iat", "w", "utf-8").write(msgid + "\n")
-    codecs.open("ait/" + msgbody[1] + ".mat", "w", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
+    codecs.open("ait/" + msgbody[1] + ".iat", "a", "utf-8").write(msgid + "\n")
+    codecs.open("ait/" + msgbody[1] + ".mat", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
 
 def get_favorites_list():
     return codecs.open("ait/favorites.mat", "r", "utf-8").read().split("\n")

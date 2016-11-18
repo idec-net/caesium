@@ -46,7 +46,7 @@ def add_to_carbonarea(msgid, msgbody):
     codecs.open("aio/carbonarea.aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msg) + "\n")
 
 def save_message(msgid, msgbody):
-    codecs.open("aio/" + msgbody[1] + ".aio", "w", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
+    codecs.open("aio/" + msgbody[1] + ".aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
 
 def get_favorites_list():
     return codecs.open("aio/favorites.aio", "r", "utf-8").read().split("\n")
