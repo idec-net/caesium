@@ -293,11 +293,11 @@ if "-to" in args:
 if "-db" in args:
     db = args[args.index("-db") + 1]
 if db == "txt":
-        db = 0
-    elif db == "aio":
-        db = 1
-    elif db == "ait":
-        db = 2
+    db = 0
+elif db == "aio":
+    db = 1
+elif db == "ait":
+    db = 2
 wait = "-w" in args
 if "-fetchonly" in args:
     fetchonly = True
