@@ -9,7 +9,7 @@ def get_echo_length(echo):
 
 def save_to_favorites(msgid, msg):
     if os.path.exists("ait/favorites.mat"):
-        f = open("ait/favorites.iam", "r").read().split("\n")
+        f = open("ait/favorites.mat", "r").read().split("\n")
         favorites = []
         for line in f:
             favorites.append(line.split(":")[0])
