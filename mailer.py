@@ -334,7 +334,7 @@ if not sendonly:
         print("Получение количества сообщений в конференциях...")
         remote_counts = get_remote_counts()
         calculate_offset()
-        get_mail()
+    get_mail()
     if xc:
         save_counts()
 if wait:
