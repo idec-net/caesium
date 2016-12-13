@@ -221,10 +221,7 @@ def get_mail():
     for line in remote_msg_list:
         if echo_filter(line):
             if line in clone and ue:
-                try:
-                    os.remove("echo/" + line)
-                except:
-                    None
+                remove_echoarea(line)
             local_index = get_echo_msgids(line)
         else:
             if not line in local_index:

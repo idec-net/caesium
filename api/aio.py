@@ -43,7 +43,7 @@ def get_carbonarea():
         return []
 
 def add_to_carbonarea(msgid, msgbody):
-    codecs.open("aio/carbonarea.aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
+    codecs.open("aio/carbonarea.aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msg) + "\n")
 
 def save_message(msgid, msgbody):
     codecs.open("aio/" + msgbody[1] + ".aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
@@ -58,6 +58,12 @@ def remove_from_favorites(msgid):
         if not item.startswith(msgid):
             favorites.append(item)
     codecs.open("aio/favorites.aio", "w", "utf-8").write("\n".join(favorites))
+
+def remove_echoarea(echoarea):
+    try:
+        os.remove("ait/%s.aio" % echoarea)
+    except:
+        None
 
 def read_msg(msgid, echoarea):
     size = "0b"

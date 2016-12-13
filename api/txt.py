@@ -49,6 +49,19 @@ def remove_from_favorites(msgid):
     favorites_list.remove(msgid)
     open("echo/favorites", "w").write("\n".join(favorites_list))
 
+def remove_echoarea(echoarea):
+    echoarea = open("echo/%s" % echoarea, "r").read().split("\n")
+    for msgid in echoarea:
+        try:
+            os.remove("msg/%s" % msgid)
+        except:
+            None
+    try:
+        os.remove("echo/%s" % echoarea)
+    except:
+        None
+        
+
 def read_msg(msgid, echoarea):
     size = "0b"
     if os.path.exists("msg/" + msgid) and msgid != "":

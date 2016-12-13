@@ -66,6 +66,13 @@ def remove_from_favorites(msgid):
     codecs.open("ait/favorites.iat", "w", "utf-8").write("\n".join(favorites_index))
     codecs.open("ait/favorites.mat", "w", "utf-8").write("\n".join(favorites))
 
+def remove_echoarea(echoarea):
+    try:
+        os.remove("ait/%s.iat" % echoarea)
+        os.remove("ait/%s.iam" % echoarea)
+    except:
+        None
+
 def read_msg(msgid, echoarea):
     size = "0b"
     if os.path.exists("ait/" + echoarea + ".mat") and msgid != "":
