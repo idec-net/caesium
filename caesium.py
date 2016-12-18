@@ -1464,7 +1464,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
                 message_box("Функция не поддерживается текстовой базой.")
             else:
                 l = msg_list(echo, msgids, msgn)
-                if l:
+                if l > -1:
                     msgn = l
                     if len(stack) > 0:
                         stack = []
@@ -1570,8 +1570,9 @@ def msg_list(echoarea, msgids, msgn):
             quit = True
             cancel = True
     if cancel:
-        return False
+        return -1
     else:
+        open("test", "a").write(str(y + start) + "\n")
         return y + start
 
 check_config()
