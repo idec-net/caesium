@@ -1564,6 +1564,14 @@ def msg_list(echoarea, msgids, msgn):
                 end = start + height - 1
             if y < height - 2:
                 y = height - 2
+        elif key in s_home:
+            y = 0
+            start = 0
+            end = height - 1
+        elif key in s_end:
+            y = height - 2
+            start = echo_length - height + 1
+            end = start + height - 1
         elif key in s_enter:
             quit = True
         elif key in r_quit:
