@@ -319,7 +319,7 @@ def draw_status(x, title):
 
 def draw_cursor(y, color):
     for i in range (0, width):
-        stdscr.addstr(y + 1, i, " ", color)
+        stdscr.insstr(y + 1, i, " ", color)
 
 def current_time():
     draw_status(width - 8, "│ " + datetime.now().strftime("%H:%M"))
@@ -1459,6 +1459,18 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
             else:
                 go = False
                 quit = False
+        elif key in r_list and not out and not drafts:
+            if db == 0:
+                message_box("Функция не поддерживается текстовой базой.")
+            else:
+                l = msg_list(echo, msgids, msgn)
+                if l:
+                    msgn = l
+                    if len(stack) > 0:
+                        stack = []
+                    msg, size = read_msg(msgids[msgn], echo[0])
+                    msgbody = body_render(msg[8:])
+                    scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_quit:
             go = False
             quit = False
@@ -1472,6 +1484,95 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
     f.close()
     stdscr.clear()
     return quit
+
+def draw_msg_list(echo, lst, msgn):
+    stdscr.clear()
+    for i in range(0, width):
+        if bold[0]:
+            color = curses.color_pair(1) + curses.A_BOLD
+        else:
+            color = curses.color_pair(1)
+        stdscr.insstr(0, i, "─", color)
+    if width >= 80:
+        draw_title(0, 0, "Список сообщений в конференции " + echo)
+    else:
+        draw_title(0, 0, echo)
+
+def msg_list(echoarea, msgids, msgn):
+    lst = []
+    lst = get_msg_list_data(echoarea[0])
+    draw_msg_list(echoarea[0], lst, msgn)
+    echo_length = len(lst)
+    if echo_length <= height - 1:
+        start = 0
+        end = echo_length - 1
+    elif msgn + height - 1 < echo_length:
+        start = msgn
+        end = msgn + height - 1
+    else:
+        start = echo_length - height + 1
+        end = start + height - 1
+    quit = False
+    cancel = False
+    y = msgn - start
+    while not quit:
+        n = 1
+        for i in range(start, end):
+            if i == y + start:
+                if bold[2]:
+                    color = curses.color_pair(3) + curses.A_BOLD
+                else:
+                    color = curses.color_pair(3)
+            else:
+                if bold[3]:
+                    color = curses.color_pair(4) + curses.A_BOLD
+                else:
+                    color = curses.color_pair(4)
+            draw_cursor(n - 1, color)
+            stdscr.addstr(n, 0, lst[i][1], color)
+            stdscr.addstr(n, 16, lst[i][2][:width-26], color)
+            stdscr.insstr(n, width - 10, lst[i][3], color)
+            n += 1
+        key = stdscr.getch()
+        if key in s_up:
+            y = y - 1
+            if start > 0 and y + start < start:
+                start -= 1
+                end -= 1
+            if y == -1:
+                y = 0
+        elif key in s_down:
+            y = y + 1
+            if y + start + 1 > end and y + start < echo_length:
+                start += 1
+                end += 1
+            if y > height - 2:
+                y = height - 2
+        elif key in s_ppage:
+            if y == 0:
+                start = start - height + 1
+                if start < 0:
+                    start = 0
+                end = start + height - 1
+            if y > 0:
+                y = 0
+        elif key in s_npage:
+            if y == height - 2:
+                start = start + height - 1
+                if start > echo_length - height + 1:
+                    start = echo_length - height + 1
+                end = start + height - 1
+            if y < height - 2:
+                y = height - 2
+        elif key in s_enter:
+            quit = True
+        elif key in r_quit:
+            quit = True
+            cancel = True
+    if cancel:
+        return False
+    else:
+        return y + start
 
 check_config()
 reset_config()

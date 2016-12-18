@@ -65,6 +65,15 @@ def remove_echoarea(echoarea):
     except:
         None
 
+def get_msg_list_data(echoarea):
+    f = codecs.open("aio/%s.aio" % echoarea, "r", "utf-8").read().split("\n")
+    lst = []
+    for msg in f:
+        if len(msg) > 1:
+            rawmsg = msg.split(chr(15))
+            lst.append([rawmsg[0].split(":")[0], rawmsg[3], rawmsg[6], time.strftime("%Y.%m.%d", time.gmtime(int(rawmsg[2])))])
+    return lst
+
 def read_msg(msgid, echoarea):
     size = "0b"
     if os.path.exists("aio/" + echoarea + ".aio") and msgid != "":
