@@ -69,7 +69,10 @@ def remove_from_favorites(msgid):
 def remove_echoarea(echoarea):
     try:
         os.remove("ait/%s.iat" % echoarea)
-        os.remove("ait/%s.iam" % echoarea)
+    except:
+        None
+    try:
+        os.remove("ait/%s.mat" % echoarea)
     except:
         None
 

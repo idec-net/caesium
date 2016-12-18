@@ -60,7 +60,7 @@ def remove_echoarea(echoarea):
         os.remove("echo/%s" % echoarea)
     except:
         None
-        
+
 
 def read_msg(msgid, echoarea):
     size = "0b"
