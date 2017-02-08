@@ -1112,9 +1112,10 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
             msg, size = read_out_msg(msgids[msgn])
         else:
             msg, size = read_msg(msgids[msgn], echo[0])
-        msgbody = body_render(msg[8:])
     else:
-        msgbody = []
+        msg = ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"]
+        size = "0b"
+    msgbody = body_render(msg[8:])
     scrollbar_size = calc_scrollbar_size(len(msgbody))
     go = True
     stack = []
@@ -1408,14 +1409,18 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
                 else:
                     msgbody = []
                 stdscr.clear()
-        elif key in r_getmsg and len(msgids) > 0:
-            get_msg(msgids[msgn])
-            draw_message_box("Подождите", False)
-            get_counts(True)
-            stdscr.clear()
-            msg, size = read_msg(msgids[msgn], echo[0])
-            msgbody = body_render(msg[8:])
-            scrollbar_size = calc_scrollbar_size(len(msgbody))
+        elif key in r_getmsg and size == "0b":
+            try:
+                get_msg(msgids[msgn])
+                draw_message_box("Подождите", False)
+                get_counts(True)
+                stdscr.clear()
+                msg, size = read_msg(msgids[msgn], echo[0])
+                msgbody = body_render(msg[8:])
+                scrollbar_size = calc_scrollbar_size(len(msgbody))
+            except:
+                message_box("Не удалось определить msgid.")
+                stdscr.clear()
         elif key in r_links:
             results = urltemplate.findall("\n".join(msg[8:]))
             links = []
