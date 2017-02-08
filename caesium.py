@@ -361,6 +361,7 @@ def rescan_counts(echoareas):
 def draw_echo_selector(start, cursor, archive):
     global counts, counts_rescan
     dsc_lens = []
+    hidedsc = False
     m = 0
     if bold[0]:
         stdscr.attron(curses.color_pair(1))
@@ -397,11 +398,12 @@ def draw_echo_selector(start, cursor, archive):
     count = "Сообщений"
     unread = "Не прочитано"
     description = "Описание"
-    if width < 80:
+    if width < 80 or m == 0:
         m = len(unread) - 7
-    draw_title(0, width - 10 - m - len(count) - 1, count);
-    draw_title(0, width - 8 - m - 1, unread);
-    if width >= 80:
+        hidedsc = True
+    draw_title(0, width + 2 - m - len(count) - len(unread) - 1, count)
+    draw_title(0, width - 8 - m - 1, unread)
+    if not hidedsc:
         draw_title(0, width - len(description) - 2, description)
     for echo in echoareas:
         if y - start < height - 2:
@@ -609,7 +611,7 @@ def echo_selector():
             if send_cmd:
                 send_mail()
                 stdscr.clear()
-        elif key in s_archive and not len(nodes[node]["archive"]) == 0:
+        elif key in s_archive and len(nodes[node]["archive"]) > 0:
             if archive:
                 archive = False
                 archive_cursor = cursor
