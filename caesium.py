@@ -688,9 +688,15 @@ def echo_selector():
                     nodes[node]["clone"].append(echoareas[cursor][0])
         elif key in s_config:
             edit_config()
+            reset_config()
             load_config()
+            get_counts()
+            stdscr.clear()
             counts_rescan = True
             node = 0
+            archive = False
+            echoareas = nodes[node]["echoareas"]
+            cursor = 0
         elif key in g_quit:
             go = False
     if archive:
