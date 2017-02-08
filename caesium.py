@@ -447,7 +447,7 @@ def draw_echo_selector(start, cursor, archive):
                 stdscr.addstr(y + 1 - start, 2, echo[0])
                 if width >= 80:
                     if width - 38 >= len(echo[1]):
-                        stdscr.addstr(y + 1 - start, width - 1 - dsc_lens[y], echo[1])
+                        stdscr.addstr(y + 1 - start, width - 1 - dsc_lens[y], echo[1], color)
                     else:
                         cut_index = width - 38 - len(echo[1])
                         stdscr.addstr(y + 1 - start, width - 1 - len(echo[1][:cut_index]), echo[1][:cut_index])
@@ -1264,10 +1264,9 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
                 if y < 0:
                     y = 0
         elif key in r_npage:
-            if len(msgids) > 0 and len(msgbody) > height - 5:
-                y = y + height - 6
-                if y + height - 5 >= len(msgbody) - height - 5:
-                    y = len(msgbody) - height + 5
+            if y < len(msgbody) - height + 5:
+                if len(msgids) > 0 and len(msgbody) > height - 5:
+                    y = y + height - 6
         elif key in r_home:
             if len(msgids) > 0:
                 y = 0
@@ -1409,7 +1408,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
                 else:
                     msgbody = []
                 stdscr.clear()
-        elif key in r_getmsg and size == "0b":
+        elif key in r_getmsg and len(msgids) > 0:
             get_msg(msgids[msgn])
             draw_message_box("Подождите", False)
             get_counts(True)
@@ -1465,6 +1464,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
             else:
                 l = msg_list(echo, msgids, msgn)
                 if l > -1:
+                    y = 0
                     msgn = l
                     if len(stack) > 0:
                         stack = []
