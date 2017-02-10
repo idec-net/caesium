@@ -692,6 +692,7 @@ def echo_selector():
             edit_config()
             reset_config()
             load_config()
+            load_colors()
             get_counts()
             stdscr.clear()
             counts_rescan = True
