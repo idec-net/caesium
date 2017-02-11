@@ -36,7 +36,7 @@ def reset_config():
     fetch_cmd = ""
     clone_cmd = ""
     send_cmd = False
-    db = 0
+    db = 2
 
 def check_directories():
     if not os.path.exists("out"):
