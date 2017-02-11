@@ -206,8 +206,9 @@ def debundle(bundle):
                         carbonarea = get_carbonarea()
                     except:
                         carbonarea = []
-                    if msgbody[5] in to and not msgid in carbonarea:
-                        add_to_carbonarea(msgid, msgbody)
+                    for name in to:
+                        if name in msgbody[5] and not msgid in carbonarea:
+                            add_to_carbonarea(msgid, msgbody)
 
 def echo_filter(ea):
     rr = re.compile(r'^[a-z0-9_!.-]{1,60}\.[a-z0-9_!.-]{1,60}$')
