@@ -633,7 +633,7 @@ def echo_selector():
             else:
                 last = 0
             echo_length = get_echo_length(echoareas[cursor][0])
-            if last < echo_length - 1:
+            if last > 0 and last < echo_length - 1:
                 last = last + 1
             if last >= echo_length:
                 last = echo_length - 1
