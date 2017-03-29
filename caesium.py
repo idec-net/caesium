@@ -3,7 +3,7 @@
 import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re, hashlib, webbrowser
 from datetime import datetime
 from shutil import copyfile
-from keys import *
+from keys_android import *
 
 lasts = {}
 color_theme = "default"
@@ -1169,7 +1169,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
             stdscr.addstr(3, 7, msg[6][:width - 8], color)
             draw_title(4, 0, size) 
             tags = msg[0].split("/")
-            if "repto" in tags:
+            if "repto" in tags and 36 + len(size) < width:
                 repto = tags[tags.index("repto") + 1]
                 draw_title(4, len(size) + 3, "Ответ на " + repto)
             else:
