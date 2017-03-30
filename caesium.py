@@ -3,11 +3,11 @@
 import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re, hashlib, webbrowser
 from datetime import datetime
 from shutil import copyfile
-from keys_android import *
+from keys import *
 
 lasts = {}
 color_theme = "default"
-bold = [False, False, False, False, False, False, False, False, False, False]
+bold = [False, False, False, False, False, False, False, False, False, False, False]
 counts = []
 counts_rescan = True
 echo_counts = {}
@@ -229,6 +229,12 @@ def load_colors():
                 bold[9] = True
             else:
                 bold[9] = False
+        if param[0] == "scrollbar":
+            curses.init_pair(11, colors.index(param[1]), colors.index(param[2]))
+            if len(param) == 4:
+                bold[10] = True
+            else:
+                bold[10] = False
 
 def save_out(draft = False):
     new = codecs.open("temp", "r", "utf-8").read().strip().split("\n")
@@ -875,7 +881,9 @@ def draw_message_box(smsg, wait):
         msgwin.attron(curses.A_BOLD)
     else:
         msgwin.attron(curses.color_pair(1))
+    msgwin.bkgd(' ', curses.color_pair(1))
     msgwin.border()
+    
     i = 1
     if bold[3]:
         color = curses.color_pair(4) + curses.A_BOLD
@@ -1193,8 +1201,8 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
                             else:
                                 stdscr.addstr(i + 5, x, word)
                             x += len(word) + 1
-            stdscr.attron(curses.color_pair(4))
-            if bold[3]:
+            stdscr.attron(curses.color_pair(11))
+            if bold[10]:
                 stdscr.attron(curses.A_BOLD)
             else:
                 stdscr.attroff(curses.A_BOLD)
