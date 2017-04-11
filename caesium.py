@@ -3,7 +3,7 @@
 import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re, hashlib, webbrowser
 from datetime import datetime
 from shutil import copyfile
-from keys import *
+from keys_android import *
 
 lasts = {}
 color_theme = "default"
@@ -101,6 +101,8 @@ def load_config():
             node["nodename"] = " ".join(param[1:])
         elif param[0] == "node":
             node["node"] = param[1]
+            if not node["node"].endswith("/"):
+                node["node"] = node["node"] + "/"
         elif param[0] == "auth":
             node["auth"] = param[1]
         elif param[0] == "echo":
