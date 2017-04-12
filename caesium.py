@@ -3,7 +3,7 @@
 import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re, hashlib, webbrowser
 from datetime import datetime
 from shutil import copyfile
-from keys_android import *
+from keys import *
 
 lasts = {}
 color_theme = "default"
