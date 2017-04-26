@@ -36,7 +36,7 @@ def add_to_carbonarea(msgid, msgbody):
     c.execute("UPDATE msg SET carbonarea = 1 WHERE msgid = ?;", (msgid,))
     con.commit()
 
-def save_message(raw, counts, node):
+def save_message(raw, counts, remote_counts, node):
     co = counts
     for msg in raw:
         msgid = msg[0]
@@ -44,7 +44,7 @@ def save_message(raw, counts, node):
         if msgbody[1] in co[node]:
             co[node][msgbody[1]] += 1
         else:
-            co[node][msgbody[1]] = 1
+            co[node][msgbody[1]] = remote_counts[node][msgbody[1]]
         c.execute("INSERT INTO msg (msgid, tags, echoarea, time, fr, addr, t, subject, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);", (msgid, msgbody[0], msgbody[1], msgbody[2], msgbody[3], msgbody[4], msgbody[5], msgbody[6], "\n".join(msgbody[7:])))
     con.commit()
     return co

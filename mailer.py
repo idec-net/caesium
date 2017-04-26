@@ -216,7 +216,7 @@ def debundle(bundle):
                         if name in msgbody[5] and not msgid in carbonarea:
                             add_to_carbonarea(msgid, msgbody)
     if len(messages) >= 1000:
-        counts = save_message(messages, counts, node)
+        counts = save_message(messages, counts, remote_counts, node)
         messages = []
 
 def echo_filter(ea):

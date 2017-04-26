@@ -48,7 +48,7 @@ def add_to_carbonarea(msgid, msgbody):
     codecs.open("ait/carbonarea.iat", "a", "utf-8").write(msgid + "\n")
     codecs.open("ait/carbonarea.mat", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
 
-def save_message(raw, counts, node):
+def save_message(raw, counts, remote_counts, node):
     co = counts
     for msg in raw:
         msgid = msg[0]
@@ -56,7 +56,7 @@ def save_message(raw, counts, node):
         if msgbody[1] in co[node]:
             co[node][msgbody[1]] += 1
         else:
-            co[node][msgbody[1]] = 1
+            co[node][msgbody[1]] = remote_counts[node][msgbody[1]]
         codecs.open("ait/" + msgbody[1] + ".iat", "a", "utf-8").write(msgid + "\n")
         codecs.open("ait/" + msgbody[1] + ".mat", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
     return co
