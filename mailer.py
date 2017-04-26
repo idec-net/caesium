@@ -17,6 +17,8 @@ db = 0
 fetchonly = False
 sendonly = False
 
+messages = []
+
 def load_config():
     node = ""
     depth = "200"
@@ -131,7 +133,7 @@ def load_counts():
         counts[node] = {}
 
 def save_counts():
-    counts[node] = remote_counts
+#    counts[node] = remote_counts
     f = open("counts.lst", "wb")
     pickle.dump(counts, f)
     f.close()
@@ -144,7 +146,7 @@ def get_remote_counts():
     for count in c:
         echoarea = count.split(":")
         if len(echoarea) > 1:
-            counts[echoarea[0]] = echoarea[1]
+            counts[echoarea[0]] = int(echoarea[1])
     return counts
 
 def calculate_offset():
@@ -188,19 +190,23 @@ def get_msg_list():
 
 def get_bundle(node, msgids):
     bundle = []
-    r = urllib.request.Request(node + "u/m/" + msgids)
-    with urllib.request.urlopen(r) as f:
-        bundle = f.read().decode("utf-8").split("\n")
+    try:
+        r = urllib.request.Request(node + "u/m/" + msgids)
+        with urllib.request.urlopen(r) as f:
+            bundle = f.read().decode("utf-8").split("\n")
+    except:
+        None
     return bundle
 
 def debundle(bundle):
+    global messages, counts
     for msg in bundle:
         if msg:
             m = msg.split(":")
             msgid = m[0]
             if len(msgid) == 20 and m[1]:
                 msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8").split("\n")
-                save_message(msgid, msgbody)
+                messages.append([msgid, msgbody])
                 if to:
                     try:
                         carbonarea = get_carbonarea()
@@ -209,6 +215,9 @@ def debundle(bundle):
                     for name in to:
                         if name in msgbody[5] and not msgid in carbonarea:
                             add_to_carbonarea(msgid, msgbody)
+    if len(messages) >= 1000:
+        counts = save_message(messages, counts, node)
+        messages = []
 
 def echo_filter(ea):
     rr = re.compile(r'^[a-z0-9_!.-]{1,60}\.[a-z0-9_!.-]{1,60}$')
@@ -234,6 +243,7 @@ def get_mail():
             count = count + len(get_list)
             print("\rПолучение сообщений: " + str(count) + "/"  + msg_list_len, end="")
             debundle(get_bundle(node, "/".join(get_list)))
+        save_message(messages, counts, node)
     else:
         print("Новых сообщений не обнаружено.", end="")
     print()
@@ -296,6 +306,8 @@ elif db == "aio":
     db = 1
 elif db == "ait":
     db = 2
+elif db == "sqlite":
+    db = 3
 wait = "-w" in args
 if "-fetchonly" in args:
     fetchonly = True
@@ -319,6 +331,8 @@ elif db == 1:
     from api.aio import *
 elif db == 2:
     from api.ait import *
+elif db == 3:
+    from api.sqlite import *
 print("Работа с " + node)
 if auth and not fetchonly:
     make_toss()

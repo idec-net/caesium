@@ -37,9 +37,18 @@ def get_carbonarea():
 def add_to_carbonarea(msgid, msgbody):
     codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
 
-def save_message(msgid, msgbody):
-    codecs.open("echo/" + msgbody[1], "a", "utf-8").write(msgid + "\n")
-    codecs.open("msg/" + msgid, "w", "utf-8").write("\n".join(msgbody))
+def save_message(raw, counts, node):
+    co = counts
+    for msg in raw:
+        msgid = msg[0]
+        msgbody = msg[1]
+        if msgbody[1] in co["http://idec.spline-online.tk/"]:
+            co[node][msgbody[1]] += 1
+        else:
+            co[node][msgbody[1]] = 1
+        codecs.open("echo/" + msgbody[1], "a", "utf-8").write(msgid + "\n")
+        codecs.open("msg/" + msgid, "w", "utf-8").write("\n".join(msgbody))
+    return co
 
 def get_favorites_list():
     return open("echo/favorites", "r").read().split("\n")
