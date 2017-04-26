@@ -336,19 +336,17 @@ def current_time():
 
 def get_counts(new = False, favorites = False):
     global echo_counts
-    if favorites:
-        echo_counts["favorites"] = len(get_favorites_list())
-    else:
-        for echoarea in nodes[node]["echoareas"]:
-            if not new:
-                if not echoarea[0] in echo_counts:
-                    echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
-            else:
-                echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
-        for echoarea in nodes[node]["archive"]:
+    for echoarea in nodes[node]["echoareas"]:
+        if not new:
             if not echoarea[0] in echo_counts:
                 echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
-        echo_counts["carbonarea"] = len(get_carbonarea())
+        else:
+            echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
+    for echoarea in nodes[node]["archive"]:
+        if not echoarea[0] in echo_counts:
+            echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
+    echo_counts["carbonarea"] = len(get_carbonarea())
+    echo_counts["favorites"] = len(get_favorites_list())
 
 def rescan_counts(echoareas):
     counts = []
