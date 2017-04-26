@@ -45,7 +45,7 @@ def save_message(raw, counts, remote_counts, node):
         if msgbody[1] in co["http://idec.spline-online.tk/"]:
             co[node][msgbody[1]] += 1
         else:
-            co[node][msgbody[1]] = remote_counts[node][msgbody[1]]
+            co[node][msgbody[1]] = remote_counts[msgbody[1]]
         codecs.open("echo/" + msgbody[1], "a", "utf-8").write(msgid + "\n")
         codecs.open("msg/" + msgid, "w", "utf-8").write("\n".join(msgbody))
     return co

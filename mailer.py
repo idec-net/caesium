@@ -243,7 +243,7 @@ def get_mail():
             count = count + len(get_list)
             print("\rПолучение сообщений: " + str(count) + "/"  + msg_list_len, end="")
             debundle(get_bundle(node, "/".join(get_list)))
-        save_message(messages, counts, node)
+        save_message(messages, counts, remote_counts, node)
     else:
         print("Новых сообщений не обнаружено.", end="")
     print()
