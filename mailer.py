@@ -207,16 +207,9 @@ def debundle(bundle):
             if len(msgid) == 20 and m[1]:
                 msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8").split("\n")
                 messages.append([msgid, msgbody])
-                if to:
-                    try:
-                        carbonarea = get_carbonarea()
-                    except:
-                        carbonarea = []
-                    for name in to:
-                        if name in msgbody[5] and not msgid in carbonarea:
-                            add_to_carbonarea(msgid, msgbody)
+                
     if len(messages) >= 1000:
-        counts = save_message(messages, counts, remote_counts, node)
+        counts = save_message(messages, counts, remote_counts, node, to)
         messages = []
 
 def echo_filter(ea):
@@ -243,7 +236,7 @@ def get_mail():
             count = count + len(get_list)
             print("\rПолучение сообщений: " + str(count) + "/"  + msg_list_len, end="")
             debundle(get_bundle(node, "/".join(get_list)))
-        save_message(messages, counts, remote_counts, node)
+        save_message(messages, counts, remote_counts, node, to)
     else:
         print("Новых сообщений не обнаружено.", end="")
     print()

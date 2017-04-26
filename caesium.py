@@ -336,7 +336,9 @@ def current_time():
 
 def get_counts(new = False, favorites = False):
     global echo_counts
-    if not favorites:
+    if favorites:
+        echo_counts["favorites"] = len(get_favorites_list())
+    else:
         for echoarea in nodes[node]["echoareas"]:
             if not new:
                 if not echoarea[0] in echo_counts:
@@ -346,8 +348,7 @@ def get_counts(new = False, favorites = False):
         for echoarea in nodes[node]["archive"]:
             if not echoarea[0] in echo_counts:
                 echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
-    else:
-        echo_counts["favorites"] = get_echo_length("favorites")
+        echo_counts["carbonarea"] = len(get_carbonarea())
 
 def rescan_counts(echoareas):
     counts = []
@@ -644,11 +645,16 @@ def echo_selector():
                 last = lasts[echoareas[cursor][0]]
             else:
                 last = 0
-            echo_length = get_echo_length(echoareas[cursor][0])
-            if last > 0 and last < echo_length - 1:
+            if cursor == 0:
+                echo_length = len(get_favorites_list())
+            elif cursor == 1:
+                echo_length = len(get_carbonarea())
+            else:
+                echo_length = get_echo_length(echoareas[cursor][0])
+            if last > 0 and last < echo_length:
                 last = last + 1
             if last >= echo_length:
-                last = echo_length - 1
+                last = echo_length
             if cursor == 1:
                 go = not echo_reader(echoareas[cursor], last, archive, True, False, True)
             elif cursor == 0 or echoareas[cursor][2]:
@@ -1124,6 +1130,10 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
         msgids = get_out_msgids(True)
     elif out:
         msgids = get_out_msgids()
+    elif favorites and not carbonarea:
+        msgids = get_favorites_list()
+    elif carbonarea:
+        msgids = get_carbonarea()
     else:
         msgids = get_echo_msgids(echo[0])
     if msgn > len(msgids) - 1:
@@ -1436,7 +1446,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
             try:
                 get_msg(msgids[msgn])
                 draw_message_box("Подождите", False)
-                get_counts(True)
+                get_counts(True, False)
                 stdscr.clear()
                 msg, size = read_msg(msgids[msgn], echo[0])
                 msgbody = body_render(msg[8:])
@@ -1608,7 +1618,6 @@ def msg_list(echoarea, msgids, msgn):
     if cancel:
         return -1
     else:
-        open("test", "a").write(str(y + start) + "\n")
         return y + start
 
 check_config()

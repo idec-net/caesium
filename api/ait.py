@@ -48,7 +48,7 @@ def add_to_carbonarea(msgid, msgbody):
     codecs.open("ait/carbonarea.iat", "a", "utf-8").write(msgid + "\n")
     codecs.open("ait/carbonarea.mat", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
 
-def save_message(raw, counts, remote_counts, node):
+def save_message(raw, counts, remote_counts, node, to):
     co = counts
     for msg in raw:
         msgid = msg[0]
@@ -59,10 +59,18 @@ def save_message(raw, counts, remote_counts, node):
             co[node][msgbody[1]] = remote_counts[msgbody[1]]
         codecs.open("ait/" + msgbody[1] + ".iat", "a", "utf-8").write(msgid + "\n")
         codecs.open("ait/" + msgbody[1] + ".mat", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
+        if to:
+            try:
+                carbonarea = get_carbonarea()
+            except:
+                carbonarea = []
+            for name in to:
+                if name in msgbody[5] and not msgid in carbonarea:
+                    add_to_carbonarea(msgid, msgbody)
     return co
 
 def get_favorites_list():
-    return codecs.open("ait/favorites.mat", "r", "utf-8").read().split("\n")
+    return codecs.open("ait/favorites.iat", "r", "utf-8").read().split("\n")[:-1]
 
 def remove_from_favorites(msgid):
     favorites_list = get_favorites_list()

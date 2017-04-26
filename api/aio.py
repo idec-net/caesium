@@ -1,4 +1,4 @@
-import os, codecs, sys
+import os, codecs, sys, time
 
 def get_echo_length(echo):
     if os.path.exists("aio/" + echo + ".aio"):
@@ -37,7 +37,8 @@ def get_carbonarea():
         f = open("aio/carbonarea.aio", "r").read().split("\n")
         carbonarea = []
         for line in f:
-            carbonarea.append(line.split(":")[0])
+            if len(line.split(":")[0]) == 20:
+                carbonarea.append(line.split(":")[0])
         return carbonarea
     except:
         return []
@@ -45,7 +46,7 @@ def get_carbonarea():
 def add_to_carbonarea(msgid, msgbody):
     codecs.open("aio/carbonarea.aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
 
-def save_message(raw, counts, remote_counts, node):
+def save_message(raw, counts, remote_counts, node, to):
     co = counts
     for msg in raw:
         msgid = msg[0]
@@ -55,6 +56,14 @@ def save_message(raw, counts, remote_counts, node):
         else:
             co[node][msgbody[1]] = remote_counts[msgbody[1]]
         codecs.open("aio/" + msgbody[1] + ".aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
+        if to:
+            try:
+                carbonarea = get_carbonarea()
+            except:
+                carbonarea = []
+            for name in to:
+                if name in msgbody[5] and not msgid in carbonarea:
+                    add_to_carbonarea(msgid, msgbody)
     return co
 
 def get_favorites_list():
@@ -70,7 +79,7 @@ def remove_from_favorites(msgid):
 
 def remove_echoarea(echoarea):
     try:
-        os.remove("ait/%s.aio" % echoarea)
+        os.remove("aio/%s.aio" % echoarea)
     except:
         None
 
