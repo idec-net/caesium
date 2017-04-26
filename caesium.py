@@ -143,6 +143,8 @@ def load_config():
                 db = 1
             elif param[1] == "ait":
                 db = 2
+            elif param[1] == "sqlite":
+                db = 3
         elif param[0] == "browser":
             browser = webbrowser.GenericBrowser(param[1])
 
@@ -494,6 +496,8 @@ def fetch_mail():
         d = "aio"
     elif db == 2:
         d = "ait"
+    elif db == 3:
+        d = "sqlite"
     for echoarea in nodes[node]["echoareas"][2:]:
         if not echoarea[2]:
             echoareas.append(echoarea[0])
@@ -1616,6 +1620,8 @@ elif db == 1:
     from api.aio import *
 elif db == 2:
     from api.ait import *
+elif db == 3:
+    from api.sqlite import *
 check_directories()
 load_lasts()
 stdscr = curses.initscr()
