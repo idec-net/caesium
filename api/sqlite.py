@@ -67,7 +67,7 @@ def get_favorites_list():
     return msgids
 
 def remove_from_favorites(msgid):
-    c.execute("UPDATE msg SET favorites = 0 WHERE msgid = ?;", (msgid))
+    c.execute("UPDATE msg SET favorites = 0 WHERE msgid = ?;", (msgid,))
     con.commit()
 
 def remove_echoarea(echoarea):
@@ -83,7 +83,7 @@ def get_msg_list_data(echoarea):
 def read_msg(msgid, echoarea):
     size = "0b"
     row = c.execute("SELECT tags, echoarea, time, fr, addr, t, subject, body FROM msg WHERE msgid = ?;", (msgid,)).fetchone()
-    msg = row[0] + "\n" + row[1] + "\n" + row[2] + "\n" + row[3] + "\n" + row[4] + "\n" + row[5] + "\n" + row[6] + "\n" + row[7]
+    msg = row[0] + "\n" + row[1] + "\n" + str(row[2]) + "\n" + row[3] + "\n" + row[4] + "\n" + row[5] + "\n" + row[6] + "\n" + row[7]
     if msg:
         size = len(msg.encode("utf-8"))
     else:
@@ -102,7 +102,7 @@ c.execute("""CREATE TABLE IF NOT EXISTS msg(
     carbonarea INTEGER DEFAULT 0,
     tags TEXT,
     echoarea TEXT,
-    time TEXT,
+    time INTEGER,
     fr TEXT,
     addr TEXT,
     t TEXT,
