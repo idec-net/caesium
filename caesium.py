@@ -9,6 +9,7 @@ lasts = {}
 color_theme = "default"
 bold = [False, False, False, False, False, False, False, False, False, False, False]
 counts = []
+ecounts = {}
 counts_rescan = True
 echo_counts = {}
 next_echoarea = False
@@ -455,7 +456,10 @@ def draw_echo_selector(start, cursor, archive):
                     last = 0
                 if echo[0] in nodes[node]["clone"]:
                     stdscr.addstr(y + 1 - start, 1, "*")
-                stdscr.addstr(y + 1 - start, 2, echo[0])
+                if nodes[node]['node'] in ecounts and  echo[0] in ecounts[nodes[node]['node']]:
+                    stdscr.addstr(y + 1 - start, 2, echo[0] + " " + str(ecounts[nodes[node]['node']][echo[0]]))
+                else:
+                    stdscr.addstr(y + 1 - start, 2, echo[0])
                 if width >= 80:
                     if width - 38 >= len(echo[1]):
                         stdscr.addstr(y + 1 - start, width - 1 - dsc_lens[y], echo[1], color)
@@ -529,6 +533,12 @@ def load_lasts():
     if os.path.exists("lasts.lst"):
         f = open("lasts.lst", "rb")
         lasts = pickle.load(f)
+        f.close()
+    global ecounts
+# delete
+    if os.path.exists("counts.lst"):
+        f = open("counts.lst", "rb")
+        ecounts = pickle.load(f)
         f.close()
 
 def send_mail():

@@ -41,8 +41,7 @@ def get_carbonarea():
 def add_to_carbonarea(msgid, msgbody):
     codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
 
-def save_message(raw, counts, remote_counts, node, to):
-    co = counts
+def save_message(raw, node, to):
     try:
         carbonarea = get_carbonarea()
     except:
@@ -50,17 +49,12 @@ def save_message(raw, counts, remote_counts, node, to):
     for msg in raw:
         msgid = msg[0]
         msgbody = msg[1]
-        if msgbody[1] in co[node]:
-            co[node][msgbody[1]] += 1
-        else:
-            co[node][msgbody[1]] = remote_counts[msgbody[1]]
         codecs.open("echo/" + msgbody[1], "a", "utf-8").write(msgid + "\n")
         codecs.open("msg/" + msgid, "w", "utf-8").write("\n".join(msgbody))
         if to:    
             for name in to:
                 if name in msgbody[5] and not msgid in carbonarea:
                     add_to_carbonarea(msgid, msgbody)
-    return co
 
 def get_favorites_list():
     msgids = []

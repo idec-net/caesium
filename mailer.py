@@ -133,7 +133,7 @@ def load_counts():
         counts[node] = {}
 
 def save_counts():
-#    counts[node] = remote_counts
+    counts[node] = remote_counts
     f = open("counts.lst", "wb")
     pickle.dump(counts, f)
     f.close()
@@ -209,7 +209,7 @@ def debundle(bundle):
                 messages.append([msgid, msgbody])
                 
     if len(messages) >= 1000:
-        counts = save_message(messages, counts, remote_counts, node, to)
+        save_message(messages, node, to)
         messages = []
 
 def echo_filter(ea):
@@ -236,7 +236,7 @@ def get_mail():
             count = count + len(get_list)
             print("\rПолучение сообщений: " + str(count) + "/"  + msg_list_len, end="")
             debundle(get_bundle(node, "/".join(get_list)))
-        save_message(messages, counts, remote_counts, node, to)
+        save_message(messages, node, to)
     else:
         print("Новых сообщений не обнаружено.", end="")
     print()
