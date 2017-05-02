@@ -44,7 +44,10 @@ def get_carbonarea():
         return []
 
 def add_to_carbonarea(msgid, msgbody):
-    codecs.open("aio/carbonarea.aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
+    if os.path.exists("aio/carbonarea.aio"):
+        return codecs.open("aio/carbonarea.aio", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
+    else:
+        return []
 
 def save_message(raw, node, to):
     for msg in raw:
@@ -61,7 +64,10 @@ def save_message(raw, node, to):
                     add_to_carbonarea(msgid, msgbody)
 
 def get_favorites_list():
-    return codecs.open("aio/favorites.aio", "r", "utf-8").read().split("\n")
+    if os.path.exists("aio/favorites.aio"):
+        return codecs.open("aio/favorites.aio", "r", "utf-8").read().split("\n")
+    else:
+        return []
 
 def remove_from_favorites(msgid):
     favorites_list = get_favorites_list()

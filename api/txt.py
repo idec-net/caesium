@@ -39,7 +39,10 @@ def get_carbonarea():
         return []
 
 def add_to_carbonarea(msgid, msgbody):
-    codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
+    if os.path.exists("echo/carbonarea"):
+        return codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
+    else:
+        return []
 
 def save_message(raw, node, to):
     try:
@@ -57,11 +60,14 @@ def save_message(raw, node, to):
                     add_to_carbonarea(msgid, msgbody)
 
 def get_favorites_list():
-    msgids = []
-    for msgid in open("echo/favorites", "r").read().split("\n"):
-        if len(msgid) == 20:
-            msgids.append(msgid)
-    return msgids
+    try:
+        msgids = []
+        for msgid in open("echo/favorites", "r").read().split("\n"):
+            if len(msgid) == 20:
+                msgids.append(msgid)
+        return msgids
+    except:
+        return []
 
 def remove_from_favorites(msgid):
     favorites_list = get_favorites_list()
