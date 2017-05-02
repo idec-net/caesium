@@ -65,7 +65,10 @@ def save_message(raw, node, to):
     return co
 
 def get_favorites_list():
-    return codecs.open("ait/favorites.iat", "r", "utf-8").read().split("\n")[:-1]
+    if os.path.exists("ait/favorites.iat"):
+        return codecs.open("ait/favorites.iat", "r", "utf-8").read().split("\n")[:-1]
+    else:
+        return []
 
 def remove_from_favorites(msgid):
     favorites_list = get_favorites_list()
