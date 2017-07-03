@@ -30,14 +30,11 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
 urltemplate=re.compile("((https?|ftp|file)://?[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|])")
 
 def reset_config():
-    global nodes, node, editor, oldquote, fetch_cmd, clone_cmd, send_cmd, db
+    global nodes, node, editor, oldquote, db
     nodes = []
     node = 0
     editor = ""
     oldquote = False
-    fetch_cmd = ""
-    clone_cmd = ""
-    send_cmd = False
     db = 2
 
 def check_directories():
@@ -132,12 +129,6 @@ def load_config():
             show_splash = False
         elif param[0] == "oldquote":
             oldquote = True
-        elif param[0] == "fetch":
-            fetch_cmd = " ".join(param[1:])
-        elif param[0] == "clone":
-            clone_cmd = " ".join(param[1:])
-        elif param[0] == "send":
-            send_cmd = " ".join(param[1:])
         elif param[0] == "depth":
             try:
                 depth = int(param[1])
@@ -795,10 +786,6 @@ def echo_selector():
             cursor = find_new(0)
             if cursor >= height - 2:
                 start = cursor - height + 3
-        elif key in s_send:
-            if send_cmd:
-                send_mail()
-                stdscr.clear()
         elif key in s_archive and len(nodes[node]["archive"]) > 0:
             if archive:
                 archive = False
