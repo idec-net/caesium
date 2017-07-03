@@ -12,6 +12,8 @@ counts = []
 counts_rescan = True
 echo_counts = {}
 next_echoarea = False
+depth = 50
+messages = []
 
 version = "Caesium/0.3 │"
 
@@ -74,7 +76,7 @@ def separate(l, step=20):
         yield l[x:x+step]
 
 def load_config():
-    global nodes, editor, color_theme, show_splash, oldquote, fetch_cmd, clone_cmd, send_cmd, db, browser
+    global nodes, editor, color_theme, show_splash, oldquote, db, browser, depth
     nodes = []
     first = True
     node = {}
@@ -136,6 +138,11 @@ def load_config():
             clone_cmd = " ".join(param[1:])
         elif param[0] == "send":
             send_cmd = " ".join(param[1:])
+        elif param[0] == "depth":
+            try:
+                depth = int(param[1])
+            except:
+                None
         elif param[0] == "db":
             if param[1] == "txt":
                 db = 0
@@ -280,6 +287,206 @@ def get_out_length(drafts = False):
             return len([f for f in sorted(os.listdir("out/" + nodes[node]["nodename"])) if f.endswith(".out") or f.endswith(".outmsg")]) - 1
     except:
         return 0
+
+def make_toss():
+    lst = [x for x in os.listdir("out/" + nodes[node]["nodename"]) if x.endswith(".out")]
+    for msg in lst:
+        text = codecs.open("out/" + nodes[node]["nodename"] + "/%s" % msg, "r", "utf-8").read()
+        coded_text = base64.b64encode(text.encode("utf-8"))
+        codecs.open("out/" + nodes[node]["nodename"] + "/%s.toss" % msg, "w", "utf-8").write(coded_text.decode("utf-8"))
+        os.rename("out/" + nodes[node]["nodename"] + "/%s" % msg, "out/" + nodes[node]["nodename"] + "/%s%s" % (msg, "msg"))
+
+def send_mail():
+    lst = [x for x in sorted(os.listdir("out/" + nodes[node]["nodename"])) if x.endswith(".toss")]
+    max = len(lst)
+    n = 1
+    try:
+        for msg in lst:
+            print("\rОтправка сообщения: " + str(n) + "/" + str(max), end="")
+            text = codecs.open("out/" + nodes[node]["nodename"] + "/%s" % msg, "r", "utf-8").read()
+            data = urllib.parse.urlencode({"tmsg": text,"pauth": nodes[node]["auth"]}).encode("utf-8")
+            request = urllib.request.Request(nodes[node]["node"] + "u/point")
+            result = urllib.request.urlopen(request, data).read().decode("utf-8")
+            if result.startswith("msg ok"):
+                os.remove("out/" + nodes[node]["nodename"] + "/%s" % msg)
+                n = n + 1
+            elif result == "msg big!":
+                print("\nERROR: very big message (limit 64K)!")
+            elif result == "auth error!":
+                print("\nERROR: unknown auth!")
+            else:
+                print("\nERROR: unknown error!")
+        if len(lst) > 0:
+            print()
+    except:
+        print("\nОшибка: не удаётся связаться с нодой.")
+
+def separate(l, step=40):
+    for x in range(0, len(l), step):
+        yield l[x:x+step]
+
+def get_features():
+    try:
+        r = urllib.request.Request(nodes[node]["node"] + "x/features")
+        with urllib.request.urlopen(r) as f:
+            features = f.read().decode("utf-8").split("\n")
+    except:
+        features = []
+    return features
+
+def check_features(features):
+    ue = "u/e" in features
+    xc = "x/c" in features
+    return ue, xc
+
+def load_counts():
+    counts = {}
+    if os.path.exists("counts.lst"):
+        f = open("counts.lst", "rb")
+        counts = pickle.load(f)
+        f.close()
+    else:
+        counts[node] = {}
+    if not node in counts:
+        counts[node] = {}
+    return counts[node]
+
+def save_counts(counts, remote_counts):
+    counts[node] = remote_counts
+    f = open("counts.lst", "wb")
+    pickle.dump(counts, f)
+    f.close()
+
+def get_remote_counts():
+    counts = {}
+    echoareas = []
+    for echoarea in nodes[node]["echoareas"]:
+        if echoarea[0] not in ["favorites", "carbonarea"]:
+            echoareas.append(echoarea[0])
+    r = urllib.request.Request(nodes[node]["node"] + "x/c/" + "/".join(echoareas))
+    with urllib.request.urlopen(r) as f:
+        c = f.read().decode("utf-8").split("\n")
+    for count in c:
+        echoarea = count.split(":")
+        if len(echoarea) > 1:
+            counts[echoarea[0]] = int(echoarea[1])
+    return counts
+
+def calculate_offset(depth):
+    n = False
+    offset = 0
+    echoareas = []
+    for echoarea in nodes[node]["echoareas"]:
+        if not echoarea in ["favorites", "carbonarea"]:
+            echoareas.append(echoarea[0])
+    for echoarea in echoareas:
+        if not echoarea in counts[node]:
+            n = True
+        else:
+            if not echoarea in clone and int(remote_counts[echoarea]) - int(counts[node][echoarea]) > offset:
+                offset = int(remote_counts[echoarea]) - int(counts[node][echoarea])
+    if not n:
+        depth = offset
+
+def get_msg_list(clone, ue, depth):
+    msg_list = []
+    fetch_echoareas = []
+    echoareas = []
+    for echoarea in nodes[node]["echoareas"]:
+        if not echoarea[0] in ["favorites", "carbonarea"]:
+            echoareas.append(echoarea[0])
+    if ue:
+        for echoarea in echoareas:
+            if not echoarea in clone and (not echoarea in counts[node] or int(counts[node][echoarea]) < int(remote_counts[echoarea])):
+                fetch_echoareas.append(echoarea)
+    else:
+        clone = echoareas
+    if len(clone) > 0:
+        r = urllib.request.Request(nodes[node]["node"] + "u/e/" + "/".join(clone))
+        with urllib.request.urlopen(r) as f:
+            lines = f.read().decode("utf-8").split("\n")
+            for line in lines:
+                if len(line) > 0:
+                    msg_list.append(line)
+    if len(fetch_echoareas) > 0 and int(depth) > 0:
+        r = urllib.request.Request(nodes[node]["node"] + "u/e/" + "/".join(fetch_echoareas) + "/-%s:%s" %(depth, depth))
+        with urllib.request.urlopen(r) as f:
+            lines = f.read().decode("utf-8").split("\n")
+            for line in lines:
+                if len(line) > 0:
+                    msg_list.append(line)
+    return msg_list
+
+def get_bundle(node, msgids):
+    bundle = []
+    try:
+        r = urllib.request.Request(node + "u/m/" + msgids)
+        with urllib.request.urlopen(r) as f:
+            bundle = f.read().decode("utf-8").split("\n")
+    except:
+        None
+    return bundle
+
+def debundle(bundle):
+    global messages
+    for msg in bundle:
+        if msg:
+            m = msg.split(":")
+            msgid = m[0]
+            if len(msgid) == 20 and m[1]:
+                msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8").split("\n")
+                messages.append([msgid, msgbody])
+                
+    if len(messages) >= 1000:
+        save_message(messages, nodes[node]["node"], nodes[node]["to"])
+        messages = []
+
+def echo_filter(ea):
+    rr = re.compile(r'^[a-z0-9_!.-]{1,60}\.[a-z0-9_!.-]{1,60}$')
+    if rr.match(ea): return True
+
+def get_mail(clone, ue, depth):
+    fetch_msg_list = []
+    print("Получение индекса от ноды...")
+    remote_msg_list = get_msg_list(clone, ue, depth)
+    print("Построение разностного индекса...")
+    for line in remote_msg_list:
+        if echo_filter(line):
+            if line in clone and ue:
+                remove_echoarea(line)
+            local_index = get_echo_msgids(line)
+        else:
+            if not line in local_index:
+                fetch_msg_list.append(line)
+    msg_list_len = str(len(fetch_msg_list))
+    if len(fetch_msg_list) > 0:
+        count = 0
+        for get_list in separate(fetch_msg_list):
+            count = count + len(get_list)
+            print("\rПолучение сообщений: " + str(count) + "/"  + msg_list_len, end="")
+            debundle(get_bundle(nodes[node]["node"], "/".join(get_list)))
+        save_message(messages, node, nodes[node]["to"])
+    else:
+        print("Новых сообщений не обнаружено.", end="")
+    print()
+
+def mailer(clone):
+    print("Работа с " + nodes[node]["node"])
+    if nodes[node]["auth"]:
+        make_toss()
+        send_mail()
+        print("Получение списка возможностей ноды...")
+        features = get_features()
+        ue, xc = check_features(features)
+        if xc:
+            counts = load_counts()
+            print("Получение количества сообщений в конференциях...")
+            remote_counts = get_remote_counts()
+            calculate_offset(depth)
+    get_mail(clone, ue, depth)
+    if xc:
+        save_counts(counts, remote_counts)
+    input("Нажмите Enter для продолжения.")
 
 #
 # Пользовательский интерфейс
@@ -500,23 +707,8 @@ def fetch_mail():
     for echoarea in nodes[node]["echoareas"][2:]:
         if not echoarea[2]:
             echoareas.append(echoarea[0])
-    if len(nodes[node]["clone"]) > 0:
-        cmd = clone_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%clone", ",".join(nodes[node]["clone"])).replace("%db", d)
-        if to:
-            cmd = cmd.replace("%to", to)
-        nodes[node]["clone"] = []
-    else:
-        cmd = fetch_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%echoareas", ",".join(echoareas)).replace("%db", d)
-        if "auth" in nodes[node]:
-            cmd = cmd.replace("%auth", nodes[node]["auth"])
-        else:
-            cmd = cmd.replace("-a %auth", "")
-        if to:
-            cmd = cmd.replace("%to", to)
-    if not "auth" in nodes[node]:
-        cmd = cmd.replace(" -a %auth", "")
-    p = subprocess.Popen(cmd, shell=True)
-    p.wait()
+    mailer(nodes[node]["clone"])
+    nodes[node]["clone"] = []
     stdscr = curses.initscr()
     curses.start_color()
     curses.noecho()
@@ -530,21 +722,6 @@ def load_lasts():
         f = open("lasts.lst", "rb")
         lasts = pickle.load(f)
         f.close()
-
-def send_mail():
-    curses.echo()
-    curses.curs_set(True)
-    curses.endwin()
-    os.system('cls' if os.name == 'nt' else 'clear')
-    cmd = send_cmd.replace("%nodename", nodes[node]["nodename"]).replace("%node", nodes[node]["node"]).replace("%auth", nodes[node]["auth"])
-    p = subprocess.Popen(cmd, shell=True)
-    p.wait()
-    stdscr = curses.initscr()
-    curses.start_color()
-    curses.noecho()
-    curses.curs_set(False)
-    stdscr.keypad(True)
-    get_term_size()
 
 def edit_config(out = False):
     curses.echo()
