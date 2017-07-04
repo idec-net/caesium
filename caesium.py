@@ -24,8 +24,8 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
            "███      ███  ███ ███           ███ ███ ███  ███ ███ ██ ███",
            "████████ ████████ ████████ ████████ ███ ████████ ███ ██ ███",
            "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄",
-           "           ncurses ii/idec client          v.0.3",
-           "           Andrew Lobanov             24.08.2016"]
+           "           ncurses ii/idec client          v.0.4",
+           "           Andrew Lobanov             04.07.2017"]
 
 urltemplate=re.compile("((https?|ftp|file)://?[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|])")
 
@@ -378,6 +378,7 @@ def calculate_offset(depth):
                 offset = int(remote_counts[echoarea]) - int(counts[node][echoarea])
     if not n:
         depth = offset
+    return depth
 
 def get_msg_list(clone, ue, depth):
     msg_list = []
@@ -450,6 +451,8 @@ def get_mail(clone, ue, depth):
             if not line in local_index:
                 fetch_msg_list.append(line)
     msg_list_len = str(len(fetch_msg_list))
+    print(local_index)
+    print(fetch_msg_list)
     if len(fetch_msg_list) > 0:
         count = 0
         for get_list in separate(fetch_msg_list):
@@ -462,6 +465,8 @@ def get_mail(clone, ue, depth):
     print()
 
 def mailer(clone):
+    global depth, messages
+    messages = []
     print("Работа с " + nodes[node]["node"])
     if nodes[node]["auth"]:
         make_toss()
@@ -473,7 +478,7 @@ def mailer(clone):
             counts = load_counts()
             print("Получение количества сообщений в конференциях...")
             remote_counts = get_remote_counts()
-            calculate_offset(depth)
+            depth = calculate_offset(depth)
     get_mail(clone, ue, depth)
     if xc:
         save_counts(counts, remote_counts)
