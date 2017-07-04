@@ -451,8 +451,6 @@ def get_mail(clone, ue, depth):
             if not line in local_index:
                 fetch_msg_list.append(line)
     msg_list_len = str(len(fetch_msg_list))
-    print(local_index)
-    print(fetch_msg_list)
     if len(fetch_msg_list) > 0:
         count = 0
         for get_list in separate(fetch_msg_list):
