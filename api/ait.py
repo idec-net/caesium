@@ -1,4 +1,4 @@
-import os, codecs, sys, time
+import os, codecs, sys, time, base64, hashlib
 
 def get_echo_length(echo):
     if os.path.exists("ait/" + echo + ".iat"):
@@ -48,6 +48,12 @@ def add_to_carbonarea(msgid, msgbody):
     codecs.open("ait/carbonarea.iat", "a", "utf-8").write(msgid + "\n")
     codecs.open("ait/carbonarea.mat", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
 
+def save_to_carbonarea(fr, subj, body):
+    msgbody = ["ii/ok", "carbonarea", str(round(time.time())), fr, "local", "", subj, "", body.replace("\n", chr(15))]
+    msgid = base64.urlsafe_b64encode(hashlib.sha256("\n".join(msgbody).encode()).digest()).decode("utf-8").replace("-", "A").replace("_", "z")[:20]
+    open("ait/carbonarea.iat", "a").write(msgid + "\n")
+    codecs.open("ait/carbonarea.mat", "a", "utf-8").write(msgid + ":" + chr(15).join(msgbody) + "\n")
+
 def save_message(raw, node, to):
     for msg in raw:
         msgid = msg[0]
@@ -62,7 +68,6 @@ def save_message(raw, node, to):
             for name in to:
                 if name in msgbody[5] and not msgid in carbonarea:
                     add_to_carbonarea(msgid, msgbody)
-    return co
 
 def get_favorites_list():
     if os.path.exists("ait/favorites.iat"):

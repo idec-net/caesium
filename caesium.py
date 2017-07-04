@@ -24,7 +24,7 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
            "███      ███  ███ ███           ███ ███ ███  ███ ███ ██ ███",
            "████████ ████████ ████████ ████████ ███ ████████ ███ ██ ███",
            "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄",
-           "           ncurses ii/idec client       v.0.4 RC1",
+           "           ncurses ii/idec client      v.0.4 RC1",
            "           Andrew Lobanov             04.07.2017"]
 
 urltemplate=re.compile("((https?|ftp|file)://?[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|])")
@@ -40,6 +40,8 @@ def reset_config():
 def check_directories():
     if not os.path.exists("out"):
         os.mkdir("out")
+    if not os.path.exists("fecho"):
+        os.mkdir("fecho")
     for n in nodes:
         if not os.path.exists("out/" + n["nodename"]):
             os.mkdir("out/" + n["nodename"])
@@ -78,6 +80,7 @@ def load_config():
     first = True
     node = {}
     echoareas = []
+    fechoareas = []
     archive = []
     browser = webbrowser
 
@@ -87,6 +90,7 @@ def load_config():
         if param[0] == "nodename":
             if not first:
                 node["echoareas"] = echoareas
+                node["fechoareas"] = fechoareas
                 node["archive"] = archive
                 node["clone"] = []
                 if not "to" in node:
@@ -96,6 +100,7 @@ def load_config():
                 first = False
             node = {}
             echoareas = []
+            fechoareas = []
             archive = []
             node["nodename"] = " ".join(param[1:])
         elif param[0] == "node":
@@ -114,6 +119,8 @@ def load_config():
                 echoareas.append([param[1], "", True])
             else:
                 echoareas.append([param[1], " ".join(param[2:]), True])
+        elif param[0] == "fecho":
+            fechoareas.append(param[1])
         elif param[0] == "to":
             node["to"] = " ".join(param[1:]).split(",")
         elif param[0] == "archive":
@@ -151,6 +158,7 @@ def load_config():
     if not "to" in node:
         node["to"] = []
     node["echoareas"] = echoareas
+    node["fechoareas"] = fechoareas
     node["archive"] = archive
     node["clone"] = []
     nodes.append(node)
@@ -328,7 +336,8 @@ def get_features():
 def check_features(features):
     ue = "u/e" in features
     xc = "x/c" in features
-    return ue, xc
+    f = "f/" in features
+    return ue, xc, f
 
 def load_counts():
     counts = {}
@@ -462,6 +471,77 @@ def get_mail(clone, ue, depth):
         print("Новых сообщений не обнаружено.", end="")
     print()
 
+def get_local_fecho(fecho):
+    index = []
+    try:
+        for f in open("fecho/%s.txt" % fecho, "r").read().split("\n"):
+            if len(f) > 0:
+                index.append(f)
+    except:
+        None
+    return index
+
+def get_remote_fecho():
+    index = []
+    try:
+        r = urllib.request.Request(nodes[node]["node"] + "f/e/" + "/".join(nodes[node]["fechoareas"]))
+        with urllib.request.urlopen(r) as f:
+            for row in f.read().decode("utf8").split("\n"):
+                if len(row) > 0: # and not row in nodes[node]["fechoareas"]:
+                    index.append(row)
+    except:
+        None
+    return index
+
+def download_file(fi):
+    r = urllib.request.Request("%sf/f/%s/%s" % (nodes[node]["node"], fi[0], fi[1].split(":")[0]))
+    out = urllib.request.urlopen(r)
+    file_size=0
+    block_size=8192
+
+    if not os.path.exists("fecho/%s" % fi[0]):
+        os.mkdir("fecho/%s" % fi[0])
+    f = open("fecho/%s/%s" % (fi[0], fi[1].split(":")[1]), "wb")
+    while True:
+        buffer = out.read(block_size)
+        if not buffer:
+            break
+        file_size += len(buffer)
+        f.write(buffer)
+    f.close()
+    codecs.open("fecho/%s.txt" % fi[0], "a", "utf8").write(fi[1] + "\n")
+
+def get_fecho():
+    print("Получение индекса файлэх.")
+    remote_index = get_remote_fecho()
+    print("Построение разностного индекса.")
+    local_index = []
+    index = []
+    for fecho in nodes[node]["fechoareas"]:
+        local_fecho = get_local_fecho(fecho)
+        for fid in local_fecho:
+            local_index.append(fid)
+    for fi in remote_index:
+        if not ":" in fi:
+            fecho = fi
+        elif not fi in local_index:
+            index.append([fecho, fi])
+    if len(index) == 0:
+        print("Новых файлов не обнаружено.")
+        return False
+    else:
+        ret = []
+        for fi in index:
+            row = fi[1].split(":")
+            print("Получение файла %s" % row[1], end=" ")
+            try:
+                download_file(fi)
+                print("OK")
+                ret.append([fi[0], row[1], row[2], row[4]])
+            except:
+                print("ERROR")
+        return ret
+
 def mailer(clone):
     global depth, messages
     messages = []
@@ -471,13 +551,36 @@ def mailer(clone):
         send_mail()
         print("Получение списка возможностей ноды...")
         features = get_features()
-        ue, xc = check_features(features)
+        ue, xc, f = check_features(features)
         if xc:
             counts = load_counts()
             print("Получение количества сообщений в конференциях...")
             remote_counts = get_remote_counts()
             depth = calculate_offset(depth)
     get_mail(clone, ue, depth)
+    if f:
+        fecho = get_fecho()
+        if fecho:
+            s = []
+            fe = ""
+            for f in fecho:
+                if fe != f[0]:
+                    if not fe == "":
+                        s.append("----\n")
+                    fe = f[0]
+                    s.append("== Файлэха %s:" % fe)
+                if int(f[2]) < 1024:
+                    size = str(f[2]) + " B"
+                elif int(f[2]) >= 1024 and int(f[2]) < 1048576:
+                    size = str(int(int(f[2]) / 1024 * 10) / 10) + " KB"
+                else:
+                    size = str(int(int(f[2]) / 1048576 * 10) / 10) + " MB"
+                s.append("Файл:     " + f[1])
+                s.append("Размер:   " + size)
+                s.append("Описание: " + f[3])
+                s.append("")
+                codecs.open("fecho/%s/%s.txt" % (fe, ".".join(f[1].split(".")[:-1])), "w", "utf-8").write(f[3])
+            save_to_carbonarea("fetcher", "Новые файлы", "\n".join(s))
     if xc:
         save_counts(counts, remote_counts)
     input("Нажмите Enter для продолжения.")

@@ -1,4 +1,4 @@
-import os, codecs
+import os, codecs, time, base64, hashlib
 
 def get_echo_length(echo):
     if os.path.exists("echo/" + echo):
@@ -43,6 +43,12 @@ def add_to_carbonarea(msgid, msgbody):
         return codecs.open("echo/carbonarea", "a", "utf-8").write(msgid + "\n")
     else:
         return []
+
+def save_to_carbonarea(fr, subj, body):
+    msgbody = ["ii/ok", "carbonarea", str(round(time.time())), fr, "local", "", subj, "", body]
+    msgid = base64.urlsafe_b64encode(hashlib.sha256("\n".join(msgbody).encode()).digest()).decode("utf-8").replace("-", "A").replace("_", "z")[:20]
+    codecs.open("msg/%s" % msgid, "w", "utf-8").write("\n".join(msgbody))
+    open("echo/carbonarea", "a").write(msgid + "\n")
 
 def save_message(raw, node, to):
     try:

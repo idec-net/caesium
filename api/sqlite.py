@@ -1,4 +1,4 @@
-import sqlite3, time
+import sqlite3, time, base64, hashlib
 
 con = sqlite3.connect("idec.db")
 c = con.cursor()
@@ -34,6 +34,12 @@ def get_carbonarea():
 
 def add_to_carbonarea(msgid, msgbody):
     c.execute("UPDATE msg SET carbonarea = 1 WHERE msgid = ?;", (msgid,))
+    con.commit()
+
+def save_to_carbonarea(fr, subj, body):
+    msgbody = ["ii/ok", "carbonarea", str(round(time.time())), fr, "local", "", subj, "", body]
+    msgid = base64.urlsafe_b64encode(hashlib.sha256("\n".join(msgbody).encode()).digest()).decode("utf-8").replace("-", "A").replace("_", "z")[:20]
+    c.execute("INSERT INTO msg (msgid, tags, echoarea, time, fr, addr, t, subject, body, carbonarea) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);", (msgid, msgbody[0], msgbody[1], msgbody[2], msgbody[3], msgbody[4], msgbody[5], msgbody[6], "\n".join(msgbody[7:]), 1))
     con.commit()
 
 def save_message(raw, node, to):
