@@ -13,6 +13,7 @@ counts_rescan = True
 echo_counts = {}
 next_echoarea = False
 depth = 50
+fdepth = 5
 messages = []
 
 version = "Caesium/0.4 RC1 │"
@@ -75,7 +76,7 @@ def separate(l, step=20):
         yield l[x:x+step]
 
 def load_config():
-    global nodes, editor, color_theme, show_splash, oldquote, db, browser, depth
+    global nodes, editor, color_theme, show_splash, oldquote, db, browser, depth, fdepth
     nodes = []
     first = True
     node = {}
@@ -139,6 +140,11 @@ def load_config():
         elif param[0] == "depth":
             try:
                 depth = int(param[1])
+            except:
+                None
+        elif param[0] == "fdepth":
+            try:
+                fdepth = int(param[1])
             except:
                 None
         elif param[0] == "db":
@@ -484,7 +490,7 @@ def get_local_fecho(fecho):
 def get_remote_fecho():
     index = []
     try:
-        r = urllib.request.Request(nodes[node]["node"] + "f/e/" + "/".join(nodes[node]["fechoareas"]))
+        r = urllib.request.Request(nodes[node]["node"] + "f/e/" + "/".join(nodes[node]["fechoareas"]) + "/-" + str(fdepth) + ":" + str(fdepth))
         with urllib.request.urlopen(r) as f:
             for row in f.read().decode("utf8").split("\n"):
                 if len(row) > 0: # and not row in nodes[node]["fechoareas"]:
