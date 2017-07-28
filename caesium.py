@@ -253,7 +253,7 @@ def load_colors():
                 bold[10] = False
 
 def save_out(draft = False):
-    new = codecs.open("temp", "r", "utf-8").read().strip().split("\n")
+    new = codecs.open("temp", "r", "utf-8").read().strip().replace("\r", "").split("\n")
     if len(new) <= 1:
         os.remove("temp")
     else:
