@@ -563,32 +563,38 @@ def mailer(clone):
             print("Получение количества сообщений в конференциях...")
             remote_counts = get_remote_counts()
             depth = calculate_offset(depth)
-    get_mail(clone, ue, depth)
-    if f:
-        fecho = get_fecho()
-        if fecho:
-            s = []
-            fe = ""
-            for f in fecho:
-                if fe != f[0]:
-                    if not fe == "":
-                        s.append("----\n")
-                    fe = f[0]
-                    s.append("== Файлэха %s:" % fe)
-                if int(f[2]) < 1024:
-                    size = str(f[2]) + " B"
-                elif int(f[2]) >= 1024 and int(f[2]) < 1048576:
-                    size = str(int(int(f[2]) / 1024 * 10) / 10) + " KB"
-                else:
-                    size = str(int(int(f[2]) / 1048576 * 10) / 10) + " MB"
-                s.append("Файл:     " + f[1])
-                s.append("Размер:   " + size)
-                s.append("Описание: " + f[3])
-                s.append("")
-                codecs.open("fecho/%s/%s.txt" % (fe, ".".join(f[1].split(".")[:-1])), "w", "utf-8").write(f[3])
-            save_to_carbonarea("fetcher", "Новые файлы", "\n".join(s))
-    if xc:
-        save_counts(counts, remote_counts)
+    try:
+        get_mail(clone, ue, depth)
+    except:
+        print("ОШИБКА")
+    try:
+        if f:
+            fecho = get_fecho()
+            if fecho:
+                s = []
+                fe = ""
+                for f in fecho:
+                    if fe != f[0]:
+                        if not fe == "":
+                            s.append("----\n")
+                        fe = f[0]
+                        s.append("== Файлэха %s:" % fe)
+                    if int(f[2]) < 1024:
+                        size = str(f[2]) + " B"
+                    elif int(f[2]) >= 1024 and int(f[2]) < 1048576:
+                        size = str(int(int(f[2]) / 1024 * 10) / 10) + " KB"
+                    else:
+                        size = str(int(int(f[2]) / 1048576 * 10) / 10) + " MB"
+                    s.append("Файл:     " + f[1])
+                    s.append("Размер:   " + size)
+                    s.append("Описание: " + f[3])
+                    s.append("")
+                    codecs.open("fecho/%s/%s.txt" % (fe, ".".join(f[1].split(".")[:-1])), "w", "utf-8").write(f[3])
+                save_to_carbonarea("fetcher", "Новые файлы", "\n".join(s))
+        if xc:
+            save_counts(counts, remote_counts)
+    except:
+        print("ОШИБКА")
     input("Нажмите Enter для продолжения.")
 
 #
