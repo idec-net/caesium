@@ -872,6 +872,12 @@ def echo_selector():
         key = stdscr.getch()
         if key == curses.KEY_RESIZE:
             get_term_size()
+            if cursor >= height - 2:
+                start = cursor - height + 3
+            if cursor - start <= 0:
+                start = cursor
+            if start > 0 and height - 2 > len(echoareas):
+                start = 0
             stdscr.clear()
         elif key in s_up and cursor > 0:
             cursor = cursor - 1
