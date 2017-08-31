@@ -913,6 +913,8 @@ def echo_selector():
             cursor = find_new(0)
             if cursor >= height - 2:
                 start = cursor - height + 3
+            if cursor - start <= 0:
+                start = cursor
         elif key in s_archive and len(nodes[node]["archive"]) > 0:
             if archive:
                 archive = False
