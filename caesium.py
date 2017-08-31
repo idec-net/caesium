@@ -175,6 +175,7 @@ def load_config():
 def load_colors():
     global bold
     colors = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white", "gray"]
+    params = ["border", "titles", "cursor", "text", "quote1", "quote2", "comment", "url", "header", "statusline", "scrollbar"]
 
     try:
         theme = open("themes/" + color_theme + ".cfg", "r").read().split("\n")
@@ -185,68 +186,74 @@ def load_colors():
         if len(param) > 1:
             if param[1] == "grey":
                 param[1] = "gray"
+            if param[0] in params:
+                fg = colors.index(param[1])
+                if param[2] == "default":
+                    bg = -1
+                else:
+                    bg = colors.index(param[2])
         if param[0] == "border":
-            curses.init_pair(1, colors.index(param[1]), colors.index(param[2]))
+            curses.init_pair(1, fg, bg)
             if len(param) == 4:
                 bold[0] = True
             else:
                 bold[0] = False
         if param[0] == "titles":
-            curses.init_pair(2, colors.index(param[1]), colors.index(param[2]))
+            curses.init_pair(2, fg, bg)
             if len(param) == 4:
                 bold[1] = True
             else:
                 bold[1] = False
         if param[0] == "cursor":
-            curses.init_pair(3, colors.index(param[1]), colors.index(param[2]))
+            curses.init_pair(3, fg, bg)
             if len(param) == 4:
                 bold[2] = True
             else:
                 bold[2] = False
         if param[0] == "text":
-            curses.init_pair(4, colors.index(param[1]), colors.index(param[2]))
+            curses.init_pair(4, fg, bg)
             if len(param) == 4:
                 bold[3] = True
             else:
                 bold[3] = False
         if param[0] == "quote1":
-            curses.init_pair(5, colors.index(param[1]), colors.index(param[2]))
+            curses.init_pair(5, fg, bg)
             if len(param) == 4:
                 bold[4] = True
             else:
                 bold[4] = False
         if param[0] == "quote2":
-            curses.init_pair(6, colors.index(param[1]), colors.index(param[2]))
+            curses.init_pair(6, fg, bg)
             if len(param) == 4:
                 bold[5] = True
             else:
                 bold[5] = False
         if param[0] == "comment":
-            curses.init_pair(7, colors.index(param[1]), colors.index(param[2]))
+            curses.init_pair(7, fg, bg)
             if len(param) == 4:
                 bold[6] = True
             else:
                 bold[6] = False
         if param[0] == "url":
-            curses.init_pair(8, colors.index(param[1]), colors.index(param[2]))
+            curses.init_pair(8, fg, bg)
             if len(param) == 4:
                 bold[7] = True
             else:
                 bold[7] = False
         if param[0] == "statusline":
-            curses.init_pair(9, colors.index(param[1]), colors.index(param[2]))
+            curses.init_pair(9, fg, bg)
             if len(param) == 4:
                 bold[8] = True
             else:
                 bold[8] = False
         if param[0] == "header":
-            curses.init_pair(10, colors.index(param[1]), colors.index(param[2]))
+            curses.init_pair(10, fg, bg)
             if len(param) == 4:
                 bold[9] = True
             else:
                 bold[9] = False
         if param[0] == "scrollbar":
-            curses.init_pair(11, colors.index(param[1]), colors.index(param[2]))
+            curses.init_pair(11, fg, bg)
             if len(param) == 4:
                 bold[10] = True
             else:
@@ -820,6 +827,7 @@ def fetch_mail():
     nodes[node]["clone"] = []
     stdscr = curses.initscr()
     curses.start_color()
+    curses.use_default_colors()
     curses.noecho()
     curses.curs_set(False)
     stdscr.keypad(True)
@@ -842,6 +850,7 @@ def edit_config(out = False):
     load_config()
     stdscr = curses.initscr()
     curses.start_color()
+    curses.use_default_colors()
     curses.noecho()
     curses.curs_set(False)
     stdscr.keypad(True)
@@ -1128,6 +1137,7 @@ def call_editor(out = False, draft = False):
     p.wait()
     stdscr = curses.initscr()
     curses.start_color()
+    curses.use_default_colors()
     curses.noecho()
     curses.curs_set(False)
     stdscr.keypad(True)
@@ -1915,6 +1925,7 @@ check_directories()
 load_lasts()
 stdscr = curses.initscr()
 curses.start_color()
+curses.use_default_colors()
 load_colors()
 curses.noecho()
 curses.curs_set(False)
