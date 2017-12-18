@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re, hashlib, webbrowser
+import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re, hashlib, webbrowser, locale
 from datetime import datetime
 from shutil import copyfile
 from keys import *
@@ -559,7 +559,7 @@ def mailer(clone):
     global depth, messages
     messages = []
     print("Работа с " + nodes[node]["node"])
-    if nodes[node]["auth"]:
+    if "auth" in nodes[node]:
         make_toss()
         send_mail()
         print("Получение списка возможностей ноды...")
@@ -1469,9 +1469,9 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
             if not(out):
                 try:
                     if width >= 80:
-                        msgtime = time.strftime("%Y.%m.%d %H:%M UTC", time.gmtime(int(msg[2])))
+                        msgtime = time.strftime("%d %b %Y %H:%M UTC", time.gmtime(int(msg[2])))
                     else:
-                        msgtime = time.strftime("%Y.%m.%d %H:%M", time.gmtime(int(msg[2])))
+                        msgtime = time.strftime("%d.%m.%y %H:%M", time.gmtime(int(msg[2])))
                 except:
                     msgtime = ""
             if bold[3]:
@@ -1917,6 +1917,9 @@ def msg_list(echoarea, msgids, msgn):
         return -1
     else:
         return y + start
+
+loc = locale.getdefaultlocale()
+locale.setlocale(locale.LC_ALL, loc[0] + "." + loc[1])
 
 check_config()
 reset_config()
