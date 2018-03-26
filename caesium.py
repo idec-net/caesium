@@ -1051,7 +1051,7 @@ def body_render(tbody):
         sep += "─"
     for line in tbody:
         n = 0
-        rr = re.compile(r"^[a-zA-Zа-яА-Я0-9_\-.]{0,20}>{1,20}")
+        rr = re.compile(r"^[a-zA-Zа-яА-Я0-9_\-.\(\)]{0,20}>{1,20}")
         cc = re.compile(r"(^\s*)(PS|P.S|ps|ЗЫ|З.Ы|\/\/|#)")
         try:
             count = line[0:rr.match(line).span()[1]].count(">")
@@ -1684,7 +1684,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
                     f.write("Re: " + msg[6] + "\n")
                 else:
                     f.write(msg[6] + "\n")
-                rr = re.compile(r"^[a-zA-Zа-яА-Я0-9_-]{0,20}>{1,20}")
+                rr = re.compile(r"^[a-zA-Zа-яА-Я0-9_\(\)-]{0,20}>{1,20}")
                 for line in msg[8:]:
                     if line.strip() != "":
                         if rr.match(line):
