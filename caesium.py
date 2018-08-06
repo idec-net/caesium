@@ -522,7 +522,7 @@ def download_file(fi):
         file_size += len(buffer)
         f.write(buffer)
     f.close()
-    codecs.open("fecho/%s.txt" % fi[0], "a", "utf8").write(fi[1] + "\n")
+    codecs.open("fecho/%s.txt" % fi[0], "a", "utf8").write(":".join(fi[1:]) + "\n")
 
 def get_fecho():
     print("Получение индекса файлэх.")
@@ -550,7 +550,7 @@ def get_fecho():
             try:
                 download_file(fi)
                 print("OK")
-                ret.append([fi[0], row[1], row[2], row[4]])
+                ret.append([fi[0], row[1], row[2], ":".join(row[4:])])
             except:
                 print("ERROR")
         return ret
@@ -596,6 +596,7 @@ def mailer(clone):
                     s.append("Размер:   " + size)
                     s.append("Описание: " + f[3])
                     s.append("")
+                    print(f)
                     codecs.open("fecho/%s/%s.txt" % (fe, ".".join(f[1].split(".")[:-1])), "w", "utf-8").write(f[3])
                 save_to_carbonarea("fetcher", "Новые файлы", "\n".join(s))
         if xc:
@@ -803,10 +804,6 @@ def find_new(cursor):
     return ret
 
 def fetch_mail():
-    curses.echo()
-    curses.curs_set(True)
-    curses.endwin()
-    os.system('cls' if os.name == 'nt' else 'clear')
     echoareas = []
     to = ""
     if len(nodes[node]["to"]) > 0:
@@ -825,13 +822,6 @@ def fetch_mail():
             echoareas.append(echoarea[0])
     mailer(nodes[node]["clone"])
     nodes[node]["clone"] = []
-    stdscr = curses.initscr()
-    curses.start_color()
-    curses.use_default_colors()
-    curses.noecho()
-    curses.curs_set(False)
-    stdscr.keypad(True)
-    get_term_size()
 
 def load_lasts():
     global lasts
@@ -857,7 +847,7 @@ def edit_config(out = False):
     get_term_size()
 
 def echo_selector():
-    global echo_cursor, archive_cursor, counts, counts_rescan, next_echoarea, node
+    global echo_cursor, archive_cursor, counts, counts_rescan, next_echoarea, node, stdscr
     archive = False
     echoareas = nodes[node]["echoareas"]
     key = 0
@@ -911,7 +901,18 @@ def echo_selector():
             if len(echoareas) >= height - 2:
                 start = len(echoareas) - height + 2
         elif key in s_get:
+            curses.echo()
+            curses.curs_set(True)
+            curses.endwin()
+            os.system('cls' if os.name == 'nt' else 'clear')
             fetch_mail()
+            stdscr = curses.initscr()
+            curses.start_color()
+            curses.use_default_colors()
+            curses.noecho()
+            curses.curs_set(False)
+            stdscr.keypad(True)
+            get_term_size()
             draw_message_box("Подождите", False)
             get_counts(True)
             stdscr.clear()
