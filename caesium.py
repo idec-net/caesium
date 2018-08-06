@@ -596,7 +596,6 @@ def mailer(clone):
                     s.append("Размер:   " + size)
                     s.append("Описание: " + f[3])
                     s.append("")
-                    print(f)
                     codecs.open("fecho/%s/%s.txt" % (fe, ".".join(f[1].split(".")[:-1])), "w", "utf-8").write(f[3])
                 save_to_carbonarea("fetcher", "Новые файлы", "\n".join(s))
         if xc:
