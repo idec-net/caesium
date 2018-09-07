@@ -1704,17 +1704,18 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
                     f.write(msg[6] + "\n")
                 rr = re.compile(r"^[a-zA-Zа-яА-Я0-9_\(\)-]{0,20}>{1,20}")
                 for line in msg[8:]:
-                    if line.strip() != "":
-                        if rr.match(line):
-                            if line[rr.match(line).span()[1]] == " ":
-                                quoter = ">"
+                    if not line.startswith("+++"):
+                        if line.strip() != "":
+                            if rr.match(line):
+                                if line[rr.match(line).span()[1]] == " ":
+                                    quoter = ">"
+                                else:
+                                    quoter = "> "
+                                f.write("\n" + line[:rr.match(line).span()[1]] + quoter + line[rr.match(line).span()[1]:])
                             else:
-                                quoter = "> "
-                            f.write("\n" + line[:rr.match(line).span()[1]] + quoter + line[rr.match(line).span()[1]:])
-                        else:
-                            f.write("\n" + q + "> " + line)
-                    else:
-                        f.write("\n" + line)
+                                f.write("\n" + q + "> " + line)
+#                        else:
+#                            f.write("\n" + line)
                 f.write(t.read())
                 f.close()
                 t.close()
