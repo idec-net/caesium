@@ -7,7 +7,7 @@ from keys import *
 
 lasts = {}
 color_theme = "default"
-bold = [False, False, False, False, False, False, False, False, False, False, False]
+bold = [False, False, False, False, False, False, False, False, False, False, False, False]
 counts = []
 counts_rescan = True
 echo_counts = {}
@@ -175,7 +175,7 @@ def load_config():
 def load_colors():
     global bold
     colors = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white", "gray"]
-    params = ["border", "titles", "cursor", "text", "quote1", "quote2", "comment", "url", "header", "statusline", "scrollbar"]
+    params = ["border", "titles", "cursor", "text", "quote1", "quote2", "comment", "url", "header", "statusline", "scrollbar", "origin"]
 
     try:
         theme = open("themes/" + color_theme + ".cfg", "r").read().split("\n")
@@ -258,6 +258,12 @@ def load_colors():
                 bold[10] = True
             else:
                 bold[10] = False
+        if param[0] == "origin":
+            curses.init_pair(12, fg, bg)
+            if len(param) == 4:
+                bold[11] = True
+            else:
+                bold[11] = False
 
 def save_out(draft = False):
     new = codecs.open("temp", "r", "utf-8").read().strip().replace("\r", "").split("\n")
@@ -1070,8 +1076,10 @@ def body_render(tbody):
             code = " "
         if line == "----":
             code = chr(17)
-            line = sep 
-        if code != " " and code != chr(17) and code != chr(18):
+            line = sep
+        if line.startswith("+++"):
+            code = chr(19)
+        if code != " " and code != chr(17) and code != chr(18) and code != chr(19):
             line = " " + line
         body = body + code
         for word in line.split(" "):
@@ -1292,6 +1300,12 @@ def set_attr(str):
     elif str == chr(18):
         stdscr.attron(curses.color_pair(10))
         if bold[9]:
+            stdscr.attron(curses.A_BOLD)
+        else:
+            stdscr.attroff(curses.A_BOLD)
+    elif str == chr(19):
+        stdscr.attron(curses.color_pair(12))
+        if bold[11]:
             stdscr.attron(curses.A_BOLD)
         else:
             stdscr.attroff(curses.A_BOLD)
@@ -1655,11 +1669,14 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
                 scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif (key in r_ins) and not archive and not out:
             if not favorites:
+                t = open("template.txt", "r")
                 f = open("temp", "w")
                 f.write(echo[0] + "\n")
                 f.write("All\n")
                 f.write("No subject\n\n")
+                f.write(t.read())
                 f.close()
+                t.close()
                 call_editor()
                 stdscr.clear()
         elif key in r_save and not out:
@@ -1674,6 +1691,7 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
                 message_box("Собщение уже есть в избранных")
         elif (key in r_quote) and not archive and not out:
             if len(msgids) > 0:
+                t = open("template.txt", "r")
                 f = open("temp", "w")
                 f.write(msgids[msgn] + "\n")
                 f.write(msg[1] + "\n")
@@ -1697,7 +1715,9 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
                             f.write("\n" + q + "> " + line)
                     else:
                         f.write("\n" + line)
+                f.write(t.read())
                 f.close()
+                t.close()
                 call_editor()
         elif key in r_subj:
             show_subject(msg[6])
