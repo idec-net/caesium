@@ -15,8 +15,9 @@ next_echoarea = False
 depth = 50
 fdepth = 5
 messages = []
+twit = []
 
-version = "Caesium/0.4 RC1 │"
+version = "Caesium/0.5 │"
 
 splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
            "████████ ████████ ████████ ████████ ███ ███  ███ ██████████",
@@ -25,8 +26,8 @@ splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀�
            "███      ███  ███ ███           ███ ███ ███  ███ ███ ██ ███",
            "████████ ████████ ████████ ████████ ███ ████████ ███ ██ ███",
            "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄",
-           "           ncurses ii/idec client      v.0.4 RC1",
-           "           Andrew Lobanov             04.07.2017"]
+           "           ncurses ii/idec client      v.0.5",
+           "           Andrew Lobanov             01.11.2024"]
 
 urltemplate=re.compile("((https?|ftp|file)://?[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|])")
 
@@ -41,8 +42,6 @@ def reset_config():
 def check_directories():
     if not os.path.exists("out"):
         os.mkdir("out")
-    if not os.path.exists("fecho"):
-        os.mkdir("fecho")
     for n in nodes:
         if not os.path.exists("out/" + n["nodename"]):
             os.mkdir("out/" + n["nodename"])
@@ -76,12 +75,11 @@ def separate(l, step=20):
         yield l[x:x+step]
 
 def load_config():
-    global nodes, editor, color_theme, show_splash, oldquote, db, browser, depth, fdepth
+    global nodes, editor, color_theme, show_splash, oldquote, db, browser, twit
     nodes = []
     first = True
     node = {}
     echoareas = []
-    fechoareas = []
     archive = []
     browser = webbrowser
 
@@ -91,9 +89,7 @@ def load_config():
         if param[0] == "nodename":
             if not first:
                 node["echoareas"] = echoareas
-                node["fechoareas"] = fechoareas
                 node["archive"] = archive
-                node["clone"] = []
                 if not "to" in node:
                     node["to"] = []
                 nodes.append(node)
@@ -101,7 +97,6 @@ def load_config():
                 first = False
             node = {}
             echoareas = []
-            fechoareas = []
             archive = []
             node["nodename"] = " ".join(param[1:])
         elif param[0] == "node":
@@ -120,8 +115,6 @@ def load_config():
                 echoareas.append([param[1], "", True])
             else:
                 echoareas.append([param[1], " ".join(param[2:]), True])
-        elif param[0] == "fecho":
-            fechoareas.append(param[1])
         elif param[0] == "to":
             node["to"] = " ".join(param[1:]).split(",")
         elif param[0] == "archive":
@@ -137,16 +130,6 @@ def load_config():
             show_splash = False
         elif param[0] == "oldquote":
             oldquote = True
-        elif param[0] == "depth":
-            try:
-                depth = int(param[1])
-            except:
-                None
-        elif param[0] == "fdepth":
-            try:
-                fdepth = int(param[1])
-            except:
-                None
         elif param[0] == "db":
             if param[1] == "txt":
                 db = 0
@@ -158,15 +141,15 @@ def load_config():
                 db = 3
         elif param[0] == "browser":
             browser = webbrowser.GenericBrowser(param[1])
+        elif param[0] == "twit":
+            twit = param[1].split(",")
 
     if not "nodename" in node:
         node["nodename"] = "untitled node"
     if not "to" in node:
         node["to"] = []
     node["echoareas"] = echoareas
-    node["fechoareas"] = fechoareas
     node["archive"] = archive
-    node["clone"] = []
     nodes.append(node)
     for i in range(0, len(nodes)):
         nodes[i]["echoareas"].insert(0, ["favorites", "Избранные сообщения", True])
@@ -343,93 +326,14 @@ def separate(l, step=40):
     for x in range(0, len(l), step):
         yield l[x:x+step]
 
-def get_features():
-    try:
-        r = urllib.request.Request(nodes[node]["node"] + "x/features")
-        with urllib.request.urlopen(r) as f:
-            features = f.read().decode("utf-8").split("\n")
-    except:
-        features = []
-    return features
-
-def check_features(features):
-    ue = "u/e" in features
-    xc = "x/c" in features
-    f = "f/" in features
-    return ue, xc, f
-
-def load_counts():
-    counts = {}
-    if os.path.exists("counts.lst"):
-        f = open("counts.lst", "rb")
-        counts = pickle.load(f)
-        f.close()
-    else:
-        counts[node] = {}
-    if not node in counts:
-        counts[node] = {}
-    return counts[node]
-
-def save_counts(counts, remote_counts):
-    counts[node] = remote_counts
-    f = open("counts.lst", "wb")
-    pickle.dump(counts, f)
-    f.close()
-
-def get_remote_counts():
-    counts = {}
-    echoareas = []
-    for echoarea in nodes[node]["echoareas"]:
-        if echoarea[0] not in ["favorites", "carbonarea"]:
-            echoareas.append(echoarea[0])
-    r = urllib.request.Request(nodes[node]["node"] + "x/c/" + "/".join(echoareas))
-    with urllib.request.urlopen(r) as f:
-        c = f.read().decode("utf-8").split("\n")
-    for count in c:
-        echoarea = count.split(":")
-        if len(echoarea) > 1:
-            counts[echoarea[0]] = int(echoarea[1])
-    return counts
-
-def calculate_offset(depth):
-    n = False
-    offset = 0
-    echoareas = []
-    for echoarea in nodes[node]["echoareas"]:
-        if not echoarea in ["favorites", "carbonarea"]:
-            echoareas.append(echoarea[0])
-    for echoarea in echoareas:
-        if not echoarea in counts[node]:
-            n = True
-        else:
-            if not echoarea in clone and int(remote_counts[echoarea]) - int(counts[node][echoarea]) > offset:
-                offset = int(remote_counts[echoarea]) - int(counts[node][echoarea])
-    if not n:
-        depth = offset
-    return depth
-
-def get_msg_list(clone, ue, depth):
+def get_msg_list():
     msg_list = []
-    fetch_echoareas = []
     echoareas = []
     for echoarea in nodes[node]["echoareas"]:
         if not echoarea[0] in ["favorites", "carbonarea"]:
             echoareas.append(echoarea[0])
-    if ue:
-        for echoarea in echoareas:
-            if not echoarea in clone and (not echoarea in counts[node] or int(counts[node][echoarea]) < int(remote_counts[echoarea])):
-                fetch_echoareas.append(echoarea)
-    else:
-        clone = echoareas
-    if len(clone) > 0:
-        r = urllib.request.Request(nodes[node]["node"] + "u/e/" + "/".join(clone))
-        with urllib.request.urlopen(r) as f:
-            lines = f.read().decode("utf-8").split("\n")
-            for line in lines:
-                if len(line) > 0:
-                    msg_list.append(line)
-    if len(fetch_echoareas) > 0 and int(depth) > 0:
-        r = urllib.request.Request(nodes[node]["node"] + "u/e/" + "/".join(fetch_echoareas) + "/-%s:%s" %(depth, depth))
+    if len(echoareas) > 0:
+        r = urllib.request.Request(nodes[node]["node"] + "u/e/" + "/".join(echoareas))
         with urllib.request.urlopen(r) as f:
             lines = f.read().decode("utf-8").split("\n")
             for line in lines:
@@ -465,15 +369,13 @@ def echo_filter(ea):
     rr = re.compile(r'^[a-z0-9_!.-]{1,60}\.[a-z0-9_!.-]{1,60}$')
     if rr.match(ea): return True
 
-def get_mail(clone, ue, depth):
+def get_mail():
     fetch_msg_list = []
     print("Получение индекса от ноды...")
-    remote_msg_list = get_msg_list(clone, ue, depth)
+    remote_msg_list = get_msg_list()
     print("Построение разностного индекса...")
     for line in remote_msg_list:
         if echo_filter(line):
-            if line in clone and ue:
-                remove_echoarea(line)
             local_index = get_echo_msgids(line)
         else:
             if not line in local_index:
@@ -490,122 +392,15 @@ def get_mail(clone, ue, depth):
         print("Новых сообщений не обнаружено.", end="")
     print()
 
-def get_local_fecho(fecho):
-    index = []
-    try:
-        for f in open("fecho/%s.txt" % fecho, "r").read().split("\n"):
-            if len(f) > 0:
-                index.append(f)
-    except:
-        None
-    return index
-
-def get_remote_fecho():
-    index = []
-    try:
-        r = urllib.request.Request(nodes[node]["node"] + "f/e/" + "/".join(nodes[node]["fechoareas"]) + "/-" + str(fdepth) + ":" + str(fdepth))
-        with urllib.request.urlopen(r) as f:
-            for row in f.read().decode("utf8").split("\n"):
-                if len(row) > 0: # and not row in nodes[node]["fechoareas"]:
-                    index.append(row)
-    except:
-        None
-    return index
-
-def download_file(fi):
-    r = urllib.request.Request("%sf/f/%s/%s" % (nodes[node]["node"], fi[0], fi[1].split(":")[0]))
-    out = urllib.request.urlopen(r)
-    file_size=0
-    block_size=8192
-
-    if not os.path.exists("fecho/%s" % fi[0]):
-        os.mkdir("fecho/%s" % fi[0])
-    f = open("fecho/%s/%s" % (fi[0], fi[1].split(":")[1]), "wb")
-    while True:
-        buffer = out.read(block_size)
-        if not buffer:
-            break
-        file_size += len(buffer)
-        f.write(buffer)
-    f.close()
-    codecs.open("fecho/%s.txt" % fi[0], "a", "utf8").write(":".join(fi[1:]) + "\n")
-
-def get_fecho():
-    print("Получение индекса файлэх.")
-    remote_index = get_remote_fecho()
-    print("Построение разностного индекса.")
-    local_index = []
-    index = []
-    for fecho in nodes[node]["fechoareas"]:
-        local_fecho = get_local_fecho(fecho)
-        for fid in local_fecho:
-            local_index.append(fid)
-    for fi in remote_index:
-        if not ":" in fi:
-            fecho = fi
-        elif not fi in local_index:
-            index.append([fecho, fi])
-    if len(index) == 0:
-        print("Новых файлов не обнаружено.")
-        return False
-    else:
-        ret = []
-        for fi in index:
-            row = fi[1].split(":")
-            print("Получение файла %s" % row[1], end=" ")
-            try:
-                download_file(fi)
-                print("OK")
-                ret.append([fi[0], row[1], row[2], ":".join(row[4:])])
-            except:
-                print("ERROR")
-        return ret
-
-def mailer(clone):
+def mailer():
     global depth, messages
     messages = []
     print("Работа с " + nodes[node]["node"])
     if "auth" in nodes[node]:
         make_toss()
         send_mail()
-        print("Получение списка возможностей ноды...")
-        features = get_features()
-        ue, xc, f = check_features(features)
-        if xc:
-            counts = load_counts()
-            print("Получение количества сообщений в конференциях...")
-            remote_counts = get_remote_counts()
-            depth = calculate_offset(depth)
     try:
-        get_mail(clone, ue, depth)
-    except:
-        print("ОШИБКА")
-    try:
-        if f:
-            fecho = get_fecho()
-            if fecho:
-                s = []
-                fe = ""
-                for f in fecho:
-                    if fe != f[0]:
-                        if not fe == "":
-                            s.append("----\n")
-                        fe = f[0]
-                        s.append("== Файлэха %s:" % fe)
-                    if int(f[2]) < 1024:
-                        size = str(f[2]) + " B"
-                    elif int(f[2]) >= 1024 and int(f[2]) < 1048576:
-                        size = str(int(int(f[2]) / 1024 * 10) / 10) + " KB"
-                    else:
-                        size = str(int(int(f[2]) / 1048576 * 10) / 10) + " MB"
-                    s.append("Файл:     " + f[1])
-                    s.append("Размер:   " + size)
-                    s.append("Описание: " + f[3])
-                    s.append("")
-                    codecs.open("fecho/%s/%s.txt" % (fe, ".".join(f[1].split(".")[:-1])), "w", "utf-8").write(f[3])
-                save_to_carbonarea("fetcher", "Новые файлы", "\n".join(s))
-        if xc:
-            save_counts(counts, remote_counts)
+        get_mail()
     except:
         print("ОШИБКА")
     input("Нажмите Enter для продолжения.")
@@ -782,8 +577,6 @@ def draw_echo_selector(start, cursor, archive):
                     stdscr.addstr(y + 1 - start, 0, "+")
                 if last < 0:
                     last = 0
-                if echo[0] in nodes[node]["clone"]:
-                    stdscr.addstr(y + 1 - start, 1, "*")
                 stdscr.addstr(y + 1 - start, 2, echo[0])
                 if width >= 80:
                     if width - 38 >= len(echo[1]):
@@ -825,8 +618,7 @@ def fetch_mail():
     for echoarea in nodes[node]["echoareas"][2:]:
         if not echoarea[2]:
             echoareas.append(echoarea[0])
-    mailer(nodes[node]["clone"])
-    nodes[node]["clone"] = []
+    mailer()
 
 def load_lasts():
     global lasts
@@ -1003,12 +795,6 @@ def echo_selector():
             counts_rescan = True
             cursor = 0
             start = 0
-        elif key in s_clone:
-            if cursor > 1 and not echoareas[cursor][2]:
-                if echoareas[cursor][0] in nodes[node]["clone"]:
-                    nodes[node]["clone"].remove(echoareas[cursor][0])
-                else:
-                    nodes[node]["clone"].append(echoareas[cursor][0])
         elif key in s_config:
             edit_config()
             reset_config()
@@ -1457,6 +1243,15 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
             msg, size = read_out_msg(msgids[msgn])
         else:
             msg, size = read_msg(msgids[msgn], echo[0])
+            while msg[3] in twit or msg[5] in twit:
+                msgn -= 1
+                if msgn < 0:
+                    go = False
+                    quit = False
+                    next_echoarea = True
+                    break
+                msg, size = read_msg(msgids[msgn], echo[0])
+
     else:
         msg = ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"]
         size = "0b"
@@ -1571,6 +1366,13 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
                     msg, size = read_out_msg(msgids[msgn])
                 else:
                     msg, size = read_msg(msgids[msgn], echo[0])
+                tmp = msgn
+                while msg[3] in twit or msg[5] in twit:
+                    msgn -= 1
+                    if msgn < 0:
+                        msgn = tmp + 1
+                        break
+                    msg, size = read_msg(msgids[msgn], echo[0])
                 msgbody = body_render(msg[8:])
                 scrollbar_size = calc_scrollbar_size(len(msgbody))
         elif key in r_next and msgn < len(msgids) - 1:
@@ -1582,6 +1384,14 @@ def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False)
                 if out:
                     msg, size = read_out_msg(msgids[msgn])
                 else:
+                    msg, size = read_msg(msgids[msgn], echo[0])
+                while msg[3] in twit or msg[5] in twit:
+                    msgn += 1
+                    if msgn >= len(msgids) or len(msgids) == 0:
+                        go = False
+                        quit = False
+                        next_echoarea = True
+                        break
                     msg, size = read_msg(msgids[msgn], echo[0])
                 msgbody = body_render(msg[8:])
                 scrollbar_size = calc_scrollbar_size(len(msgbody))
