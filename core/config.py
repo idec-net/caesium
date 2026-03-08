@@ -181,8 +181,7 @@ color_pairs = {
 def get_color(theme_part):
     if theme_part not in color_pairs:
         theme_part = UI_TEXT
-    cp = color_pairs[theme_part][0]
-    bold = color_pairs[theme_part][1]
+    cp, bold = color_pairs[theme_part]
     return curses.color_pair(cp) | bold
 
 

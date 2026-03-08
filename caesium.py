@@ -494,23 +494,11 @@ def call_editor(node_, out=''):
     p.wait()
     ui.initialize_curses()
     if h != hashlib.sha1(str.encode(open("temp", "r", ).read())).hexdigest():
-        d = ui.SelectWindow("Куда сохранить?", ["Сохранить в исходящие",
-                                                "Сохранить как черновик"]
-                            ).show()
-        if d == 2:  # "Сохранить как черновик"
-            if not out:
-                outgoing.save_out(node_, extension=".draft")
-            else:
-                outgoing.resave_out(node_, out.replace(".out", ".draft"))
-                if out.endswith(".out"):
-                    os.remove(outgoing.directory(node_) + out)
-        elif d == 1:  # "Сохранить в исходящие"
-            if not out:
-                outgoing.save_out(node_, extension=".out")
-            else:
-                outgoing.resave_out(node_, out.replace(".draft", ".out"))
-                if out.endswith(".draft"):
-                    os.remove(outgoing.directory(node_) + out)
+        if not out:
+            filepath = outgoing.outcount(node_) + ".draft"
+        else:
+            filepath = outgoing.directory(node_) + out
+        outgoing.save_out(filepath)
     else:
         os.remove("temp")
 

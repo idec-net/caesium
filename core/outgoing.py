@@ -76,25 +76,13 @@ def read_out_msg(msgid, node):  # type: (str, config.Node) -> (List[str], int)
     return msg, size
 
 
-def save_out(node, extension):
+def save_out(filepath):
     with codecs.open("temp", "r", "utf-8") as f:
         new = f.read().strip().replace("\r", "").split("\n")
     if len(new) <= 1:
         os.remove("temp")
     else:
-        with codecs.open(outcount(node) + extension, "w", "utf-8") as f:
-            f.write("\n".join(new))
-        os.remove("temp")
-
-
-def resave_out(node, filename):
-    with codecs.open("temp", "r", "utf-8") as f:
-        new = f.read().strip().replace("\r", "").split("\n")
-    if len(new) <= 1:
-        os.remove("temp")
-    else:
-        out_dir = directory(node)
-        with codecs.open(out_dir + filename, "w", "utf-8") as f:
+        with codecs.open(filepath, "w", "utf-8") as f:
             f.write("\n".join(new))
         os.remove("temp")
 
