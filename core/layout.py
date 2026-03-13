@@ -1,8 +1,7 @@
 import re
 from dataclasses import dataclass, field
-from typing import Tuple, List, Optional, Collection, Union
-
-from typing import TYPE_CHECKING
+from itertools import takewhile
+from typing import TYPE_CHECKING, Tuple, List, Optional, Collection, Union
 
 if TYPE_CHECKING:
     from ui import Widget
@@ -136,12 +135,8 @@ def parse_constraint(scc):
     params = list(filter(None, map(lambda s: s.strip(), scc.split(' '))))
     for i, p in enumerate(params):
         if p == 'w':
-            width = []
-            i += 1
-            while i < len(params) and unit_template.match(params[i]):
-                width.append(params[i])
-                i += 1
-            i -= 1
+            width = list(takewhile(unit_template.match, params[i + 1:]))
+            i += len(width)
             if len(width) == 1:
                 cc.w = int(width[0]) if str.isdigit(width[0]) else width[0]
             elif len(width) == 3:
@@ -151,21 +146,17 @@ def parse_constraint(scc):
             else:
                 raise ValueError('Cell width must be 1 or 3 ints (min, max, pref)')
         elif p == 'wMin':
-            cc.wMin = int(params[i + 1]) if str.isdigit(params[i + 1]) else params[i + 1]
             i += 1
+            cc.wMin = int(params[i]) if str.isdigit(params[i]) else params[i]
         elif p == 'wMax':
-            cc.wMax = int(params[i + 1]) if str.isdigit(params[i + 1]) else params[i + 1]
             i += 1
+            cc.wMax = int(params[i]) if str.isdigit(params[i]) else params[i]
         elif p == 'wPref':
-            cc.wPref = int(params[i + 1]) if str.isdigit(params[i + 1]) else params[i + 1]
             i += 1
+            cc.wPref = int(params[i]) if str.isdigit(params[i]) else params[i]
         elif p == 'h':
-            height = []
-            i += 1
-            while i < len(params) and unit_template.match(params[i]):
-                height.append(params[i])
-                i += 1
-            i -= 1
+            height = list(takewhile(unit_template.match, params[i + 1:]))
+            i += len(height)
             if len(height) == 1:
                 cc.h = int(height[0]) if str.isdigit(height[0]) else height[0]
             elif len(height) == 3:
@@ -175,37 +166,33 @@ def parse_constraint(scc):
             else:
                 raise ValueError('Cell height must be 1 or 3 ints (min, max, pref)')
         elif p == 'hMin':
-            cc.hMin = int(params[i + 1]) if str.isdigit(params[i + 1]) else params[i + 1]
             i += 1
+            cc.hMin = int(params[i]) if str.isdigit(params[i]) else params[i]
         elif p == 'hMax':
-            cc.hMax = int(params[i + 1]) if str.isdigit(params[i + 1]) else params[i + 1]
             i += 1
+            cc.hMax = int(params[i]) if str.isdigit(params[i]) else params[i]
         elif p == 'hPref':
-            cc.hPref = int(params[i + 1]) if str.isdigit(params[i + 1]) else params[i + 1]
             i += 1
+            cc.hPref = int(params[i]) if str.isdigit(params[i]) else params[i]
         elif p == 'rowSpan':
-            cc.rowSpan = int(params[i + 1])
             i += 1
+            cc.rowSpan = int(params[i])
         elif p == 'colSpan':
-            cc.colSpan = int(params[i + 1])
             i += 1
+            cc.colSpan = int(params[i])
         elif p == 'wrap':
             cc.wrap = True
         elif p == 'pad':
-            paddings = []
-            i += 1
-            while str.isdigit(p[i]):
-                paddings.append(p[i])
-                i += 1
-            i -= 1
+            paddings = list(takewhile(str.isdigit, params[i + 1:]))
+            i += len(paddings)
             cc.pad = _parse_padding(' '.join(paddings))
         #
         elif p == 'width':
-            cc.width = int(params[i + 1]) if str.isdigit(params[i + 1]) else params[i + 1]
             i += 1
+            cc.width = int(params[i]) if str.isdigit(params[i]) else params[i]
         elif p == 'height':
-            cc.height = int(params[i + 1]) if str.isdigit(params[i + 1]) else params[i + 1]
             i += 1
+            cc.height = int(params[i]) if str.isdigit(params[i]) else params[i]
         elif p == 'fill':
             cc.fill = True
         elif p == 'fillX':
@@ -213,13 +200,13 @@ def parse_constraint(scc):
         elif p == 'fillY':
             cc.fillY = True
         elif p == 'hAlign':
-            cc.hAlign = params[i + 1]
             i += 1
+            cc.hAlign = params[i]
             if cc.hAlign not in ('left', 'center', 'right'):
                 raise ValueError('hAlign must be one of left/center/right')
         elif p == 'vAlign':
-            cc.vAlign = params[i + 1]
             i += 1
+            cc.vAlign = params[i]
             if cc.vAlign not in ('top', 'center', 'bottom'):
                 raise ValueError('vAlign must be one of top/center/bottom')
         #
