@@ -16,6 +16,7 @@ from core.config import (
     get_color, TOKEN2UI,
     UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT
 )
+from core.layout import GridLayout, CC
 
 LABEL_ANY_KEY = "Нажмите любую клавишу"
 LABEL_ESC = "Esc - отмена"
@@ -640,7 +641,7 @@ class LabelWidget(Widget):
     focusable: bool = False
     h: int = 1
 
-    def __init__(self, y=0, x=0, txt=""):
+    def __init__(self, txt="", y=0, x=0):
         self.x = x
         self.y = y
         self.w = len(txt)
@@ -675,11 +676,12 @@ class LabelWidget(Widget):
 class CheckBoxWidget(Widget):
     h: int = 1
 
-    def __init__(self, y=0, x=0, lbl="", checked=False):
+    def __init__(self, lbl="", y=0, x=0, checked=False, enabled=True):
         self.x = x
         self.y = y
         self.lbl = lbl
         self.checked = checked
+        self.enabled = enabled
         self.content = self._content(checked, lbl)
         self.color = self._color(self.focused)
         self.w = len(self.content)
@@ -718,7 +720,7 @@ class InputWidget(Widget):
     offset: int = 0
     h: int = 1
 
-    def __init__(self, y=0, x=0, w=0, txt="", *, placeholder="", mask=None):
+    def __init__(self, txt="", y=0, x=0, w=0, *, placeholder="", mask=None):
         self.x = x
         self.y = y
         self.w = w
@@ -806,9 +808,14 @@ class FindQuery:
     echo: bool = True
     echo_query: str = ""
     limit: int = 10000
+    regex: bool = False
+    case: bool = False
+    word: bool = False
+    orig: bool = False
 
 
 class FindQueryWindow:
+    layout: GridLayout = None
     query = FindQuery()
     resized: bool = False
     focused_wid: Widget = None
@@ -824,37 +831,69 @@ class FindQueryWindow:
         self.win = self.init_win()
         h, w = self.win.getmaxyx()
         #
-        self.inp_query = InputWidget(1, 2, w - 4, self.query.query,
+        self.inp_query = InputWidget(self.query.query,
                                      placeholder="<введите текст для поиска>")
+        self.lbl_search_in = LabelWidget("Искать в:")
 
-        self.chk_msgid = CheckBoxWidget(3, 2, "Идентификатор", self.query.msgid)
-        self.chk_body = CheckBoxWidget(4, 2, "Тело", self.query.body)
-        self.chk_subj = CheckBoxWidget(5, 2, "Тема", self.query.subj)
+        self.chk_msgid = CheckBoxWidget("Id", checked=self.query.msgid)
+        self.chk_body = CheckBoxWidget("Тело", checked=self.query.body)
+        self.chk_subj = CheckBoxWidget("Тема", checked=self.query.subj)
+        self.chk_from = CheckBoxWidget("От", checked=self.query.fr)
+        self.chk_to = CheckBoxWidget("Кому", checked=self.query.to)
 
-        self.chk_from = CheckBoxWidget(6, 2, "От", self.query.fr)
-        self.chk_to = CheckBoxWidget(7, 2, "Кому", self.query.to)
-
-        self.chk_echo = CheckBoxWidget(8, 2, "Конференция ", self.query.echo)
-        self.inp_echo = InputWidget(8, self.chk_echo.right(),
-                                    w - self.chk_echo.right() - 2,
-                                    self.query.echo_query,
+        self.chk_echo = CheckBoxWidget("Конференция: ", checked=self.query.echo)
+        self.inp_echo = InputWidget(self.query.echo_query,
                                     placeholder="<введите эхоконференцию>")
-        self.lbl_limit = LabelWidget(9, 2, "Лимит: ")
-        self.inp_limit = InputWidget(9, self.lbl_limit.right(),
-                                     min(10, w - self.chk_echo.right() - 1),
-                                     str(self.query.limit),
+        self.lbl_limit = LabelWidget("Лимит: ")
+        self.inp_limit = InputWidget(str(self.query.limit),
                                      mask=re.compile(r"^[1-9][0-9]{0,6}$"))
-        self.lbl_progress = LabelWidget(10, 2, "")
 
-        self.widgets = [
+        self.chk_regex = CheckBoxWidget("Regex (TODO)",
+                                        checked=self.query.regex, enabled=False)
+        self.chk_case = CheckBoxWidget("Учитывать регистр (TODO)",
+                                       checked=self.query.case, enabled=False)
+        self.chk_word = CheckBoxWidget("Слова целиком (TODO)",
+                                       checked=self.query.word, enabled=False)
+        self.chk_orig = CheckBoxWidget("Искать в подписях (TODO)",
+                                       checked=self.query.orig, enabled=False)
+        self.lbl_progress = LabelWidget("")
+
+        self.widgets = [  # in focus order
             self.inp_query,
-            self.chk_msgid, self.chk_body, self.chk_subj,
-            self.chk_from, self.chk_to,
+            self.lbl_search_in,
+            self.chk_msgid, self.chk_regex,
+            self.chk_body, self.chk_case,
+            self.chk_subj, self.chk_word,
+            self.chk_from, self.chk_orig,
+            self.chk_to,
+            #
             self.chk_echo, self.inp_echo,
             self.lbl_limit, self.inp_limit,
             self.lbl_progress
         ]  # type: List[Widget]
 
+        self.layout = GridLayout(
+            (self.inp_query, "w 100% colSpan 2 fillX wrap"),
+            (self.lbl_search_in, "wrap"),
+            #
+            (self.chk_msgid, "w 50%"), (self.chk_regex, "wrap"),
+            (self.chk_body, "w 50%"), (self.chk_case, "wrap"),
+            (self.chk_subj, "w 50%"), (self.chk_word, "wrap"),
+            (self.chk_from, "w 50%"), (self.chk_orig, "wrap"),
+            (self.chk_to, "wrap"),
+            #
+            (GridLayout((self.chk_echo, CC(w=self.chk_echo.w)),
+                        (self.inp_echo, "fillX")),
+             "w 100% h 1 fillX colSpan 2 wrap"),
+            #
+            (GridLayout((self.lbl_limit, CC(w=self.lbl_limit.w)),
+                        (self.inp_limit, "w 10 hAlign left")),
+             "w 100% h 1 fillX colSpan 2 wrap"),
+            #
+            (self.lbl_progress, "w 100% colSpan 2 growY wrap"),
+        )
+        self.layout.pack(offset_x=2, offset_y=1, width=w - 4, height=h - 2)
+        #
         self.set_focused(self.inp_query)
         self.update_state()
 
@@ -910,13 +949,17 @@ class FindQueryWindow:
 
         x = (w - len(LABEL_FIND)) // 2 - 1
         draw_title(win, 0, x, LABEL_FIND)
-        win.addstr(2, 2, "Искать в:", get_color(UI_TEXT))
 
     def draw_content(self, win):  # type: (curses.window) -> None
         h, w = win.getmaxyx()
         win.addstr(self.lbl_progress.y, 1, " " * (w - 2))  # lbl_progress
-        for w in self.widgets:
-            w.draw(win)
+        if w > 20 and h > 10:
+            for w in self.widgets:
+                w.draw(win)
+        else:
+            lines = textwrap.wrap("Маленькое окошко!", w - 2)
+            for y, line in enumerate(lines):
+                win.addstr(1 + y, 1, line + (" " * (w - 2 - len(line))))
 
     def on_key_pressed(self, ks, key):
         if key == curses.KEY_RESIZE:
@@ -925,15 +968,8 @@ class FindQueryWindow:
             stdscr.refresh()
             self.win = self.init_win(self.win)
             self.win.clear()
-            # TODO: Widget Layout.repack
             h, w = self.win.getmaxyx()
-            for wid in self.widgets:
-                if wid.right() > w - 2:
-                    wid.w -= wid.right() - (w - 2)
-            if self.inp_query.right() < w - 2:
-                self.inp_query.w += (w - 2) - self.inp_query.right()
-            if self.inp_echo.right() < w - 2:
-                self.inp_echo.w += (w - 2) - self.inp_echo.right()
+            self.layout.pack(offset_x=2, offset_y=1, width=w - 4, height=h - 2)
             #
             self.draw_title(self.win)
             self.resized = True
