@@ -427,7 +427,7 @@ class EchoSelectorScreen:
             self.reload_echoareas()
         elif key in keys.s_config:
             edit_config()
-            config.load_colors(cfg.theme)
+            ui.load_theme(cfg)
             node = 0
             self.reload_echoareas()
         elif key in keys.s_find or ks in keys.s_find:
@@ -1081,16 +1081,7 @@ search.keys = keys
 
 try:
     ui.initialize_curses()
-    try:
-        config.load_colors(cfg.theme)
-    except ValueError as err:
-        config.load_colors("default")
-        ui.stdscr.refresh()
-        ui.show_message_box("Цветовая схема %s не установлена.\n"
-                            "%s\n"
-                            "Будет использована схема по-умолчанию."
-                            % (cfg.theme, str(err)))
-        cfg.theme = "default"
+    ui.load_theme(cfg)
     ui.stdscr.bkgd(" ", get_color("text"))
 
     if cfg.splash:

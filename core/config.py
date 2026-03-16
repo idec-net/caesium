@@ -65,7 +65,8 @@ class Config:
     editor = "nano"
     oldquote = False
     splash = True
-    theme = "default"
+    themeColors = "default"
+    themeWidgets = ""
     db = "ait"
     keys = "default"
     twit: List[str] = dataclasses.field(default_factory=list)
@@ -109,7 +110,10 @@ class Config:
             if param[0] == "editor":
                 self.editor = " ".join(param[1:])
             elif param[0] == "theme":
-                self.theme = param[1]
+                self.themeColors = param[1]
+                self.themeWidgets = ""
+                if len(param) > 2 and not param[2].startswith("#"):
+                    self.themeWidgets = param[2].split(" ")[0]
             elif param[0] == "nosplash":
                 self.splash = False
             elif param[0] == "oldquote":

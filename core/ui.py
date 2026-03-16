@@ -13,7 +13,7 @@ import keys.default as keys
 from api import MsgMetadata
 from core import __version__, parser, utils, search, keystroke
 from core.config import (
-    get_color, TOKEN2UI,
+    get_color, load_colors, Config, TOKEN2UI,
     UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT
 )
 from core.layout import GridLayout, CC
@@ -26,6 +26,47 @@ WIDTH = 0
 
 stdscr = None  # type: Optional[curses.window]
 version = "Caesium/%s │" % __version__
+
+
+# pyTermTk
+# https://github.com/ceccopierangiolieugenio/pyTermTk/blob/main/libs/pyTermTk/TermTk/TTkTheme/theme.py
+class ThemeAscii:
+    NAME = "ascii"
+    checkbox = ["[ ] ", "[x] ", "[/] "]
+    input = ["[", "]", curses.A_NORMAL]
+    spinner = r"-\|/"
+
+
+class ThemeUtf8:
+    NAME = "utf8"
+    checkbox = ["□ ", "▣ ", "◪ "]
+    input = ["", "", curses.A_UNDERLINE]
+    spinner = r"⣄⡆⠇⠋⠙⠸⢰⣠"
+
+
+THEME = ThemeAscii
+THEMES = {t.NAME: t for t in (ThemeAscii, ThemeUtf8)}
+
+
+def load_theme(cfg: Config):
+    try:
+        load_colors(cfg.themeColors)
+    except ValueError as err:
+        load_colors("default")
+        stdscr.refresh()
+        show_message_box("Цветовая схема %s не установлена.\n"
+                         "%s\n"
+                         "Будет использована схема по-умолчанию."
+                         % (cfg.themeColors, str(err)))
+    #
+    global THEME
+    THEME = ThemeAscii
+    if cfg.themeWidgets in THEMES:
+        THEME = THEMES[cfg.themeWidgets]
+    elif cfg.themeWidgets:
+        show_message_box("Неизвестная схема виджетов %s\n"
+                         "Будет использована схема по-умолчанию."
+                         % cfg.themeWidgets)
 
 
 class ReaderMode(Enum):
@@ -683,16 +724,18 @@ class CheckBoxWidget(Widget):
         self.checked = checked
         self.enabled = enabled
         self.content = self._content(checked, lbl)
-        self.color = self._color(self.focused)
+        self.color = self._color(self.focused, enabled)
         self.w = len(self.content)
 
     @staticmethod
     def _content(checked, lbl):
-        return "[%s] %s" % ("x" if checked else " ", lbl)
+        return "%s%s" % (THEME.checkbox[1 if checked else 0], lbl)
 
     @staticmethod
-    def _color(focused):
-        return get_color(UI_TITLES if focused else UI_TEXT)
+    def _color(focused, enabled):
+        if enabled:
+            return get_color(UI_TITLES if focused else UI_TEXT)
+        return get_color(UI_COMMENT)
 
     def set_checked(self, checked):
         if self.checked == checked:
@@ -704,7 +747,13 @@ class CheckBoxWidget(Widget):
         if self.focused == focused:
             return
         self.focused = focused
-        self.color = self._color(focused)
+        self.color = self._color(focused, self.enabled)
+
+    def set_enabled(self, enabled):
+        if self.enabled == enabled:
+            return
+        self.enabled = enabled
+        self.color = self._color(self.focused, enabled)
 
     def draw(self, win):
         if self.w > 0:
@@ -749,12 +798,36 @@ class InputWidget(Widget):
         self.color = self._color(self.focused, enabled)
 
     def draw(self, win):  # type: (curses.window) -> None
-        win.addstr(self.y, self.x, " " * self.w, self.color)
-        txt = self.txt if self.txt else self.placeholder
-        if self.w - 2 > 0:
-            win.addnstr(self.y, self.x, "[" + txt[self.offset:],
-                        self.w - 1, self.color)
-        win.addstr(self.y, self.x + self.w - 1, "]", self.color)
+        if self.w <= 0:
+            return
+        left = THEME.input[0]
+        right = THEME.input[1]
+        attr = self.color | THEME.input[2]
+        #
+        if self.txt:
+            txt = self.txt
+        else:
+            txt = self.placeholder
+            attr |= curses.A_ITALIC
+        #
+        win.addstr(self.y, self.x, " " * self.w, attr)
+        if left:
+            win.addnstr(self.y, self.x, THEME.input[0], self.w, self.color)
+        win.addnstr(self.y, self.x + len(left), txt[self.offset:],
+                    self.w - len(left), attr)
+        if right:
+            win.addstr(self.y, self.x + self.w - len(right), right, self.color)
+
+    def _move_cursor_right(self, increment):
+        self.cursor = min(len(self.txt), self.cursor + increment)
+        contentWidth = self.w - (len(THEME.input[0]) + len(THEME.input[1]))
+        if self.cursor - self.offset > contentWidth - 1:
+            self.offset += increment
+
+    def _move_cursor_left(self, decrement):
+        self.cursor = max(0, self.cursor - decrement)
+        if self.cursor - self.offset < 0:
+            self.offset -= decrement
 
     def on_key_pressed(self, ks, key):
         if key == ord(" "):
@@ -764,23 +837,18 @@ class InputWidget(Widget):
             self.offset = 0
         elif key in keys.s_end:
             self.cursor = len(self.txt)
-            self.offset = max(0, self.cursor - self.w + 3)
+            contentWidth = self.w - (len(THEME.input[0]) + len(THEME.input[1]))
+            self.offset = max(0, self.cursor - contentWidth + 1)
         elif key == curses.KEY_LEFT:
-            self.cursor = max(0, self.cursor - 1)
-            if self.cursor - self.offset < 0:
-                self.offset -= 1
+            self._move_cursor_left(1)
         elif key == curses.KEY_RIGHT:
-            self.cursor = min(len(self.txt), self.cursor + 1)
-            if self.cursor - self.offset > self.w - 3:
-                self.offset += 1
+            self._move_cursor_right(1)
         elif key in (curses.KEY_BACKSPACE, 127):
             # 127 - Ctrl+? - Android backspace
             txt = self.txt[0:max(0, self.cursor - 1)] + self.txt[self.cursor:]
             if not self.mask or self.mask.match(txt):
                 self.txt = txt
-                self.cursor = max(0, self.cursor - 1)
-                if self.cursor - self.offset < 0:
-                    self.offset -= 1
+                self._move_cursor_left(1)
         elif key == curses.KEY_DC:  # DEL
             txt = self.txt[0:max(0, self.cursor)] + self.txt[self.cursor + 1:]
             if not self.mask or self.mask.match(txt):
@@ -789,16 +857,15 @@ class InputWidget(Widget):
             txt = self.txt[0:self.cursor] + ks + self.txt[self.cursor:]
             if not self.mask or self.mask.match(txt):
                 self.txt = txt
-                self.cursor = min(len(self.txt), self.cursor + 1)
-                if self.cursor - self.offset > self.w - 3:
-                    self.offset += 1
+                self._move_cursor_right(len(ks))
 
     def get_win_cursor_pos(self):
-        return 1 + self.cursor - self.offset
+        return len(THEME.input[0]) + self.cursor - self.offset
 
 
 @dataclass
 class FindQuery:
+    DEFAULT_LIMIT = 10000
     query: str = ""
     msgid: bool = True
     body: bool = True
@@ -807,7 +874,7 @@ class FindQuery:
     to: bool = True
     echo: bool = True
     echo_query: str = ""
-    limit: int = 10000
+    limit: str = ""
     regex: bool = False
     case: bool = False
     word: bool = False
@@ -822,12 +889,13 @@ class FindQueryWindow:
     go: bool = True
     #
     find_in_progress: bool = None
-    find_progress_bar = cycle(r"-\|/")
+    find_progress_bar = None
     find_cancel: bool = False
     find_result: List[MsgMetadata] = None
     find_tick: float = 0
 
     def __init__(self):
+        self.find_progress_bar = cycle(THEME.spinner)
         self.win = self.init_win()
         h, w = self.win.getmaxyx()
         #
@@ -841,56 +909,67 @@ class FindQueryWindow:
         self.chk_from = CheckBoxWidget("От", checked=self.query.fr)
         self.chk_to = CheckBoxWidget("Кому", checked=self.query.to)
 
-        self.chk_echo = CheckBoxWidget("Конференция: ", checked=self.query.echo)
+        self.chk_echo = CheckBoxWidget("Конференция:", checked=self.query.echo)
         self.inp_echo = InputWidget(self.query.echo_query,
                                     placeholder="<введите эхоконференцию>")
-        self.lbl_limit = LabelWidget("Лимит: ")
+        self.lbl_limit = LabelWidget("Лимит:")
         self.inp_limit = InputWidget(str(self.query.limit),
-                                     mask=re.compile(r"^[1-9][0-9]{0,6}$"))
+                                     mask=re.compile(r"^[0-9]{0,7}$"),
+                                     placeholder=str(FindQuery.DEFAULT_LIMIT))
 
         self.chk_regex = CheckBoxWidget("Regex (TODO)",
-                                        checked=self.query.regex, enabled=False)
+                                        checked=self.query.regex)
         self.chk_case = CheckBoxWidget("Учитывать регистр (TODO)",
-                                       checked=self.query.case, enabled=False)
+                                       checked=self.query.case)
         self.chk_word = CheckBoxWidget("Слова целиком (TODO)",
-                                       checked=self.query.word, enabled=False)
+                                       checked=self.query.word)
         self.chk_orig = CheckBoxWidget("Искать в подписях (TODO)",
-                                       checked=self.query.orig, enabled=False)
+                                       checked=self.query.orig)
         self.lbl_progress = LabelWidget("")
 
         self.widgets = [  # in focus order
             self.inp_query,
             self.lbl_search_in,
-            self.chk_msgid, self.chk_regex,
-            self.chk_body, self.chk_case,
-            self.chk_subj, self.chk_word,
-            self.chk_from, self.chk_orig,
+            #
+            self.chk_msgid,
+            self.chk_body,
+            self.chk_subj,
+            self.chk_from,
             self.chk_to,
             #
             self.chk_echo, self.inp_echo,
             self.lbl_limit, self.inp_limit,
-            self.lbl_progress
+            self.lbl_progress,
+            #
+            self.chk_regex,
+            self.chk_case,
+            self.chk_word,
+            self.chk_orig,
         ]  # type: List[Widget]
 
         self.layout = GridLayout(
-            (self.inp_query, "w 100% colSpan 2 fillX wrap"),
+            (self.inp_query, "w 100% fillX wrap"),
             (self.lbl_search_in, "wrap"),
             #
-            (self.chk_msgid, "w 50%"), (self.chk_regex, "wrap"),
-            (self.chk_body, "w 50%"), (self.chk_case, "wrap"),
-            (self.chk_subj, "w 50%"), (self.chk_word, "wrap"),
-            (self.chk_from, "w 50%"), (self.chk_orig, "wrap"),
-            (self.chk_to, "wrap"),
+            (GridLayout(
+                (self.chk_msgid, "w 50%"), (self.chk_regex, "wrap"),
+                (self.chk_body, "w 50%"), (self.chk_case, "wrap"),
+                (self.chk_subj, "w 50%"), (self.chk_word, "wrap"),
+                (self.chk_from, "w 50%"), (self.chk_orig, "wrap"),
+                (self.chk_to, "wrap"),
+            ), "pad 1 0 w 100% h 5 fillX wrap"),
             #
-            (GridLayout((self.chk_echo, CC(w=self.chk_echo.w)),
+            (GridLayout((self.chk_echo, CC(w=self.chk_echo.w + 2, pad="1 0")),
                         (self.inp_echo, "fillX")),
-             "w 100% h 1 fillX colSpan 2 wrap"),
+             "w 100% h 1 fillX wrap"),
             #
-            (GridLayout((self.lbl_limit, CC(w=self.lbl_limit.w)),
-                        (self.inp_limit, "w 10 hAlign left")),
-             "w 100% h 1 fillX colSpan 2 wrap"),
+            (GridLayout((self.lbl_limit, CC(w=self.lbl_limit.w + 1)),
+                        (self.inp_limit, CC(w=(7 + len(THEME.input[0])
+                                               + len(THEME.input[1])),
+                                            hAlign="left"))),
+             "h 1 fillX wrap"),
             #
-            (self.lbl_progress, "w 100% colSpan 2 growY wrap"),
+            (self.lbl_progress, "w 100% growY wrap"),
         )
         self.layout.pack(offset_x=2, offset_y=1, width=w - 4, height=h - 2)
         #
@@ -1029,14 +1108,7 @@ class FindQueryWindow:
         if self.find_in_progress:
             return  #
         self.inp_echo.set_enabled(self.chk_echo.checked)
-        if isinstance(self.focused_wid, InputWidget):
-            y, x = self.win.getbegyx()
-            inp_cursor_x = self.focused_wid.get_win_cursor_pos()
-            stdscr.move(y + self.focused_wid.y,
-                        x + self.focused_wid.x + inp_cursor_x)
-            curses.curs_set(1)
-        else:
-            curses.curs_set(0)
+        self.chk_word.set_enabled(not self.chk_regex.checked)
 
         self.query.query = self.inp_query.txt
         self.query.msgid = self.chk_msgid.checked
@@ -1046,12 +1118,21 @@ class FindQueryWindow:
         self.query.to = self.chk_to.checked
         self.query.echo = self.chk_echo.checked
         self.query.echo_query = self.inp_echo.txt
-        self.query.limit = int(self.inp_limit.txt or "1000")
+        self.query.limit = self.inp_limit.txt
 
         if self.find_in_progress is None:
             self.lbl_progress.set_txt("")
         else:
             self.lbl_progress.set_txt("Ничего не найдено")
+
+        if isinstance(self.focused_wid, InputWidget):
+            y, x = self.win.getbegyx()
+            inp_cursor_x = self.focused_wid.get_win_cursor_pos()
+            stdscr.move(y + self.focused_wid.y,
+                        x + self.focused_wid.x + inp_cursor_x)
+            curses.curs_set(1)
+        else:
+            curses.curs_set(0)
 
     def find(self):
         self.find_in_progress = True
@@ -1063,11 +1144,10 @@ class FindQueryWindow:
             fr=self.query.fr,
             to=self.query.to,
             echoarea=self.query.echo_query if self.query.echo else None,
-            limit=self.query.limit,
+            limit=int(self.query.limit or "0") or FindQuery.DEFAULT_LIMIT,
             progress_handler=self.find_progress_handler)
         self.find_in_progress = False
 
-    # noinspection PyMethodMayBeStatic,PyUnusedLocal
     def find_progress_handler(self, param=None):
         now = time.time()
         self._keys()
