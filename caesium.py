@@ -432,6 +432,10 @@ def get_term_size():
     height, width = stdscr.getmaxyx()
 
 def draw_title(y, x, title):
+    x = max(0, x)
+    if (x + len(title) + 2) > width:
+        title = title[:width - x - 2 - 3] + '...'
+    #
     if bold[0]:
         color = curses.color_pair(1) + curses.A_BOLD
     else:
@@ -1766,21 +1770,24 @@ elif db == 3:
 check_directories()
 load_lasts()
 stdscr = curses.initscr()
-curses.start_color()
-curses.use_default_colors()
-load_colors()
-curses.noecho()
-curses.curs_set(False)
-stdscr.keypad(True)
+try:
+    curses.start_color()
+    curses.use_default_colors()
+    load_colors()
+    curses.noecho()
+    curses.curs_set(False)
+    stdscr.keypad(True)
 
-stdscr.bkgd(" ", curses.color_pair(1))
-get_term_size()
-if show_splash:
-    splash_screen()
-draw_message_box("Подождите", False)
-get_counts()
-stdscr.clear()
-echo_selector()
-curses.echo()
-curses.curs_set(True)
-curses.endwin()
+    stdscr.bkgd(" ", curses.color_pair(1))
+    get_term_size()
+    if show_splash:
+        splash_screen()
+    draw_message_box("Подождите", False)
+    get_counts()
+    stdscr.clear()
+    echo_selector()
+finally:
+    curses.echo()
+    curses.curs_set(True)
+    stdscr.keypad(False)
+    curses.endwin()

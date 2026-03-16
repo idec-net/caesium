@@ -1,3 +1,8 @@
+.idea/
+.venv/
+
+ait/
 caesium.cfg
 idec.db
 __pycache__
+lasts.lst
