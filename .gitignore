@@ -1,8 +1,27 @@
 .idea/
 .venv/
-
-ait/
-caesium.cfg
-idec.db
+.venv2.7/
 __pycache__
+tests/test.aio/
+tests/test.ait/
+tests/test.txt/
+tests/test.db
+.gpg
+
+caesium.cfg
+
+# Local Storage
+# API all in one
+aio/
+# API all in text
+ait/
+# API simplet txt
+msg/
+echo/
+# API sqlite
+idec.db
+# Messages read-markers state
 lasts.lst
+# Outgoing messages
+out/
+downloads/

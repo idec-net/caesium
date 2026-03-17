@@ -1,316 +1,90 @@
 #!/usr/bin/env python3
-
-import curses, os, urllib.request, urllib.parse, base64, codecs, pickle, time, subprocess, re, hashlib, webbrowser, locale
-from datetime import datetime
+# coding=utf-8
+import base64
+import codecs
+import curses
+import hashlib
+import itertools
+import json
+import locale
+import os
+import pickle
+import re
+import subprocess
+import sys
+import textwrap
+import traceback
 from shutil import copyfile
-from keys import *
+from typing import List, Optional, Union
 
-lasts = {}
-color_theme = "default"
-bold = [False, False, False, False, False, False, False, False, False, False, False, False]
-counts = []
-counts_rescan = True
-echo_counts = {}
-next_echoarea = False
-depth = 50
-fdepth = 5
-messages = []
-twit = []
+from api import MsgMetadata
+from core import (
+    __version__, parser, client, config, ui, utils, search, outgoing,
+    FEAT_X_C, FEAT_U_E
+)
+from core.config import (
+    get_color, UI_BORDER, UI_TEXT, UI_CURSOR, UI_STATUS
+)
 
-version = "Caesium/0.5 │"
+# TODO: Add http/https/socks proxy support
+# import socket
+# import socks
+# socks.set_default_proxy(socks.SOCKS5, '127.0.0.1', 8081)
+# socket.socket = socks.socksocket
 
-splash = [ "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
-           "████████ ████████ ████████ ████████ ███ ███  ███ ██████████",
-           "███           ███ ███  ███ ███          ███  ███ ███ ██ ███",
-           "███      ████████ ████████ ████████ ███ ███  ███ ███ ██ ███",
-           "███      ███  ███ ███           ███ ███ ███  ███ ███ ██ ███",
-           "████████ ████████ ████████ ████████ ███ ████████ ███ ██ ███",
-           "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄",
-           "           ncurses ii/idec client      v.0.5",
-           "           Andrew Lobanov             01.11.2024"]
+blacklist = []
+if os.path.exists("blacklist.txt"):
+    with open("blacklist.txt", "r") as bl:
+        blacklist = list(filter(None, map(lambda it: it.strip(),
+                                          bl.readlines())))
+node = 0
+cfg = config.Config()
 
-urltemplate=re.compile("((https?|ftp|file)://?[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|])")
+splash = ["▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+          "████████ ████████ ████████ ████████ ███ ███  ███ ██████████",
+          "███           ███ ███  ███ ███          ███  ███ ███ ██ ███",
+          "███      ████████ ████████ ████████ ███ ███  ███ ███ ██ ███",
+          "███      ███  ███ ███           ███ ███ ███  ███ ███ ██ ███",
+          "████████ ████████ ████████ ████████ ███ ████████ ███ ██ ███",
+          "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄",
+          "           ncurses ii/idec client        v" + __version__,
+          "           Andrew Lobanov             13.02.2026",
+          "           Cthulhu Fhtagn"]
 
-def reset_config():
-    global nodes, node, editor, oldquote, db
-    nodes = []
-    node = 0
-    editor = ""
-    oldquote = False
-    db = 2
-
-def check_directories():
-    if not os.path.exists("out"):
-        os.mkdir("out")
-    for n in nodes:
-        if not os.path.exists("out/" + n["nodename"]):
-            os.mkdir("out/" + n["nodename"])
-    if db == 0:
-        if not os.path.exists("echo"):
-            os.mkdir("echo")
-        if not os.path.exists("msg"):
-            os.mkdir("msg")
-        if not os.path.exists("echo/favorites"):
-            open("echo/favorites", "w")
-        if not os.path.exists("echo/carbonarea"):
-            open("echo/carbonarea", "w")
-    elif db == 1:
-        if not os.path.exists("aio"):
-            os.mkdir("aio")
-    elif db == 2:
-        if not os.path.exists("ait"):
-            os.mkdir("ait")
-
-def check_config():
-    if not os.path.exists("caesium.cfg"):
-        default_config = open("caesium.def.cfg", "r").read()
-        open("caesium.cfg","w").write(default_config)
 
 #
 # Взаимодействие с нодой
 #
-
-def separate(l, step=20):
-    for x in range(0, len(l), step):
-        yield l[x:x+step]
-
-def load_config():
-    global nodes, editor, color_theme, show_splash, oldquote, db, browser, twit
-    nodes = []
-    first = True
-    node = {}
-    echoareas = []
-    archive = []
-    browser = webbrowser
-
-    config = open("caesium.cfg").read().split("\n")
-    for line in config:
-        param = line.split(" ")
-        if param[0] == "nodename":
-            if not first:
-                node["echoareas"] = echoareas
-                node["archive"] = archive
-                if not "to" in node:
-                    node["to"] = []
-                nodes.append(node)
-            else:
-                first = False
-            node = {}
-            echoareas = []
-            archive = []
-            node["nodename"] = " ".join(param[1:])
-        elif param[0] == "node":
-            node["node"] = param[1]
-            if not node["node"].endswith("/"):
-                node["node"] = node["node"] + "/"
-        elif param[0] == "auth":
-            node["auth"] = param[1]
-        elif param[0] == "echo":
-            if len(param) == 2:
-                echoareas.append([param[1], "", False])
-            else:
-                echoareas.append([param[1], " ".join(param[2:]), False])
-        elif param[0] == "stat":
-            if len(param) == 2:
-                echoareas.append([param[1], "", True])
-            else:
-                echoareas.append([param[1], " ".join(param[2:]), True])
-        elif param[0] == "to":
-            node["to"] = " ".join(param[1:]).split(",")
-        elif param[0] == "archive":
-            if len(param) == 2:
-                archive.append([param[1], "", True])
-            else:
-                archive.append([param[1], " ".join(param[2:]), True])
-        elif param[0] == "editor":
-            editor = " ".join(param[1:])
-        elif param[0] == "theme":
-            color_theme = param[1]
-        elif param[0] == "nosplash":
-            show_splash = False
-        elif param[0] == "oldquote":
-            oldquote = True
-        elif param[0] == "db":
-            if param[1] == "txt":
-                db = 0
-            elif param[1] == "aio":
-                db = 1
-            elif param[1] == "ait":
-                db = 2
-            elif param[1] == "sqlite":
-                db = 3
-        elif param[0] == "browser":
-            browser = webbrowser.GenericBrowser(param[1])
-        elif param[0] == "twit":
-            twit = param[1].split(",")
-
-    if not "nodename" in node:
-        node["nodename"] = "untitled node"
-    if not "to" in node:
-        node["to"] = []
-    node["echoareas"] = echoareas
-    node["archive"] = archive
-    nodes.append(node)
-    for i in range(0, len(nodes)):
-        nodes[i]["echoareas"].insert(0, ["favorites", "Избранные сообщения", True])
-        nodes[i]["echoareas"].insert(1, ["carbonarea", "Карбонка", True])
-
-def load_colors():
-    global bold
-    colors = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white", "gray"]
-    params = ["border", "titles", "cursor", "text", "quote1", "quote2", "comment", "url", "header", "statusline", "scrollbar", "origin"]
-
-    try:
-        theme = open("themes/" + color_theme + ".cfg", "r").read().split("\n")
-    except:
-        theme = open("themes/default.cfg", "r").read().split("\n")
-    for line in theme:
-        param = line.split(" ")
-        if len(param) > 1:
-            if param[1] == "grey":
-                param[1] = "gray"
-            if param[0] in params:
-                fg = colors.index(param[1])
-                if param[2] == "default":
-                    bg = -1
-                else:
-                    bg = colors.index(param[2])
-        if param[0] == "border":
-            curses.init_pair(1, fg, bg)
-            if len(param) == 4:
-                bold[0] = True
-            else:
-                bold[0] = False
-        if param[0] == "titles":
-            curses.init_pair(2, fg, bg)
-            if len(param) == 4:
-                bold[1] = True
-            else:
-                bold[1] = False
-        if param[0] == "cursor":
-            curses.init_pair(3, fg, bg)
-            if len(param) == 4:
-                bold[2] = True
-            else:
-                bold[2] = False
-        if param[0] == "text":
-            curses.init_pair(4, fg, bg)
-            if len(param) == 4:
-                bold[3] = True
-            else:
-                bold[3] = False
-        if param[0] == "quote1":
-            curses.init_pair(5, fg, bg)
-            if len(param) == 4:
-                bold[4] = True
-            else:
-                bold[4] = False
-        if param[0] == "quote2":
-            curses.init_pair(6, fg, bg)
-            if len(param) == 4:
-                bold[5] = True
-            else:
-                bold[5] = False
-        if param[0] == "comment":
-            curses.init_pair(7, fg, bg)
-            if len(param) == 4:
-                bold[6] = True
-            else:
-                bold[6] = False
-        if param[0] == "url":
-            curses.init_pair(8, fg, bg)
-            if len(param) == 4:
-                bold[7] = True
-            else:
-                bold[7] = False
-        if param[0] == "statusline":
-            curses.init_pair(9, fg, bg)
-            if len(param) == 4:
-                bold[8] = True
-            else:
-                bold[8] = False
-        if param[0] == "header":
-            curses.init_pair(10, fg, bg)
-            if len(param) == 4:
-                bold[9] = True
-            else:
-                bold[9] = False
-        if param[0] == "scrollbar":
-            curses.init_pair(11, fg, bg)
-            if len(param) == 4:
-                bold[10] = True
-            else:
-                bold[10] = False
-        if param[0] == "origin":
-            curses.init_pair(12, fg, bg)
-            if len(param) == 4:
-                bold[11] = True
-            else:
-                bold[11] = False
-
-def save_out(draft = False):
-    new = codecs.open("temp", "r", "utf-8").read().strip().replace("\r", "").split("\n")
-    if len(new) <= 1:
-        os.remove("temp")
-    else:
-        header = new.index("")
-        if header == 3:
-            buf = new
-        elif header == 4:
-            buf = new[1:5] + ["@repto:%s" % new[0]] + new[5:]
-        if draft:
-            codecs.open(outcount() + ".draft", "w", "utf-8").write("\n".join(buf))
-        else:
-            codecs.open(outcount() + ".out", "w", "utf-8").write("\n".join(buf))
-        os.remove("temp")
-
-def resave_out(filename, draft = False):
-    new = codecs.open("temp", "r", "utf-8").read().strip().split("\n")
-    if len(new) <= 1:
-        os.remove("temp")
-    else:
-        if draft:
-            codecs.open("out/" + nodes[node]["nodename"] + "/" + filename.replace(".out", ".draft"), "w", "utf-8").write("\n".join(new))
-        else:
-            codecs.open("out/" + nodes[node]["nodename"] + "/" + filename, "w", "utf-8").write("\n".join(new))
-        os.remove("temp")
-
-def outcount():
-    outpath = "out/" + nodes[node]["nodename"]
-    i = str(len([x for x in os.listdir(outpath) if not x.endswith(".toss")]) + 1)
-    return outpath + "/%s" % i.zfill(5)
-
-def get_out_length(drafts = False):
-    try:
-        if drafts:
-            return len([f for f in sorted(os.listdir("out/" + nodes[node]["nodename"])) if f.endswith(".draft")]) - 1
-        else:
-            return len([f for f in sorted(os.listdir("out/" + nodes[node]["nodename"])) if f.endswith(".out") or f.endswith(".outmsg")]) - 1
-    except:
-        return 0
-
-def make_toss():
-    lst = [x for x in os.listdir("out/" + nodes[node]["nodename"]) if x.endswith(".out")]
+def make_toss(node_):  # type: (config.Node) -> None
+    node_dir = outgoing.directory(node_)
+    lst = [x for x in os.listdir(node_dir)
+           if x.endswith(".out")]
     for msg in lst:
-        text = codecs.open("out/" + nodes[node]["nodename"] + "/%s" % msg, "r", "utf-8").read()
-        coded_text = base64.b64encode(text.encode("utf-8"))
-        codecs.open("out/" + nodes[node]["nodename"] + "/%s.toss" % msg, "w", "utf-8").write(coded_text.decode("utf-8"))
-        os.rename("out/" + nodes[node]["nodename"] + "/%s" % msg, "out/" + nodes[node]["nodename"] + "/%s%s" % (msg, "msg"))
+        with codecs.open(node_dir + "%s" % msg, "r", "utf-8") as f:
+            text_raw = f.read()
+        text_b64 = base64.b64encode(text_raw.encode("utf-8")).decode("utf-8")
+        with codecs.open(node_dir + "%s.toss" % msg, "w", "utf-8") as f:
+            f.write(text_b64)
+        os.rename(node_dir + "%s" % msg,
+                  node_dir + "%s%s" % (msg, "msg"))
 
-def send_mail():
-    lst = [x for x in sorted(os.listdir("out/" + nodes[node]["nodename"])) if x.endswith(".toss")]
-    max = len(lst)
-    n = 1
+
+def send_mail(node_):  # type: (config.Node) -> None
+    node_dir = outgoing.directory(node_)
+    lst = [x for x in sorted(os.listdir(node_dir))
+           if x.endswith(".toss")]
+    total = str(len(lst))
     try:
-        for msg in lst:
-            print("\rОтправка сообщения: " + str(n) + "/" + str(max), end="")
-            text = codecs.open("out/" + nodes[node]["nodename"] + "/%s" % msg, "r", "utf-8").read()
-            data = urllib.parse.urlencode({"tmsg": text,"pauth": nodes[node]["auth"]}).encode("utf-8")
-            request = urllib.request.Request(nodes[node]["node"] + "u/point")
-            result = urllib.request.urlopen(request, data).read().decode("utf-8")
+        for n, msg in enumerate(lst, start=1):
+            print("\rОтправка сообщения: " + str(n) + "/" + total, end="")
+            msg_toss = node_dir + msg
+            with codecs.open(msg_toss, "r", "utf-8") as f:
+                text = f.read()
+            #
+            result = client.send_msg(node_.url, node_.auth, text)
+            #
             if result.startswith("msg ok"):
-                os.remove("out/" + nodes[node]["nodename"] + "/%s" % msg)
-                n = n + 1
+                os.remove(msg_toss)
             elif result == "msg big!":
                 print("\nERROR: very big message (limit 64K)!")
             elif result == "auth error!":
@@ -319,1475 +93,1001 @@ def send_mail():
                 print("\nERROR: unknown error!")
         if len(lst) > 0:
             print()
-    except:
-        print("\nОшибка: не удаётся связаться с нодой.")
+    except Exception as ex:
+        print("\nОшибка: не удаётся связаться с нодой. " + str(ex))
 
-def separate(l, step=40):
-    for x in range(0, len(l), step):
-        yield l[x:x+step]
-
-def get_msg_list():
-    msg_list = []
-    echoareas = []
-    for echoarea in nodes[node]["echoareas"]:
-        if not echoarea[0] in ["favorites", "carbonarea"]:
-            echoareas.append(echoarea[0])
-    if len(echoareas) > 0:
-        r = urllib.request.Request(nodes[node]["node"] + "u/e/" + "/".join(echoareas))
-        with urllib.request.urlopen(r) as f:
-            lines = f.read().decode("utf-8").split("\n")
-            for line in lines:
-                if len(line) > 0:
-                    msg_list.append(line)
-    return msg_list
-
-def get_bundle(node, msgids):
-    bundle = []
-    try:
-        r = urllib.request.Request(node + "u/m/" + msgids)
-        with urllib.request.urlopen(r) as f:
-            bundle = f.read().decode("utf-8").split("\n")
-    except:
-        None
-    return bundle
 
 def debundle(bundle):
-    global messages
-    for msg in bundle:
-        if msg:
-            m = msg.split(":")
-            msgid = m[0]
-            if len(msgid) == 20 and m[1]:
-                msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8").split("\n")
-                messages.append([msgid, msgbody])
-                
-    if len(messages) >= 1000:
-        save_message(messages, nodes[node]["node"], nodes[node]["to"])
-        messages = []
+    messages = []
+    for msg in filter(None, bundle):
+        m = msg.split(":")
+        msgid = m[0]
+        if len(msgid) == 20 and m[1]:
+            msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8").split("\n")
+            messages.append([msgid, msgbody])
+    if messages:
+        api.save_message(messages, node, cfg.nodes[node].to)
 
-def echo_filter(ea):
-    rr = re.compile(r'^[a-z0-9_!.-]{1,60}\.[a-z0-9_!.-]{1,60}$')
-    if rr.match(ea): return True
 
-def get_mail():
+def get_mail(node_, force_full_idx=False):  # type: (config.Node, bool) -> None
+    features = api.get_node_features(node_.nodename)
+    if features is None:
+        print("Запрос x/features...")
+        features = client.get_features(node_.url)
+        api.save_node_features(node_.nodename, features)
+        print("  x/features: " + ", ".join(features))
+    is_node_smart = FEAT_X_C in features and FEAT_U_E in features
+    #
+    echoareas = list(map(lambda e: e.name, filter(lambda e: e.sync,
+                                                  node_.echoareas)))
+    old_nec = None
+    new_nec = None
+    offsets = None
+    if is_node_smart:
+        old_nec = api.get_node_echo_counts(node_.nodename)
+        new_nec = client.get_echo_count(node_.url, echoareas)
+        offsets = utils.offsets_echo_count(old_nec or {}, new_nec)
+
     fetch_msg_list = []
-    print("Получение индекса от ноды...")
-    remote_msg_list = get_msg_list()
+    if is_node_smart and old_nec and not force_full_idx:
+        print("Получение свежего индекса от ноды...")
+        remote_msg_list = []
+        grouped = {offset: [ec[0] for ec in ec]
+                   for offset, ec in itertools.groupby(offsets.items(),
+                                                       lambda ec: ec[1])}
+        for offset, echoareas in grouped.items():
+            print("  offset %s: %s" % (str(offset), ", ".join(echoareas)))
+            remote_msg_list += client.get_msg_list(node_.url, echoareas, offset)
+    else:
+        print("Получение полного индекса от ноды...")
+        remote_msg_list = client.get_msg_list(node_.url, echoareas)
+
     print("Построение разностного индекса...")
+    local_index = None
     for line in remote_msg_list:
-        if echo_filter(line):
-            local_index = get_echo_msgids(line)
-        else:
-            if not line in local_index:
-                fetch_msg_list.append(line)
-    msg_list_len = str(len(fetch_msg_list))
-    if len(fetch_msg_list) > 0:
+        if parser.echo_template.match(line):
+            local_index = api.get_echo_msgids(line)
+        elif len(line) == 20 and line not in local_index and line not in blacklist:
+            fetch_msg_list.append(line)
+    if fetch_msg_list:
+        total = str(len(fetch_msg_list))
         count = 0
-        for get_list in separate(fetch_msg_list):
-            count = count + len(get_list)
-            print("\rПолучение сообщений: " + str(count) + "/"  + msg_list_len, end="")
-            debundle(get_bundle(nodes[node]["node"], "/".join(get_list)))
-        save_message(messages, node, nodes[node]["to"])
+        for get_list in utils.separate(fetch_msg_list):
+            count += len(get_list)
+            print("\rПолучение сообщений: " + str(count) + "/" + total, end="")
+            debundle(client.get_bundle(node_.url, "/".join(get_list)))
     else:
         print("Новых сообщений не обнаружено.", end="")
+    if is_node_smart:
+        api.save_node_echo_counts(node_.nodename, new_nec)
     print()
 
-def mailer():
-    global depth, messages
-    messages = []
-    print("Работа с " + nodes[node]["node"])
-    if "auth" in nodes[node]:
-        make_toss()
-        send_mail()
+
+def fetch_mail(node_, force_full_idx=False):  # type: (config.Node, bool) -> None
+    print("Работа с " + node_.url)
     try:
-        get_mail()
-    except:
-        print("ОШИБКА")
+        if node_.auth:
+            make_toss(node_)
+            send_mail(node_)
+        get_mail(node_, force_full_idx)
+    except KeyboardInterrupt:
+        print("\nПрервано пользователем")
+    except Exception as ex:
+        print("\nОШИБКА: " + str(ex))
+        print(traceback.format_exc())
     input("Нажмите Enter для продолжения.")
+
 
 #
 # Пользовательский интерфейс
 #
+class Counts:
+    total: dict[str, int]
+    lasts: dict[str, int]
+    counts: List[List[str]]
 
-echo_cursor = 0
-archive_cursor = 0
-width = 0
-height = 0
-show_splash = True
+    def __init__(self):
+        self.total = {}
+        self.lasts = {}
+        if os.path.exists("lasts.lst"):
+            with open("lasts.lst", "rb") as f:
+                self.lasts = pickle.load(f)
 
-def splash_screen():
-    stdscr.clear()
-    x = int((width - len(splash[1])) / 2) - 1
-    y = int((height - len(splash)) / 2)
-    i = 0
-    for line in splash:
-        stdscr.addstr(y + i, x, line, curses.color_pair(4))
-        i = i + 1
-    stdscr.refresh()
-    curses.napms(2000)
-    stdscr.clear()
+    def get_counts(self, node_, new=False):
+        for echo in node_.echoareas:  # type: config.Echo
+            if new or echo.name not in self.total:
+                self.total[echo.name] = api.get_echo_length(echo.name)
+        for echo in node_.archive:  # type: config.Echo
+            if echo.name not in self.total:
+                self.total[echo.name] = api.get_echo_length(echo.name)
+        self.total[config.ECHO_CARBON.name] = len(api.get_carbonarea())
+        self.total[config.ECHO_FAVORITES.name] = len(api.get_favorites_list())
 
-def get_term_size():
-    global width, height
-    height, width = stdscr.getmaxyx()
-
-def draw_title(y, x, title):
-    x = max(0, x)
-    if (x + len(title) + 2) > width:
-        title = title[:width - x - 2 - 3] + '...'
-    #
-    if bold[0]:
-        color = curses.color_pair(1) + curses.A_BOLD
-    else:
-        color = curses.color_pair(1)
-    stdscr.addstr(y, x, "[", color)
-    stdscr.addstr(y, x + 1 + len(title), "]", color)
-    if bold[1]:
-        color = curses.color_pair(2) + curses.A_BOLD
-    else:
-        color = curses.color_pair(2)
-    stdscr.addstr(y, x + 1, title, curses.color_pair(2) + curses.A_BOLD)
-
-def draw_status(x, title):
-    if bold[8]:
-        color = curses.color_pair(9) + curses.A_BOLD
-    else:
-        color = curses.color_pair(9)
-    stdscr.addstr(height - 1, x, title, color)
-
-def draw_cursor(y, color):
-    for i in range (0, width):
-        stdscr.insstr(y + 1, i, " ", color)
-
-def current_time():
-    draw_status(width - 8, "│ " + datetime.now().strftime("%H:%M"))
-
-def get_counts(new = False, favorites = False):
-    global echo_counts
-    for echoarea in nodes[node]["echoareas"]:
-        if not new:
-            if not echoarea[0] in echo_counts:
-                echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
-        else:
-            echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
-    for echoarea in nodes[node]["archive"]:
-        if not echoarea[0] in echo_counts:
-            echo_counts[echoarea[0]] = get_echo_length(echoarea[0])
-    echo_counts["carbonarea"] = len(get_carbonarea())
-    echo_counts["favorites"] = len(get_favorites_list())
-
-def rescan_counts(echoareas):
-    counts = []
-    for echo in echoareas:
-        try:
-            echocount = echo_counts[echo[0]]
-            if echo[0] in lasts: 
-                last = echocount - lasts[echo[0]]
-                if echocount == 0 and lasts[echo[0]] == 0:
-                    last = 1
+    def rescan_counts(self, echoareas):
+        self.counts = []
+        for echo in echoareas:
+            total = self.total[echo.name]
+            if echo.name in self.lasts:
+                unread = total - self.lasts[echo.name]
             else:
-                last = echocount + 1
-        except:
-            echocount = 0
-            last = 1
-        if last - 1 < 0:
-            last = 1
-        counts.append([str(echocount), str(last - 1)])
-    return counts
+                unread = total + 1
+            unread = max(1, unread)
+            self.counts.append([str(total), str(unread - 1)])
+        return self.counts
 
-def draw_echo_selector(start, cursor, archive):
-    global counts, counts_rescan
-    dsc_lens = []
-    hidedsc = False
-    m = 0
-    if bold[0]:
-        stdscr.attron(curses.color_pair(1))
-        stdscr.attron(curses.A_BOLD)
-    else:
-        stdscr.attron(curses.color_pair(1))
-    for i in range(0, width):
-        if bold[0]:
-            color = curses.color_pair(1) + curses.A_BOLD
-        else:
-            color = curses.color_pair(1)
-        stdscr.insstr(0, i, "─", color)
-        if bold[2]:
-            color = curses.color_pair(9) + curses.A_BOLD
-        else:
-            color = curses.color_pair(9)
-        stdscr.insstr(height - 1, i, " ", color)
-    if archive:
-        echoareas = nodes[node]["archive"]
-        draw_title(0, 0, "Архив")
-    else:
-        echoareas = nodes[node]["echoareas"]
-        draw_title(0, 0, "Конференция")
-    draw_status(1, version)
-    draw_status(len(version) + 2, nodes[node]["nodename"])
-    for echo in echoareas:
-        l = len(echo[1])
-        if l > m:
-            m = l
-        if m > width - 38:
-            m = width - 38
-        dsc_lens.append(l)
-    y = 0
-    count = "Сообщений"
-    unread = "Не прочитано"
-    description = "Описание"
-    if width < 80 or m == 0:
-        m = len(unread) - 7
-        hidedsc = True
-    draw_title(0, width + 2 - m - len(count) - len(unread) - 1, count)
-    draw_title(0, width - 8 - m - 1, unread)
-    if not hidedsc:
-        draw_title(0, width - len(description) - 2, description)
-    for echo in echoareas:
-        if y - start < height - 2:
-            if y == cursor:
-                if y >= start:
-                    if bold[2]:
-                        color = curses.color_pair(3) + curses.A_BOLD
-                        stdscr.attron (curses.color_pair(3))
-                        stdscr.attron (curses.A_BOLD)
-                    else:
-                        color = curses.color_pair(3)
-                        stdscr.attron (curses.color_pair(3))
-                        stdscr.attroff (curses.A_BOLD)
-                    draw_cursor(y - start, color)
-            else:
-                if y >= start:
-                    if bold[3]:
-                        color = curses.color_pair(4) + curses.A_BOLD
-                    else:
-                        color = curses.color_pair(4)
-                    draw_cursor(y - start, color)
-                if bold[3]:
-                    stdscr.attron (curses.color_pair(4))
-                    stdscr.attron (curses.A_BOLD)
-                else:
-                    stdscr.attron (curses.color_pair(4))
-                    stdscr.attroff (curses.A_BOLD)
-            if y + 1 >= start + 1:
-                if counts_rescan:
-                    counts = rescan_counts(echoareas)
-                    counts_rescan = False
-                echo_length = int(counts[y][0])
-                if echo[0] in lasts:
-                    last = lasts[echo[0]]
-                else:
-                    last = -1
-                if last < echo_length - 1 or last == -1 and echo_length == 1:
-                    stdscr.addstr(y + 1 - start, 0, "+")
-                if last < 0:
-                    last = 0
-                stdscr.addstr(y + 1 - start, 2, echo[0])
-                if width >= 80:
-                    if width - 38 >= len(echo[1]):
-                        stdscr.addstr(y + 1 - start, width - 1 - dsc_lens[y], echo[1], color)
-                    else:
-                        cut_index = width - 38 - len(echo[1])
-                        stdscr.addstr(y + 1 - start, width - 1 - len(echo[1][:cut_index]), echo[1][:cut_index])
-                stdscr.addstr(y + 1 - start, width - 10 - m - len(counts[y][0]), counts[y][0])
-                stdscr.addstr(y + 1 - start, width - 2 - m - len(counts[y][1]), counts[y][1])
-        y = y + 1
-    current_time()
-    stdscr.refresh()
+    def find_new(self, cursor):
+        for n, (_, unread) in enumerate(self.counts):
+            if n >= cursor and int(unread) > 0:
+                return n
+        return cursor
 
-def find_new(cursor):
-    ret = cursor
-    n = 0
-    lock = False
-    for i in counts:
-        n = n + 1
-        if n > cursor and not lock and int(i[1]) > 0:
-            ret = n - 1
-            lock = True
-    return ret
 
-def fetch_mail():
-    echoareas = []
-    to = ""
-    if len(nodes[node]["to"]) > 0:
-        to = "\"" + ",".join(nodes[node]["to"]) + "\""
-    else:
-        to = False
-    d = "txt"
-    if db == 1:
-        d = "aio"
-    elif db == 2:
-        d = "ait"
-    elif db == 3:
-        d = "sqlite"
-    for echoarea in nodes[node]["echoareas"][2:]:
-        if not echoarea[2]:
-            echoareas.append(echoarea[0])
-    mailer()
-
-def load_lasts():
-    global lasts
-    if os.path.exists("lasts.lst"):
-        f = open("lasts.lst", "rb")
-        lasts = pickle.load(f)
-        f.close()
-
-def edit_config(out = False):
-    curses.echo()
-    curses.curs_set(True)
-    curses.endwin()
-    p = subprocess.Popen(editor + " ./caesium.cfg", shell=True)
+def edit_config():
+    ui.terminate_curses()
+    p = subprocess.Popen(cfg.editor + " " + config.CONFIG_FILEPATH, shell=True)
     p.wait()
-    reset_config()
-    load_config()
-    stdscr = curses.initscr()
-    curses.start_color()
-    curses.use_default_colors()
-    curses.noecho()
-    curses.curs_set(False)
-    stdscr.keypad(True)
-    get_term_size()
+    global node
+    node = 0
+    cfg.load()
+    ui.initialize_curses()
 
-def echo_selector():
-    global echo_cursor, archive_cursor, counts, counts_rescan, next_echoarea, node, stdscr
-    archive = False
-    echoareas = nodes[node]["echoareas"]
-    key = 0
-    go = True
-    start = 0
-    if archive:
-        cursor = echo_cursor
-    else:
-        cursor = archive_cursor
-    while go:
-        draw_echo_selector(start, cursor, archive)
-        key = stdscr.getch()
-        if key == curses.KEY_RESIZE:
-            get_term_size()
-            if cursor >= height - 2:
-                start = cursor - height + 3
-            if cursor - start <= 0:
-                start = cursor
-            if start > 0 and height - 2 > len(echoareas):
-                start = 0
-            stdscr.clear()
-        elif key in s_up and cursor > 0:
-            cursor = cursor - 1
-            if cursor - start < 0 and start > 0:
-                start = start - 1
-        elif key in s_down and cursor < len(echoareas) - 1:
-            cursor = cursor + 1
-            if cursor - start > height - 3 and start < len(echoareas) - height + 2:
-                start = start + 1
-        elif key in s_ppage:
-            cursor = cursor - height + 2
-            if cursor < 0:
-                cursor = 0
-            if cursor - start < 0 and start > 0:
-                start = start - height + 2
-            if start < 0:
-                start = 0
-        elif key in s_npage:
-            cursor = cursor + height - 2
-            if cursor >= len(echoareas):
-                cursor = len(echoareas) - 1
-            if cursor - start > height - 3:
-                start = start + height - 2
-                if start > len(echoareas) - height + 2:
-                    start = len(echoareas) - height + 2
-        elif key in s_home:
-            cursor = 0
-            start = 0
-        elif key in s_end:
-            cursor = len(echoareas) - 1
-            if len(echoareas) >= height - 2:
-                start = len(echoareas) - height + 2
-        elif key in s_get:
-            curses.echo()
-            curses.curs_set(True)
-            curses.endwin()
-            os.system('cls' if os.name == 'nt' else 'clear')
-            fetch_mail()
-            stdscr = curses.initscr()
-            curses.start_color()
-            curses.use_default_colors()
-            curses.noecho()
-            curses.curs_set(False)
-            stdscr.keypad(True)
-            get_term_size()
-            draw_message_box("Подождите", False)
-            get_counts(True)
-            stdscr.clear()
-            counts = rescan_counts(echoareas)
-            cursor = find_new(0)
-            if cursor >= height - 2:
-                start = cursor - height + 3
-            if cursor - start <= 0:
-                start = cursor
-        elif key in s_archive and len(nodes[node]["archive"]) > 0:
-            if archive:
-                archive = False
-                archive_cursor = cursor
-                cursor = echo_cursor
-                echoareas = nodes[node]["echoareas"]
-                stdscr.clear()
-                counts_rescan = True
+
+class EchoSelectorScreen:
+    echo_cursor: int = 0
+    archive_cursor: int = 0
+    next_echo: bool = False
+    archive: bool = False
+    cursor: int = 0
+    echoareas: List[config.Echo] = None
+    scroll: ui.ScrollCalc = None
+    qs: Optional[search.QuickSearch] = None
+    go: bool = True
+
+    def __init__(self):
+        self.counts = Counts()
+        self.reload_echoareas()
+
+    def reload_echoareas(self):
+        self.archive = False
+        self.echoareas = cfg.nodes[node].echoareas
+        ui.draw_message_box("Подождите", False)
+        self.counts.get_counts(cfg.nodes[node], False)
+        self.counts.rescan_counts(self.echoareas)
+        ui.stdscr.clear()
+        self.cursor = 0
+        self.scroll = ui.ScrollCalc(len(self.echoareas), ui.HEIGHT - 2)
+        self.scroll.ensure_visible(self.cursor, center=True)
+
+    def toggle_archive(self):
+        self.archive = not self.archive
+        if self.archive:
+            self.echo_cursor = self.cursor
+            self.cursor = self.archive_cursor
+            self.echoareas = cfg.nodes[node].archive
+        else:
+            self.archive_cursor = self.cursor
+            self.cursor = self.echo_cursor
+            self.echoareas = cfg.nodes[node].echoareas
+        ui.stdscr.clear()
+        self.scroll = ui.ScrollCalc(len(self.echoareas), ui.HEIGHT - 2)
+        self.scroll.ensure_visible(self.cursor, center=True)
+        self.counts.rescan_counts(self.echoareas)
+
+    # noinspection PyUnusedLocal
+    @staticmethod
+    def on_search_item(sidx, pattern, echo):
+        result = []
+        p = 0
+        while match := pattern.search(echo.name, p):
+            if p >= len(echo.name):
+                break
+            result.append(match)
+            p = match.end()
+        return [result] if result else None
+
+    def show(self):
+        while self.go:
+            self.scroll.ensure_visible(self.cursor)
+            self.draw(ui.stdscr, self.cursor, self.scroll, self.qs)
+            #
+            ks, key, _ = ui.get_keystroke()
+            #
+            if key == curses.KEY_RESIZE:
+                ui.set_term_size()
+                self.scroll = ui.ScrollCalc(len(self.echoareas), ui.HEIGHT - 2, self.cursor)
+                ui.stdscr.clear()
+                if self.qs:
+                    self.qs.width = ui.WIDTH - len(ui.version) - 12
+            elif self.qs:
+                if key in keys.s_csearch or key in keys.s_asearch:
+                    self.qs = None
+                    curses.curs_set(0)
+                else:
+                    self.qs.on_key_pressed_search(key, ks, self.scroll)
+                    self.cursor = self.qs.ensure_cursor_visible(
+                        key, self.cursor, self.scroll)
+            elif key in keys.s_osearch:
+                ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2)
+                curses.curs_set(1)
+                self.qs = search.QuickSearch(self.echoareas, self.on_search_item,
+                                             ui.WIDTH - len(ui.version) - 13)
+            elif key in keys.g_quit:
+                self.go = False
             else:
-                archive = True
-                echo_cursor = cursor
-                cursor = archive_cursor
-                echoareas = nodes[node]["archive"]
-                stdscr.clear()
-                counts_rescan = True
-        elif key in s_enter:
-            draw_message_box("Подождите", False)
-            if echoareas[cursor][0] in lasts:
-                last = lasts[echoareas[cursor][0]]
+                self.on_key_pressed(ks, key)
+
+    def draw(self, win, cursor, scroll, qs):
+        h, w = win.getmaxyx()
+        self.draw_echo_selector(win, scroll.pos, cursor, self.archive, qs,
+                                self.counts.counts)
+        if scroll.is_scrollable:
+            ui.draw_scrollbarV(win, 1, w - 1, scroll)
+        if qs:
+            qs.draw(win, h - 1, len(ui.version) + 2, get_color(UI_STATUS))
+            win.move(h - 1, len(ui.version) + 2 + self.qs.cursor)
+        win.refresh()
+
+    @staticmethod
+    def draw_echo_selector(win, start, cursor, archive, qs, counts):
+        # type: (curses.window, int, int, bool, search.QuickSearch, List[List[str]]) -> None
+        h, w = win.getmaxyx()
+        color = get_color(UI_BORDER)
+        win.addstr(0, 0, "─" * w, color)
+        cur_node = cfg.nodes[node]
+        if archive:
+            echoareas = cur_node.archive
+            ui.draw_title(win, 0, 0, "Архив")
+        else:
+            echoareas = cur_node.echoareas
+            ui.draw_title(win, 0, 0, "Конференция")
+        #
+        m = min(w - 38, max(map(lambda e: len(e.desc), echoareas)))
+        count = "Сообщений"
+        unread = "Не прочитано"
+        description = "Описание"
+        show_desc = (w >= 80) and m > 0
+        if w < 80 or m == 0:
+            m = len(unread) - 7
+        ui.draw_title(win, 0, w + 2 - m - len(count) - len(unread) - 1, count)
+        ui.draw_title(win, 0, w - 8 - m - 1, unread)
+        if show_desc:
+            ui.draw_title(win, 0, w - len(description) - 2, description)
+
+        for y in range(1, h - 1):
+            echoN = y - 1 + start
+            if echoN == cursor:
+                color = get_color(UI_CURSOR)
             else:
-                last = 0
-            if cursor == 0:
-                echo_length = len(get_favorites_list())
-            elif cursor == 1:
-                echo_length = len(get_carbonarea())
+                color = get_color(UI_TEXT)
+            win.addstr(y, 0, " " * w, color)
+            if echoN >= len(echoareas):
+                continue  #
+            #
+            win.attrset(color)
+            echo = echoareas[echoN]
+            total, unread = counts[echoN]
+            if int(unread) > 0:
+                win.addstr(y, 0, "+")
+            win.addstr(y, 2, echo.name)
+            win.addstr(y, w - 10 - m - len(total), total)
+            win.addstr(y, w - 2 - m - len(unread), unread)
+            if show_desc:
+                win.addstr(y, max(w - m - 1, w - 1 - len(echo.desc)),
+                           echo.desc[0:w - 38])
+            #
+            if qs and echoN in qs.result:
+                idx = qs.result.index(echoN)
+                for match in qs.matches[idx]:
+                    win.addstr(y, 2 + match.start(),
+                               echo.name[match.start():match.end()],
+                               color | curses.A_REVERSE)
+
+        ui.draw_status_bar(win, text=cur_node.nodename)
+
+    def on_key_pressed(self, ks, key):
+        global node
+        if key in keys.s_up:
+            self.cursor = max(0, self.cursor - 1)
+        elif key in keys.s_down:
+            self.cursor = min(self.scroll.content - 1, self.cursor + 1)
+        elif key in keys.s_ppage:
+            if self.cursor > self.scroll.pos:
+                self.cursor = self.scroll.pos
             else:
-                echo_length = get_echo_length(echoareas[cursor][0])
-            if last > 0 and last < echo_length:
-                last = last + 1
-            if last >= echo_length:
-                last = echo_length
-            if cursor == 1:
-                go = not echo_reader(echoareas[cursor], last, archive, True, False, True)
-            elif cursor == 0 or echoareas[cursor][2]:
-                go = not echo_reader(echoareas[cursor], last, archive, True, False, False)
+                self.cursor = max(0, self.cursor - self.scroll.view)
+        elif key in keys.s_npage:
+            page_bottom = self.scroll.pos_bottom()
+            if self.cursor < page_bottom:
+                self.cursor = page_bottom
             else:
-                go = not echo_reader(echoareas[cursor], last, archive, False, False, False)
-            counts_rescan = True
-            if next_echoarea:
-                counts = rescan_counts(echoareas)
-                cursor = find_new(cursor)
-                if cursor - start > height - 3:
-                    start = cursor - height + 3
-                next_echoarea = False
-        elif key in s_out:
-            out_length = get_out_length()
-            if out_length > -1:
-                go = not echo_reader("out", out_length, archive, False, True, False)
-        elif key in s_drafts:
-            out_length = get_out_length(True)
-            if out_length > -1:
-                go = not echo_reader("out", out_length, archive, False, True, False, True)
-        elif key in s_nnode:
-            archive = False
+                self.cursor = min(self.scroll.content - 1, page_bottom + self.scroll.view)
+        elif key in keys.s_home:
+            self.cursor = 0
+        elif key in keys.s_end:
+            self.cursor = self.scroll.content - 1
+        elif key in keys.s_get or ks in keys.s_fget:
+            self.fetch_mail(force_full_idx=(ks in keys.s_fget))
+        elif key in keys.s_archive and len(cfg.nodes[node].archive) > 0:
+            self.toggle_archive()
+        elif key in keys.s_enter:
+            self.read_echo()
+        elif key in keys.s_out:
+            self.read_outgoing()
+        elif key in keys.s_drafts:
+            self.read_drafts()
+        elif key in keys.s_nnode:
             node = node + 1
-            if node == len(nodes):
+            if node == len(cfg.nodes):
                 node = 0
-            echoareas = nodes[node]["echoareas"]
-            draw_message_box("Подождите", False)
-            get_counts()
-            stdscr.clear()
-            counts_rescan = True
-            cursor = 0
-            start = 0
-        elif key in s_pnode:
-            archive = False
+            self.reload_echoareas()
+        elif key in keys.s_pnode:
             node = node - 1
             if node == -1:
-                node = len(nodes) - 1
-            echoareas = nodes[node]["echoareas"]
-            draw_message_box("Подождите", False)
-            get_counts()
-            stdscr.clear()
-            counts_rescan = True
-            cursor = 0
-            start = 0
-        elif key in s_config:
+                node = len(cfg.nodes) - 1
+            self.reload_echoareas()
+        elif key in keys.s_config:
             edit_config()
-            reset_config()
-            load_config()
-            load_colors()
-            get_counts()
-            stdscr.clear()
-            counts_rescan = True
+            ui.load_theme(cfg)
             node = 0
-            archive = False
-            echoareas = nodes[node]["echoareas"]
-            cursor = 0
-        elif key in g_quit:
-            go = False
-    if archive:
-        archive_cursor = cursor
-    else:
-        echo_cursor = cursor
+            self.reload_echoareas()
+        elif key in keys.s_find or ks in keys.s_find:
+            win = ui.FindQueryWindow()
+            find_result = win.show()
+            if find_result:
+                self.go, _ = EchoReader(
+                    config.ECHO_FIND, 0, True, self.counts,
+                    mode=ui.ReaderMode.FIND, msgids=find_result).show()
 
-def read_out_msg(msgid):
-    size = "0b"
-    temp = open("out/" + nodes[node]["nodename"] + "/" + msgid, "r").read().split("\n")
-    msg = []
-    msg.append("")
-    msg.append(temp[0])
-    msg.append("")
-    msg.append("")
-    msg.append("")
-    msg.append(temp[1])
-    msg.append(temp[2])
-    for line in temp[3:]:
-        if not(line.startswith("@repto:")):
-               msg.append(line)
-    size = os.stat("out/" + nodes[node]["nodename"] + "/" + msgid).st_size
-    if size < 1024:
-        size = str(size) + " B"
-    else:
-        size = str(int(size / 1024 * 10) / 10) + " KB"
-    return msg, size
+    def fetch_mail(self, force_full_idx):
+        ui.terminate_curses()
+        os.system('cls' if os.name == 'nt' else 'clear')
+        fetch_mail(cfg.nodes[node], force_full_idx)
+        ui.initialize_curses()
+        ui.draw_message_box("Подождите", False)
+        self.counts.get_counts(cfg.nodes[node], True)
+        self.counts.rescan_counts(self.echoareas)
+        ui.stdscr.clear()
+        self.cursor = self.counts.find_new(0)
 
-def body_render(tbody):
-    body = ""
-    code = ""
-    sep = ""
-    for i in range(0, width - 1):
-        sep += "─"
-    for line in tbody:
-        n = 0
-        rr = re.compile(r"^[a-zA-Zа-яА-Я0-9_\-.\(\)]{0,20}>{1,20}")
-        cc = re.compile(r"(^\s*)(PS|P.S|ps|ЗЫ|З.Ы|\/\/|#)")
-        try:
-            count = line[0:rr.match(line).span()[1]].count(">")
-        except:
-            count = 0
-        if count > 0:
-            if count % 2 == 1:
-                code = chr(15)
-            elif count % 2 == 0:
-                code = chr(16)
-        elif cc.match(line):
-            code = chr(17)
-        elif line.startswith("== "):
-            code = chr(18)
-        else:
-            code = " "
-        if line == "----":
-            code = chr(17)
-            line = sep
-        if line.startswith("+++"):
-            code = chr(19)
-        if code != " " and code != chr(17) and code != chr(18) and code != chr(19):
-            line = " " + line
-        body = body + code
-        for word in line.split(" "):
-            if n + len(word) < width:
-                n = n + len(word)
-                body = body + word
-                if not word[-1:] == "\n":
-                    n = n + 1
-                    body = body + " "
-            else:
-                body = body[:-1]
-                if len(word) < width:
-                    body = body + "\n" + code + word
-                    n = len (word)
-                else:
-                    chunks, chunksize = len(word), width - 1
-                    chunk_list = [ word[i:i+chunksize] for i in range(0, chunks, chunksize) ]
-                    for line in chunk_list:
-                        body = body + "\n" + code + line
-                    n = len(chunk_list[-1])
-                if not word[-1:] == "\n":
-                    n = n + 1
-                    body = body + " "
-        if body.endswith(" "):
-            body = body[:-1]
-        body = body + "\n"
-    return body.split("\n")
+    def read_echo(self):
+        ui.draw_message_box("Подождите", False)
+        last = 0
+        cur_echo = self.echoareas[self.cursor]
+        if cur_echo.name in self.counts.lasts:
+            last = self.counts.lasts[cur_echo.name]
+        last = min(self.counts.total[cur_echo.name], last + 1)
+        self.go, self.next_echo = EchoReader(
+            cur_echo, last, self.archive, self.counts).show()
+        self.counts.rescan_counts(self.echoareas)
+        if self.next_echo and isinstance(self.next_echo, bool):
+            self.cursor = self.counts.find_new(self.cursor)
+            self.next_echo = False
+        elif self.next_echo and isinstance(self.next_echo, str):
+            cur_node = cfg.nodes[node]
+            if ((not self.archive and self.next_echo in cur_node.archive)
+                    or (self.archive and (self.next_echo in cur_node.echoareas
+                                          or self.next_echo in cur_node.stat))):
+                self.toggle_archive()
+            # noinspection PyTypeChecker
+            self.cursor = (self.echoareas.index(self.next_echo)
+                           if self.next_echo in self.echoareas else
+                           0)
+            self.next_echo = False
 
-def draw_reader(echo, msgid, out):
-    for i in range(0, width):
-        if bold[0]:
-            color = curses.color_pair(1) + curses.A_BOLD
-        else:
-            color = curses.color_pair(1)
-        stdscr.insstr(0, i, "─", color)
-        stdscr.insstr(4, i, "─", color)
-        if bold[2]:
-            color = curses.color_pair(9) + curses.A_BOLD
-        else:
-            color = curses.color_pair(9)
-        stdscr.insstr(height - 1, i, " ", color)
-    if out:
-        draw_title(0, 0, echo)
-        if msgid.endswith(".out"):
-            ns = "не отправлено"
-            draw_title(4, width - len(ns) - 2, ns)
-    else:
-        if width >= 80:
-            draw_title(0, 0, echo + " / " + msgid)
-        else:
-            draw_title(0, 0, echo)
-    draw_status(1, version)
-    current_time()
-    for i in range(0, 3):
-        draw_cursor(i, 1)
-    if bold[1]:
-        color = curses.color_pair(2) + curses.A_BOLD
-    else:
-        color = curses.color_pair(2)
-    stdscr.addstr(1, 1, "От:   ", color)
-    stdscr.addstr(2, 1, "Кому: ", color)
-    stdscr.addstr(3, 1, "Тема: ", color)
+    def read_outgoing(self):
+        out_length = outgoing.get_out_length(cfg.nodes[node], drafts=False)
+        if out_length:
+            self.go, self.next_echo = EchoReader(
+                config.ECHO_OUT, out_length, self.archive, self.counts).show()
+
+    def read_drafts(self):
+        out_length = outgoing.get_out_length(cfg.nodes[node], drafts=True)
+        if out_length:
+            self.go, self.next_echo = EchoReader(
+                config.ECHO_DRAFTS, 0, self.archive, self.counts).show()
 
 
-def call_editor(out = False, draft = False):
-    curses.echo()
-    curses.curs_set(True)
-    curses.endwin()
-    h = hashlib.sha1(str.encode(open("temp", "r",).read())).hexdigest()
-    p = subprocess.Popen(editor + " ./temp", shell=True)
+def call_editor(node_, out=''):
+    ui.terminate_curses()
+    h = hashlib.sha1(str.encode(open("temp", "r", ).read())).hexdigest()
+    p = subprocess.Popen(cfg.editor + " ./temp", shell=True)
     p.wait()
-    stdscr = curses.initscr()
-    curses.start_color()
-    curses.use_default_colors()
-    curses.noecho()
-    curses.curs_set(False)
-    stdscr.keypad(True)
-    get_term_size()
-    if h != hashlib.sha1(str.encode(open("temp", "r",).read())).hexdigest():
-        d = menu("Куда сохранить?", ["Сохранить в исходящие", "Сохранить как черновик"])
-        if d:
-            if d == 2:
-                if not out:
-                    save_out(True)
-                else:
-                    if out.endswith(".out"):
-                        try:
-                            os.remove("out/" + nodes[node]["nodename"] + "/" + out)
-                        except:
-                            None
-                    resave_out(out, True)
-            elif d == 1:
-                if not out:
-                    save_out()
-                else:
-                    if out.endswith(".draft"):
-                        try:
-                            os.remove("out/" + nodes[node]["nodename"] + "/" + out)
-                        except:
-                            None
-                    resave_out(out.replace(".draft", ".out"))
+    ui.initialize_curses()
+    if h != hashlib.sha1(str.encode(open("temp", "r", ).read())).hexdigest():
+        if not out:
+            filepath = outgoing.outcount(node_) + ".draft"
+        else:
+            filepath = outgoing.directory(node_) + out
+        outgoing.save_out(filepath)
     else:
         os.remove("temp")
 
-def draw_message_box(smsg, wait):
-    maxlen = 0
-    msg = smsg.split("\n")
-    for line in msg:
-        if len(line) > maxlen:
-            maxlen = len(line)
-    if wait:
-        msgwin = curses.newwin(len(msg) + 4, maxlen + 2, int(height / 2 - 2) , int(width / 2 - maxlen / 2 - 2))
-    else:
-        msgwin = curses.newwin(len(msg) + 2, maxlen + 2, int(height / 2 - 2) , int(width / 2 - maxlen / 2 - 2))
-    if bold[0]:
-        msgwin.attron(curses.color_pair(1))
-        msgwin.attron(curses.A_BOLD)
-    else:
-        msgwin.attron(curses.color_pair(1))
-    msgwin.bkgd(' ', curses.color_pair(1))
-    msgwin.border()
-    
-    i = 1
-    if bold[3]:
-        color = curses.color_pair(4) + curses.A_BOLD
-    else:
-        color = curses.color_pair(4)
-    for line in msg:
-        msgwin.addstr(i, 1, line, color)
-        i = i + 1
-    if bold[1]:
-        color = curses.color_pair(2) + curses.A_BOLD
-    else:
-        color = curses.color_pair(2)
-    if wait:
-        msgwin.addstr(len(msg) + 2, int((maxlen + 2 - 21) / 2), "Нажмите любую клавишу", color)
-    msgwin.refresh()
 
-def message_box(smsg):
-    draw_message_box(smsg, True)
-    stdscr.getch()
-    stdscr.clear()
+def sign_msg(node_, out, key_id):
+    node_dir = outgoing.directory(node_)
+    with open(node_dir + out, "r") as f:
+        msg = f.read().split("\n")
+    if msg[4].startswith("@repto"):
+        header = "\n".join(msg[0:5])
+        body = "\n".join(msg[5:])
+    else:
+        header = "\n".join(msg[0:4])
+        body = "\n".join(msg[4:])
+    result = parser.gpg.sign(body.encode("utf-8"), keyid=key_id, clearsign=True)
+    if result.returncode == 0:
+        signed_body = str(result.data, encoding="utf-8")
+        if len(signed_body) > len(body):
+            with open(node_dir + out, "w") as f:
+                f.write(header)
+                f.write("\n")
+                f.write(signed_body)
+    else:
+        ui.show_message_box(result.stderr)
+
 
 def save_message_to_file(msgid, echoarea):
-    msg, size = read_msg(msgid, echoarea)
-    f = open(msgid + ".txt", "w")
-    f.write("== " + msg[1] + " ==================== " + str(msgid) + "\n")
-    f.write("От:   " + msg[3] + " (" + msg[4] + ")\n")
-    f.write("Кому: " + msg[5] + "\n")
-    f.write("Тема: " + msg[6] + "\n")
-    f.write("\n".join(msg[7:]))
-    f.close
-    message_box("Сообщение сохранено в файл\n" + str(msgid) + ".txt")
+    msg, size = api.read_msg(msgid, echoarea)
+    filepath = "downloads/" + msgid + ".txt"
+    with open(filepath, "w") as f:
+        f.write("== " + msg[1] + " ==================== " + msgid + "\n")
+        f.write("От:   " + msg[3] + " (" + msg[4] + ")\n")
+        f.write("Кому: " + msg[5] + "\n")
+        f.write("Тема: " + msg[6] + "\n")
+        f.write("\n".join(msg[7:]))
+    ui.show_message_box("Сообщение сохранено в файл\n" + filepath)
 
-def get_out_msgids(drafts = False):
-    msgids = []
-    not_sended = []
-    if os.path.exists("out/" + nodes[node]["nodename"]):
-        if drafts:
-            msgids = [f for f in sorted(os.listdir("out/" + nodes[node]["nodename"])) if f.endswith(".draft")]
-        else:
-            msgids = [f for f in sorted(os.listdir("out/" + nodes[node]["nodename"])) if f.endswith(".out") or f.endswith(".outmsg")]
-    return msgids
-
-def quote(to):
-    if oldquote == True:
-        return ""
-    else:
-        if len(to) == 1:
-            q = to[0]
-        else:
-            q = ""
-            for word in to:
-                q = q + word[0]
-        return q
-
-def show_subject(subject):
-    if len(subject) > width - 8:
-        msg = ""
-        line = ""
-        for word in subject.split(" "):
-            if len(line + word) <= width - 4:
-                line = line + word + " "
-            else:
-                msg = msg + line + "\n"
-                line = word + " "
-        msg = msg + line
-        message_box(msg)
-
-def calc_scrollbar_size(length):
-    if length > 0:
-        scrollbar_size = round((height - 6) * (height - 6) / length + 0.49)
-        if scrollbar_size < 1:
-            scrollbar_size = 1
-    else:
-        scrollbar_size = 1
-    return scrollbar_size
-
-def set_attr(str):
-    if str == chr(15):
-        stdscr.attron(curses.color_pair(5))
-        if bold[4]:
-            stdscr.attron(curses.A_BOLD)
-        else:
-            stdscr.attroff(curses.A_BOLD)
-    elif str == chr(16):
-        stdscr.attron(curses.color_pair(6))
-        if bold[5]:
-            stdscr.attron(curses.A_BOLD)
-        else:
-            stdscr.attroff(curses.A_BOLD)
-    elif str == chr(17):
-        stdscr.attron(curses.color_pair(7))
-        if bold[6]:
-            stdscr.attron(curses.A_BOLD)
-        else:
-            stdscr.attroff(curses.A_BOLD)
-    elif str == chr(18):
-        stdscr.attron(curses.color_pair(10))
-        if bold[9]:
-            stdscr.attron(curses.A_BOLD)
-        else:
-            stdscr.attroff(curses.A_BOLD)
-    elif str == chr(19):
-        stdscr.attron(curses.color_pair(12))
-        if bold[11]:
-            stdscr.attron(curses.A_BOLD)
-        else:
-            stdscr.attroff(curses.A_BOLD)
-    else:
-        stdscr.attron(curses.color_pair(4))
-        if bold[3]:
-            stdscr.attron(curses.A_BOLD)
-        else:
-            stdscr.attroff(curses.A_BOLD)
 
 def get_msg(msgid):
-    r = urllib.request.Request(nodes[node]["node"] + "u/m/" + msgid)
-    with urllib.request.urlopen(r) as f:
-        bundle = f.read().decode("utf-8").split("\n")
-    for msg in bundle:
-        if msg:
-            m = msg.split(":")
-            msgid = m[0]
-            if len(msgid) == 20 and m[1]:
-                msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8")
-                if len(nodes[node]["to"]) > 0:
-                    carbonarea = get_carbonarea()
-                    if msgbody.split("\n")[5] in nodes[node]["to"] and not msgid in carbonarea:
-                        add_to_carbonarea(msgid, msbbody)
-                save_message(msgid, msgbody)
+    node_ = cfg.nodes[node]
+    bundle = client.get_bundle(node_.url, msgid)
+    for msg in filter(None, bundle):
+        m = msg.split(":")
+        msgid = m[0]
+        if len(msgid) == 20 and m[1]:
+            msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8").split("\n")
+            if node_.to:
+                carbonarea = api.get_carbonarea()
+                if msgbody[5] in node_.to and msgid not in carbonarea:
+                    api.add_to_carbonarea(msgid, msgbody)
+            api.save_message([(msgid, msgbody)], node_, node_.to)
 
-def menu(title, items):
-    h = len(items)
-    w = 0
-    for item in items:
-        if len(item) > w:
-            w = len(item)
-        if len(item) > width - 2:
-            item = item[:width - 1]
-    if w >= width - 3:
-        w = width - 3
-    e = "Esc - отмена"
-    if w < len(title):
-        w = len(title) + 2
-    menu_win = curses.newwin(h + 2, w + 2, int(height / 2 - h / 2 - 2) , int(width / 2 - w / 2 - 2))
-    if bold[0]:
-        menu_win.attron(curses.color_pair(1))
-        menu_win.attron(curses.A_BOLD)
-    else:
-        menu_win.attron(curses.color_pair(1))
-    menu_win.border()
-    if bold[0]:
-        color = curses.color_pair(1) + curses.A_BOLD
-    else:
-        color = curses.color_pair(1)
-    menu_win.addstr(0, 1, "[", color)
-    menu_win.addstr(0, 2 + len(title), "]", color)
-    menu_win.addstr(h + 1, 1, "[", color)
-    menu_win.addstr(h + 1, 2 + len(e), "]", color)
-    if bold[1]:
-        color = curses.color_pair(2) + curses.A_BOLD
-    else:
-        color = curses.color_pair(2)
-    menu_win.addstr(0, 2, title, curses.color_pair(2) + curses.A_BOLD)
-    menu_win.addstr(h + 1, 2, e, curses.color_pair(2) + curses.A_BOLD)
-    if bold[0]:
-        color = curses.color_pair(1) + curses.A_BOLD
-    else:
-        color = curses.color_pair(1)
-    y = 1
-    quit = False
-    cancel = False
-    while not quit:
-        i = 1
-        for item in items:
-            if i == y :
-                if bold[2]:
-                    color = curses.color_pair(3) + curses.A_BOLD
-                else:
-                    color = curses.color_pair(3)
-                for x in range(1, w + 1):
-                    menu_win.addstr(i, x, " ", color)
-            else:
-                if bold[3]:
-                    color = curses.color_pair(4) + curses.A_BOLD
-                else:
-                    color = curses.color_pair(4)
-                for x in range(1, w + 1):
-                    menu_win.addstr(i, x, " ", color)
-            if len(item) < w - 2:
-                menu_win.addstr(i, 1, item, color)
-            else:
-                menu_win.addstr(i, 1, item[:w], color)
-            i = i + 1
-        menu_win.refresh()
-        key = stdscr.getch()
-        if key in r_up:
-            if y > 1:
-                y -= 1
-            else:
-                y = h
-        elif key in r_down:
-            if y < h:
-                y += 1
-            else:
-                y = 1
-        elif key in s_enter:
-            quit = True
-        elif key in r_quit:
-            cancel = True
-            quit = True
-    if cancel:
-        return False
-    else:
-        return y
 
-def open_link(link):
-    global browser
-    browser.open(link)
+def save_attachment(token):  # type: (parser.Token) -> None
+    filepath = "downloads/" + token.filename
+    with open(filepath, "wb") as attachment:
+        attachment.write(token.filedata)
+    ui.draw_message_box("Файл сохранён '%s'" % filepath, True)
+    ui.stdscr.getch()
+    if token.pgp_key and parser.gpg:
+        option = ui.SelectWindow("PGP Ключ '%s'" % token.filename,
+                                 ["Закрыть окно",
+                                  "Открыть файл",
+                                  "Добавить в хранилище"]).show()
+        if option == 2:
+            utils.open_file(filepath)
+        elif option == 3:
+            result = parser.gpg.import_keys_file(filepath)
+            smsg = "\n".join(map(lambda rd: json.dumps(rd, sort_keys=True, indent=2),
+                                 filter(lambda r: r['fingerprint'], result.results)))
+            ui.show_message_box(smsg)
+    else:
+        if ui.SelectWindow("Открыть '%s'?" % token.filename,
+                           ["Нет", "Да"]).show() == 2:
+            utils.open_file(filepath)
 
-def get_out(drafts=False):
-    if drafts:
-        return get_out_msgids(True)
-    else:
-        return get_out_msgids()
 
-def echo_reader(echo, last, archive, favorites, out, carbonarea, drafts = False):
-    global lasts, next_echoarea
-    stdscr.clear()
-    if bold[0]:
-        stdscr.attron(curses.color_pair(1))
-        stdscr.attron(curses.A_BOLD)
-    else:
-        stdscr.attron(curses.color_pair(1))
-    y = 0
-    msgn = last
-    key = 0
-    if drafts:
-        msgids = get_out_msgids(True)
-    elif out:
-        msgids = get_out_msgids()
-    elif favorites and not carbonarea:
-        msgids = get_favorites_list()
-    elif carbonarea:
-        msgids = get_carbonarea()
-    else:
-        msgids = get_echo_msgids(echo[0])
-    if msgn > len(msgids) - 1:
-        msgn = len(msgids) - 1
-    if len(msgids) > 0:
-        if drafts:
-            msg, size = read_out_msg(msgids[msgn])
-        elif out:
-            msg, size = read_out_msg(msgids[msgn])
+class EchoReader:
+    tokens: List[parser.Token]  # message bode tokens
+    scroll: ui.ScrollCalc  # message body scroll calculator
+    t2l: List[parser.RangeLines]  # tokens rendered lines range
+    _msgid: Optional[str] = None  # non-current-echo message id, navigated by ii-link
+    qs: Optional[search.QuickSearch] = None  # quick search helper
+    #
+    go: bool = True  # show reader
+    done: bool = False  # close app
+    next_echo: Union[str, bool] = False  # jump to next echo after reader closed
+
+    def __init__(self, echo: config.Echo, msgn, archive, counts,
+                 mode=ui.ReaderMode.ECHO, msgids=None):
+        self.echo = echo
+        self.mode = mode
+        self.mode_stack = []
+        self.archive = archive
+        self.counts = counts
+        #
+        self.out = (echo in (config.ECHO_OUT, config.ECHO_DRAFTS))
+        self.drafts = (echo == config.ECHO_DRAFTS)
+        self.favorites = (echo == config.ECHO_FAVORITES)
+        self.carbonarea = (echo == config.ECHO_CARBON)
+        #
+        self.cur_node = cfg.nodes[node]  # type: config.Node
+        self.msg = ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"]
+        self.size = 0
+        self.repto = ""
+        self.stack = []
+        if not msgids:
+            self.msgs_data = self.get_msgs_metadata()  # type: List[MsgMetadata]
         else:
-            msg, size = read_msg(msgids[msgn], echo[0])
-            while msg[3] in twit or msg[5] in twit:
-                msgn -= 1
-                if msgn < 0:
-                    go = False
-                    quit = False
-                    next_echoarea = True
-                    break
-                msg, size = read_msg(msgids[msgn], echo[0])
+            self.msgs_data = msgids  # type: List[MsgMetadata]
 
-    else:
-        msg = ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"]
-        size = "0b"
-    msgbody = body_render(msg[8:])
-    scrollbar_size = calc_scrollbar_size(len(msgbody))
-    go = True
-    stack = []
-    while go:
-        if len(msgids) > 0:
-            draw_reader(msg[1], msgids[msgn], out)
-            if width >= 80:
-                msg_string = "Сообщение " + str(msgn + 1) + " из " + str(len(msgids)) + " (" + str(len(msgids) - msgn - 1) + " осталось)"
-            else:
-                msg_string = str(msgn + 1) + "/" + str(len(msgids)) + " [" + str(len(msgids) - msgn - 1) + "]"
-            draw_status(len(version) + 2, msg_string)
-            if drafts:
-                dsc = "Черновики"
-            elif out:
-                dsc = "Исходящие"
-            else:
-                dsc = echo[1]
-            if len(dsc) > 0 and width >= 80:
-                draw_title(0, width - 2 - len(dsc), dsc)
-            if not(out):
-                try:
-                    if width >= 80:
-                        msgtime = time.strftime("%d %b %Y %H:%M UTC", time.gmtime(int(msg[2])))
-                    else:
-                        msgtime = time.strftime("%d.%m.%y %H:%M", time.gmtime(int(msg[2])))
-                except:
-                    msgtime = ""
-            if bold[3]:
-                color = curses.color_pair(4) + curses.A_BOLD
-            else:
-                color = curses.color_pair(4)
-            if not(out):
-                if width >= 80:
-                    stdscr.addstr(1, 7, msg[3] + " (" + msg[4] + ")", color)
-                else:
-                    stdscr.addstr(1, 7, msg[3], color)
-                stdscr.addstr(1, width  - len(msgtime) - 1, msgtime, color)
-            else:
-                if len(nodes[node]["to"]) > 0:
-                    stdscr.addstr(1, 7, nodes[node]["to"][0], color)
-            stdscr.addstr(2, 7, msg[5], color)
-            stdscr.addstr(3, 7, msg[6][:width - 8], color)
-            draw_title(4, 0, size) 
-            tags = msg[0].split("/")
-            if "repto" in tags and 36 + len(size) < width:
-                repto = tags[tags.index("repto") + 1]
-                draw_title(4, len(size) + 3, "Ответ на " + repto)
-            else:
-                repto = False
-            for i in range (0, height - 6):
-                for x in range (0, width):
-                    stdscr.addstr(i + 5, x, " ", 1)
-                if i < len(msgbody) - 1:
-                    if y + i < len(msgbody) and len(msgbody[y+i]) > 0:
-                        set_attr(msgbody[y + i][0])
-                        x = 0
-                        for word in msgbody[y + i][1:].split(" "):
-                            if word.startswith("http://") or word.startswith("https://") or word.startswith("ftp://"):
-                                stdscr.attron(curses.color_pair(8))
-                                if bold[7]:
-                                    stdscr.attron(curses.A_BOLD)
-                                else:
-                                    stdscr.attroff(curses.A_BOLD)
-                                stdscr.addstr(i + 5, x, word)
-                                set_attr(msgbody[y + i][0])
-                            else:
-                                stdscr.addstr(i + 5, x, word)
-                            x += len(word) + 1
-            stdscr.attron(curses.color_pair(11))
-            if bold[10]:
-                stdscr.attron(curses.A_BOLD)
-            else:
-                stdscr.attroff(curses.A_BOLD)
-            if len(msgbody) > height - 5:
-                for i in range(5, height - 1):
-                    stdscr.addstr(i, width - 1, "░")
-                scrollbar_y = round(y * (height - 6) / len(msgbody) + 0.49)
-                if scrollbar_y < 0:
-                    scrollbar_y = 0
-                elif scrollbar_y > height - 6 - scrollbar_size or y >= len(msgbody) - (height - 6):
-                    scrollbar_y = height - 6 - scrollbar_size
-                for i in range(scrollbar_y + 5, scrollbar_y + 5 + scrollbar_size):
-                    if i < height - 1:
-                        stdscr.addstr(i, width - 1, "█")
-        else:
-            draw_reader(echo[0], "", out)
-        stdscr.attron(curses.color_pair(1))
-        if bold[0]:
-            stdscr.attron(curses.A_BOLD)
-        else:
-            stdscr.attroff(curses.A_BOLD)
-        stdscr.refresh()
-        key = stdscr.getch()
-        if key == curses.KEY_RESIZE:
-            y = 0
-            get_term_size()
-            if len(msgids) > 0:
-                msgbody = body_render(msg[8:])
-                scrollbar_size = calc_scrollbar_size(len(msgbody))
-            stdscr.clear()
-        elif key in r_prev and msgn > 0:
-            y = 0
-            if len(msgids) > 0:
-                msgn = msgn - 1
-                if len(stack) > 0:
-                    stack = []
-                if out:
-                    msg, size = read_out_msg(msgids[msgn])
-                else:
-                    msg, size = read_msg(msgids[msgn], echo[0])
-                tmp = msgn
-                while msg[3] in twit or msg[5] in twit:
-                    msgn -= 1
-                    if msgn < 0:
-                        msgn = tmp + 1
-                        break
-                    msg, size = read_msg(msgids[msgn], echo[0])
-                msgbody = body_render(msg[8:])
-                scrollbar_size = calc_scrollbar_size(len(msgbody))
-        elif key in r_next and msgn < len(msgids) - 1:
-            y = 0
-            if len(msgids) > 0:
-                msgn = msgn +1
-                if len(stack) > 0:
-                    stack = []
-                if out:
-                    msg, size = read_out_msg(msgids[msgn])
-                else:
-                    msg, size = read_msg(msgids[msgn], echo[0])
-                while msg[3] in twit or msg[5] in twit:
-                    msgn += 1
-                    if msgn >= len(msgids) or len(msgids) == 0:
-                        go = False
-                        quit = False
-                        next_echoarea = True
-                        break
-                    msg, size = read_msg(msgids[msgn], echo[0])
-                msgbody = body_render(msg[8:])
-                scrollbar_size = calc_scrollbar_size(len(msgbody))
-        elif key in r_next and (msgn == len(msgids) - 1 or len(msgids) == 0):
-            go = False
-            quit = False
-            next_echoarea = True
-        elif key in r_prep and not echo[0] == "carbonarea" and not echo[0] == "favorites" and not out and repto:
-            if repto in msgids:
-                stack.append(msgn)
-                msgn = msgids.index(repto)
-                msg, size = read_msg(msgids[msgn], echo[0])
-                msgbody = body_render(msg[8:])
-                scrollbar_size = calc_scrollbar_size(len(msgbody))
-        elif key in r_nrep and not out and len(stack) > 0:
-            msgn = stack.pop()
-            msg, size = read_msg(msgids[msgn], echo[0])
-            msgbody = body_render(msg[8:])
-            scrollbar_size = calc_scrollbar_size(len(msgbody))
-        elif key in r_up and y > 0:
-            if len(msgids) > 0:
-                y = y - 1
-        elif key in r_ppage:
-            if len(msgids) > 0:
-                y = y - height + 6
-                if y < 0:
-                    y = 0
-        elif key in r_npage:
-            if y < len(msgbody) - height + 5:
-                if len(msgids) > 0 and len(msgbody) > height - 5:
-                    y = y + height - 6
-        elif key in r_home:
-            if len(msgids) > 0:
-                y = 0
-        elif key in r_mend:
-            if len(msgids) > 0 and len(msgbody) > height - 5:
-                y = len(msgbody) - height + 5
-        elif key in r_ukeys:
-            if len(msgids) == 0 or y >= len(msgbody) - height + 5:
-                y = 0
-                if msgn == len(msgids) - 1 or len(msgids) == 0:
-                    next_echoarea = True
-                    go = False
-                    quit = False
-                else:
-                    msgn = msgn +1
-                    if len(stack) > 0:
-                        stack = []
-                    if out:
-                        msg, size = read_out_msg(msgids[msgn])
-                    else:
-                        msg, size = read_msg(msgids[msgn], echo[0])
-                    msgbody = body_render(msg[8:])
-                    scrollbar_size = calc_scrollbar_size(len(msgbody))
-            else:
-                if len(msgids) > 0 and len(msgbody) > height - 5:
-                    y = y + height - 6
-        elif key in r_down:
-            if len(msgids) > 0:
-                if y + height - 5 < len(msgbody):
-                    y = y + 1
-        elif key in r_begin:
-            if len(msgids) > 0:
-                y = 0
-                msgn = 0
-                if len(stack) > 0:
-                    stack = []
-                if out:
-                    msg, size = read_out_msg(msgids[msgn])
-                else:
-                    msg, size = read_msg(msgids[msgn], echo[0])
-                msgbody = body_render(msg[8:])
-                scrollbar_size = calc_scrollbar_size(len(msgbody))
-        elif key in r_end:
-            if len(msgids) > 0:
-                y = 0
-                msgn = len(msgids) - 1
-                if len(stack) > 0:
-                    stack = []
-                if out:
-                    msg, size = read_out_msg(msgids[msgn])
-                else:
-                    msg, size = read_msg(msgids[msgn], echo[0])
-                msgbody = body_render(msg[8:])
-                scrollbar_size = calc_scrollbar_size(len(msgbody))
-        elif (key in r_ins) and not archive and not out:
-            if not favorites:
-                t = open("template.txt", "r")
-                f = open("temp", "w")
-                f.write(echo[0] + "\n")
-                f.write("All\n")
-                f.write("No subject\n\n")
-                f.write(t.read())
-                f.close()
-                t.close()
-                call_editor()
-                stdscr.clear()
-        elif key in r_save and not out:
-            save_message_to_file(msgids[msgn], echo[0])
-        elif key in r_favorites and not out:
-            saved = save_to_favorites(msgids[msgn], msg)
-            draw_message_box("Подождите", False)
-            get_counts(False, True)
-            if saved:
-                message_box("Собщение добавлено в избранные")
-            else:
-                message_box("Собщение уже есть в избранных")
-        elif (key in r_quote) and not archive and not out:
-            if len(msgids) > 0:
-                t = open("template.txt", "r")
-                f = open("temp", "w")
-                f.write(msgids[msgn] + "\n")
-                f.write(msg[1] + "\n")
-                f.write(msg[3] + "\n")
-                to = msg[3].split(" ")
-                q = quote(to)
-                if not msg[6].startswith("Re:"):
-                    f.write("Re: " + msg[6] + "\n")
-                else:
-                    f.write(msg[6] + "\n")
-                rr = re.compile(r"^[a-zA-Zа-яА-Я0-9_\(\)-]{0,20}>{1,20}")
-                for line in msg[8:]:
-                    if not line.startswith("+++"):
-                        if line.strip() != "":
-                            if rr.match(line):
-                                if line[rr.match(line).span()[1]] == " ":
-                                    quoter = ">"
-                                else:
-                                    quoter = "> "
-                                f.write("\n" + line[:rr.match(line).span()[1]] + quoter + line[rr.match(line).span()[1]:])
-                            else:
-                                f.write("\n" + q + "> " + line)
-#                        else:
-#                            f.write("\n" + line)
-                f.write(t.read())
-                f.close()
-                t.close()
-                call_editor()
-        elif key in r_subj:
-            show_subject(msg[6])
-        elif key in r_info and not out and width < 80:
-            message_box("id  : " + msgids[msgn] + "\naddr: " + msg[4])
-        elif key in o_edit and out:
-            if msgids[msgn].endswith(".out") or msgids[msgn].endswith(".draft"):
-                copyfile("out/" + nodes[node]["nodename"] + "/" + msgids[msgn], "temp")
-                if drafts:
-                    call_editor(msgids[msgn], drafts)
-                    msgids = get_out(True)
-                else:
-                    call_editor(msgids[msgn])
-                    msgids = get_out()
-                if msgn > len(msgids) - 1:
-                    msgn = len(msgids) -1
-                if len(msgids) > 0:
-                    msg, size = read_out_msg(msgids[msgn])
-                    msgbody = body_render(msg[8:])
-                else:
-                    go = False
-                    quit = False
-                scrollbar_size = calc_scrollbar_size(len(msgbody))
-                stdscr.clear()
-            else:
-                message_box("Сообщение уже отправлено")
-                stdscr.clear()
-        elif key in f_delete and favorites and not carbonarea:
-            if len(msgids) > 0:
-                remove_from_favorites(msgids[msgn])
-                draw_message_box("Подождите", False)
-                get_counts(False, True)
-                msgids = get_echo_msgids(echo[0])
-                if len(msgids) > 0:
-                    if msgn >= len(msgids):
-                        msgn = len(msgids) - 1
-                    msg, size = read_msg(msgids[msgn], echo[0])
-                    msgbody = body_render(msg[8:])
-                    scrollbar_size = calc_scrollbar_size(len(msgbody))
-                else:
-                    msgbody = []
-                stdscr.clear()
-        elif key in r_getmsg and size == "0b":
-            try:
-                get_msg(msgids[msgn])
-                draw_message_box("Подождите", False)
-                get_counts(True, False)
-                stdscr.clear()
-                msg, size = read_msg(msgids[msgn], echo[0])
-                msgbody = body_render(msg[8:])
-                scrollbar_size = calc_scrollbar_size(len(msgbody))
-            except:
-                message_box("Не удалось определить msgid.")
-                stdscr.clear()
-        elif key in r_links:
-            results = urltemplate.findall("\n".join(msg[8:]))
-            links = []
-            for item in results:
-                links.append(item[0])
-            if len(links) == 1:
-                open_link(links[0])
-            else:
-                i = menu("Выберите ссылку", links)
-                if i:
-                    open_link(links[i - 1])
-            stdscr.clear()
-        elif key in r_to_out and drafts:
-            copyfile("out/" + nodes[node]["nodename"] + "/" + msgids[msgn], "out/" + nodes[node]["nodename"] + "/" + msgids[msgn].replace(".draft", ".out"))
-            os.remove("out/" + nodes[node]["nodename"] + "/" + msgids[msgn])
-            if drafts:
-                msgids = get_out(True)
-            else:
-                msgids = get_out()
-            if msgn > len(msgids) - 1:
-                msgn = len(msgids) -1
-            if len(msgids) > 0:
-                msg, size = read_out_msg(msgids[msgn])
-                msgbody = body_render(msg[8:])
-            else:
-                go = False
-                quit = False
-        elif key in r_to_drafts and out and not drafts and msgids[msgn].endswith(".out"):
-            copyfile("out/" + nodes[node]["nodename"] + "/" + msgids[msgn], "out/" + nodes[node]["nodename"] + "/" + msgids[msgn].replace(".out", ".draft"))
-            os.remove("out/" + nodes[node]["nodename"] + "/" + msgids[msgn])
-            if drafts:
-                msgids = get_out(True)
-            else:
-                msgids = get_out()
-            if msgn > len(msgids) - 1:
-                msgn = len(msgids) -1
-            if len(msgids) > 0:
-                msg, size = read_out_msg(msgids[msgn])
-                msgbody = body_render(msg[8:])
-            else:
-                go = False
-                quit = False
-        elif key in r_list and not out and not drafts:
-            if db == 0:
-                message_box("Функция не поддерживается текстовой базой.")
-            else:
-                l = msg_list(echo, msgids, msgn)
-                if l > -1:
-                    y = 0
-                    msgn = l
-                    if len(stack) > 0:
-                        stack = []
-                    msg, size = read_msg(msgids[msgn], echo[0])
-                    msgbody = body_render(msg[8:])
-                    scrollbar_size = calc_scrollbar_size(len(msgbody))
-        elif key in r_quit:
-            go = False
-            quit = False
-            next_echoarea = False
-        elif key in g_quit:
-            go = False
-            quit = True
-    lasts[echo[0]] = msgn
-    f = open("lasts.lst", "wb")
-    pickle.dump(lasts, f)
-    f.close()
-    stdscr.clear()
-    return quit
+        self.msgn = min(msgn, len(self.msgs_data) - 1)
+        if self.msgs_data:
+            self.read_msg_skip_twit(-1)
+            if self.msgn < 0:
+                self.next_echo = True
+        self.prerender()
 
-def draw_msg_list(echo, lst, msgn):
-    stdscr.clear()
-    for i in range(0, width):
-        if bold[0]:
-            color = curses.color_pair(1) + curses.A_BOLD
-        else:
-            color = curses.color_pair(1)
-        stdscr.insstr(0, i, "─", color)
-    if width >= 80:
-        draw_title(0, 0, "Список сообщений в конференции " + echo)
-    else:
-        draw_title(0, 0, echo)
+    def msgid(self):
+        return self._msgid or self.msgs_data[self.msgn].msgid
 
-def msg_list(echoarea, msgids, msgn):
-    lst = []
-    lst = get_msg_list_data(echoarea[0])
-    draw_msg_list(echoarea[0], lst, msgn)
-    echo_length = len(lst)
-    if echo_length <= height - 1:
-        start = 0
-        end = echo_length - 1
-    elif msgn + height - 1 < echo_length:
-        start = msgn
-        end = msgn + height - 1
-    else:
-        start = echo_length - height + 1
-        end = start + height - 1
-    quit = False
-    cancel = False
-    y = msgn - start
-    while not quit:
-        n = 1
-        for i in range(start, end):
-            if i == y + start:
-                if bold[2]:
-                    color = curses.color_pair(3) + curses.A_BOLD
-                else:
-                    color = curses.color_pair(3)
-            else:
-                if bold[3]:
-                    color = curses.color_pair(4) + curses.A_BOLD
-                else:
-                    color = curses.color_pair(4)
-            draw_cursor(n - 1, color)
-            stdscr.addstr(n, 0, lst[i][1], color)
-            stdscr.addstr(n, 16, lst[i][2][:width-26], color)
-            stdscr.insstr(n, width - 10, lst[i][3], color)
-            n += 1
-        key = stdscr.getch()
-        if key in s_up:
-            y = y - 1
-            if start > 0 and y + start < start:
-                start -= 1
-                end -= 1
-            if y == -1:
-                y = 0
-        elif key in s_down:
-            y = y + 1
-            if y + start + 1 > end and y + start < echo_length:
-                start += 1
-                end += 1
-            if y > height - 2:
-                y = height - 2
-        elif key in s_ppage:
-            if y == 0:
-                start = start - height + 1
-                if start < 0:
-                    start = 0
-                end = start + height - 1
-            if y > 0:
-                y = 0
-        elif key in s_npage:
-            if y == height - 2:
-                start = start + height - 1
-                if start > echo_length - height + 1:
-                    start = echo_length - height + 1
-                end = start + height - 1
-            if y < height - 2:
-                y = height - 2
-        elif key in s_home:
-            y = 0
-            start = 0
-            end = height - 1
-        elif key in s_end:
-            y = height - 2
-            start = echo_length - height + 1
-            end = start + height - 1
-        elif key in s_enter:
-            quit = True
-        elif key in r_quit:
-            quit = True
-            cancel = True
-    if cancel:
+    def find_msgid_idx(self, msgid):
+        for i, d in enumerate(self.msgs_data):
+            if d.msgid == msgid:
+                return i
         return -1
-    else:
-        return y + start
 
-loc = locale.getdefaultlocale()
+    def get_msgs_metadata(self):
+        if self.out:
+            return outgoing.get_out_msgs_metadata(self.cur_node, self.drafts)
+        elif self.echo == config.ECHO_FIND:
+            return self.msgs_data  #
+        else:
+            return api.get_echo_msgs_metadata(self.echo.name)
+
+    def read_cur_msg(self):  # type: () -> (List[str], int)
+        self._msgid = None
+        if self.out:
+            self.msg, self.size = outgoing.read_out_msg(self.msgid(), self.cur_node)
+        else:
+            data = self.msgs_data[self.msgn]
+            self.msg, self.size = api.read_msg(self._msgid or data.msgid, data.echo)
+
+    def read_msg_skip_twit(self, increment):
+        self.read_cur_msg()
+        while self.msg[3] in cfg.twit or self.msg[5] in cfg.twit:
+            self.msgn += increment
+            if self.msgn < 0 or len(self.msgs_data) <= self.msgn:
+                break
+            self.read_cur_msg()
+
+    def prerender(self, pos=0):
+        self.tokens = parser.tokenize(self.msg[8:])
+        view = ui.HEIGHT - 5 - 1  # screen ui.HEIGHT - header - status line
+        height = parser.prerender(self.tokens, ui.WIDTH, view)
+        self.t2l = parser.token_line_map(self.tokens)
+        self.scroll = ui.ScrollCalc(height, view, pos)
+
+    def prerender_msg_or_quit(self):
+        self.msgs_data = self.get_msgs_metadata()
+        if self.msgs_data:
+            self.msgn = min(self.msgn, len(self.msgs_data) - 1)
+            self.read_cur_msg()
+            self.prerender()
+        else:
+            self.go = False
+
+    def show_open_link_dialog(self, tokens):
+        links = list(filter(lambda it: it.type == parser.TT.URL, tokens))
+        if len(links) == 1:
+            self.open_link(links[0])
+        elif links:
+            win = ui.SelectWindow("Выберите ссылку", list(map(
+                lambda it: (it.url + " " + (it.title or "")).strip(),
+                links)))
+            i = win.show()
+            if win.resized:
+                self.prerender(self.scroll.pos)
+            if i:
+                self.open_link(links[i - 1])
+
+    def open_link(self, token):  # type: (parser.Token) -> None
+        link = token.url
+        if token.filename:
+            if token.filedata:
+                save_attachment(token)
+        elif link.startswith("#"):  # markdown anchor?
+            pos = parser.find_pos_by_anchor(self.tokens, token)
+            if pos != -1:
+                self.scroll.pos = pos
+        elif not link.startswith("ii://"):
+            if not cfg.browser.open(link):
+                ui.show_message_box("Не удалось запустить Интернет-браузер")
+        elif parser.echo_template.match(link[5:]):  # echoarea
+            if self.echo.name == link[5:]:
+                ui.show_message_box("Конференция уже открыта")
+            elif (link[5:] in self.cur_node.echoareas
+                  or link[5:] in self.cur_node.archive
+                  or link[5:] in self.cur_node.stat):
+                self.next_echo = link[5:]
+                self.go = False
+            else:
+                ui.show_message_box("Конференция отсутствует в БД ноды")
+        else:
+            msgid = link[5:]
+            idx = self.find_msgid_idx(msgid)
+            if idx > -1:  # msgid in same echoarea
+                if not self.stack or self.stack[-1] != self.msgn:
+                    self.stack.append(self.msgn)
+                self.msgn = idx
+                self.read_cur_msg()
+                self.prerender()
+            else:
+                self.msg, self.size = api.find_msg(link[5:])
+                self._msgid = link[5:]
+                self.prerender()
+                if not self.stack or self.stack[-1] != self.msgn:
+                    self.stack.append(self.msgn)
+
+    @staticmethod
+    def on_search_item(sidx, p, token):
+        # type: (int, re.Pattern, parser.Token) -> List
+        matches = []
+        for offset, line in enumerate(token.render):
+            pos = 0
+            while match := p.search(line, pos):
+                if pos >= len(line):
+                    break
+                matches.append((offset, match))
+                pos = match.end()
+        if matches:
+            token.search_idx = sidx
+            token.search_matches = matches
+        else:
+            token.search_idx = None
+            token.search_matches = None
+        return matches
+
+    def show(self):
+        while self.go:
+            ui.stdscr.clear()
+            status = None
+            if self.msgs_data:
+                self.draw(ui.stdscr)
+                status = utils.msgn_status(len(self.msgs_data), self.msgn, ui.WIDTH)
+            else:
+                ui.draw_reader(ui.stdscr, self.echo.name, "", self.out)
+            ui.draw_status_bar(ui.stdscr, mode=self.mode, text=status)
+            if self.qs:
+                self.qs.draw(ui.stdscr, ui.HEIGHT - 1, len(ui.version) + 2,
+                             get_color(UI_STATUS))
+                ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2 + self.qs.cursor)
+            #
+            ks, key, _ = ui.get_keystroke()
+            if ks and any(("Shift+" in ks, "Alt+" in ks, "Ctrl+" in ks)):
+                key = -1  # beware Android backspace "Ctrl+?" (127)
+            #
+            if key == curses.KEY_RESIZE:
+                ui.set_term_size()
+                self.prerender(self.scroll.pos)
+                ui.stdscr.clear()
+                if self.qs:
+                    self.qs.items = self.tokens
+                    self.qs.width = ui.WIDTH - len(ui.version) - 12
+                    tnum, _ = parser.find_visible_token(self.tokens, self.scroll.pos)
+                    self.qs.search(self.qs.query, tnum)
+            elif self.qs:
+                self.on_key_pressed_qs(ks, key)
+            elif key in keys.s_osearch:
+                ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2)
+                curses.curs_set(1)
+                self.qs = search.QuickSearch(self.tokens, self.on_search_item,
+                                             ui.WIDTH - len(ui.version) - 13)
+            elif key in keys.r_quit:
+                if self.mode_stack:
+                    self.mode_restore()
+                else:
+                    self.go = False
+                    self.next_echo = False
+            elif key in keys.g_quit:
+                self.go = False
+                self.done = True
+            else:
+                self.on_key_pressed(ks, key)
+
+        if self.mode == ui.ReaderMode.ECHO:
+            self.counts.lasts[self.echo.name] = self.msgn
+            with open("lasts.lst", "wb") as f:
+                pickle.dump(self.counts.lasts, f)
+        ui.stdscr.clear()
+        return not self.done, self.next_echo
+
+    def draw(self, scr):
+        h, w = scr.getmaxyx()
+        ui.draw_reader(scr, self.msg[1], self.msgid(), self.out)
+        if self.echo.desc and w >= 80:
+            ui.draw_title(scr, 0, w - 2 - len(self.echo.desc), self.echo.desc)
+        color = get_color(UI_TEXT)
+        if not self.out:
+            if w >= 80:
+                scr.addstr(1, 7, self.msg[3] + " (" + self.msg[4] + ")", color)
+            else:
+                scr.addstr(1, 7, self.msg[3], color)
+            msgtime = utils.msg_strftime(self.msg[2], w)
+            scr.addstr(1, w - len(msgtime) - 1, msgtime, color)
+        elif self.cur_node.to:
+            scr.addstr(1, 7, self.cur_node.to[0], color)
+        scr.addstr(2, 7, self.msg[5], color)
+        scr.addstr(3, 7, self.msg[6][:w - 8], color)
+        s_size = utils.msg_strfsize(self.size)
+        ui.draw_title(scr, 4, 0, s_size)
+        tags = self.msg[0].split("/")
+        if "repto" in tags and 36 + len(s_size) < w:
+            self.repto = tags[tags.index("repto") + 1].strip()
+            ui.draw_title(scr, 4, len(s_size) + 3, "Ответ на " + self.repto)
+        else:
+            self.repto = ""
+        ui.render_body(scr, self.tokens, self.scroll.pos, self.qs)
+        if self.scroll.is_scrollable:
+            ui.draw_scrollbarV(scr, 5, w - 1, self.scroll)
+
+    def on_key_pressed_qs(self, ks, key):
+        if key in keys.s_csearch or key in keys.s_asearch:
+            self.qs = None
+            curses.curs_set(0)
+            return
+        #
+        pager = search.Pager(
+            parser.find_visible_token(self.tokens, self.scroll.pos)[0],
+            lambda: parser.find_visible_token(self.tokens, self.scroll.pos + self.scroll.view)[0],
+            lambda: parser.find_visible_token(self.tokens, self.scroll.pos)[0] - 1)
+        self.qs.on_key_pressed_search(key, ks, pager)
+        if self.qs.result:
+            tidx = self.qs.result[self.qs.idx]
+            off, _ = self.qs.matches[self.qs.idx]
+            if key in keys.s_home or key in keys.s_end:
+                self.scroll.ensure_visible(self.t2l[tidx].start + off, center=True)
+            elif key in keys.s_npage:
+                self.scroll.ensure_visible(self.t2l[tidx].start + off + self.scroll.view - 1)
+            elif key in keys.s_ppage:
+                self.scroll.ensure_visible(self.t2l[tidx].start + off - self.scroll.view + 1)
+            else:
+                self.scroll.ensure_visible(self.t2l[tidx].start + off)
+
+    def mode_restore(self):
+        msgid = self.msgs_data[self.msgn].msgid
+        self.mode, self.msgs_data, self.msgn = self.mode_stack.pop()
+        idx = self.find_msgid_idx(msgid)
+        if idx > -1:
+            self.msgn = idx
+        if msgid != self.msgs_data[self.msgn].msgid:
+            self.stack.clear()
+            self.read_cur_msg()
+            self.prerender()
+
+    def toggle_mode(self, mode):
+        if self.mode == mode:
+            if self.mode_stack:
+                self.mode_restore()
+            return  #
+        msgid = self.msgs_data[self.msgn].msgid
+        if mode == ui.ReaderMode.SUBJ:
+            self.mode_stack.append((self.mode, self.msgs_data, self.msgn))
+            self.msgs_data = api.find_subj_msgids(self.msg[1], self.msg[6])
+        else:
+            return  #
+        self.msgn = self.find_msgid_idx(msgid)
+        self.mode = mode
+
+    def on_key_pressed(self, ks, key):
+        if key in keys.r_msubj:
+            self.toggle_mode(ui.ReaderMode.SUBJ)
+            self.stack.clear()
+            self.read_cur_msg()
+            self.prerender()
+        elif key in keys.r_prev and self.msgn > 0 and self.msgs_data:
+            self.msgn -= 1
+            self.stack.clear()
+            tmp = self.msgn
+            self.read_msg_skip_twit(-1)
+            if self.msgn < 0:
+                self.msgn = tmp + 1
+            self.prerender()
+        elif key in keys.r_next and self.msgn < len(self.msgs_data) - 1 and self.msgs_data:
+            self.msgn += 1
+            self.stack.clear()
+            self.read_msg_skip_twit(+1)
+            if self.msgn >= len(self.msgs_data):
+                if self.mode == ui.ReaderMode.ECHO:
+                    self.go = False
+                    self.next_echo = True
+                else:
+                    self.msgn = len(self.msgs_data) - 1
+            self.prerender()
+        elif key in keys.r_next and (self.msgn == len(self.msgs_data) - 1 or len(self.msgs_data) == 0):
+            if self.mode == ui.ReaderMode.ECHO:
+                self.go = False
+                self.next_echo = True
+        elif key in keys.r_prep and not any((self.favorites, self.carbonarea, self.out)) and self.repto:
+            idx = self.find_msgid_idx(self.repto)
+            if idx > -1:
+                self.stack.append(self.msgn)
+                self.msgn = idx
+                self.read_cur_msg()
+                self.prerender()
+        elif key in keys.r_nrep and len(self.stack) > 0:
+            self.msgn = self.stack.pop()
+            self.read_cur_msg()
+            self.prerender()
+        elif key in keys.r_up:
+            self.scroll.pos -= 1
+        elif key in keys.r_ppage:
+            self.scroll.pos -= self.scroll.view
+        elif key in keys.r_npage:
+            self.scroll.pos += self.scroll.view
+        elif key in keys.r_home:
+            self.scroll.pos = 0
+        elif key in keys.r_mend:
+            self.scroll.pos = self.scroll.content - self.scroll.view
+        elif key in keys.r_ukeys:
+            if not self.msgs_data or self.scroll.pos >= self.scroll.content - self.scroll.view:
+                if self.msgn == len(self.msgs_data) - 1 or not self.msgs_data:
+                    if self.mode == ui.ReaderMode.ECHO:
+                        self.next_echo = True
+                        self.go = False
+                else:
+                    self.msgn += 1
+                    self.stack.clear()
+                    self.read_cur_msg()
+                    self.prerender()
+            else:
+                self.scroll.pos += self.scroll.view
+        elif key in keys.r_down:
+            self.scroll.pos += 1
+        elif key in keys.r_begin and self.msgs_data:
+            self.msgn = 0
+            self.stack.clear()
+            self.read_cur_msg()
+            self.prerender()
+        elif key in keys.r_end and self.msgs_data:
+            self.msgn = len(self.msgs_data) - 1
+            self.stack.clear()
+            self.read_cur_msg()
+            self.prerender()
+        elif key in keys.r_ins and not any((self.archive, self.out, self.favorites, self.carbonarea)):
+            outgoing.new_msg(self.echo.name)
+            call_editor(self.cur_node)
+        elif key in keys.r_save and not self.out:
+            save_message_to_file(self.msgid(), self.msg[1])
+        elif key in keys.r_favorites and not self.out:
+            saved = api.save_to_favorites(self.msgid(), self.msg)
+            ui.draw_message_box("Подождите", False)
+            self.counts.get_counts(self.cur_node, False)
+            ui.show_message_box("Сообщение добавлено в избранные" if saved else
+                                "Сообщение уже есть в избранных")
+        elif key in keys.r_quote and not any((self.archive, self.out)) and self.msgs_data:
+            outgoing.quote_msg(self.msgid(), self.msg, cfg.oldquote)
+            call_editor(self.cur_node)
+        elif key in keys.r_info:
+            subj = textwrap.fill(self.msg[6], ui.WIDTH * 0.75,
+                                 subsequent_indent="      ")
+            ui.show_message_box("id:   %s\naddr: %s\nsubj: %s"
+                                % (self.msgid(), self.msg[4], subj))
+        elif key in keys.o_edit and self.out:
+            if self.msgid().endswith(".out") or self.msgid().endswith(".draft"):
+                copyfile(outgoing.directory(self.cur_node) + self.msgid(), "temp")
+                call_editor(self.cur_node, self.msgid())
+                self.prerender_msg_or_quit()
+            else:
+                ui.show_message_box("Сообщение уже отправлено")
+        elif (ks in keys.o_sign or key in keys.o_sign) and self.out:
+            self.sign_msg()
+        elif key in keys.f_delete and self.favorites and self.msgs_data:
+            ui.draw_message_box("Подождите", False)
+            api.remove_from_favorites(self.msgid())
+            self.counts.get_counts(self.cur_node, False)
+            self.prerender_msg_or_quit()
+        elif key in keys.f_delete and self.drafts and self.msgs_data:
+            if ui.SelectWindow("Удалить черновик '%s'?" % self.msgid(),
+                               ["Нет", "Да"]).show() == 2:
+                os.remove(outgoing.directory(self.cur_node) + self.msgid())
+                self.prerender_msg_or_quit()
+        elif key in keys.r_getmsg and self.size == 0 and self._msgid:
+            try:
+                ui.draw_message_box("Подождите", False)
+                get_msg(self._msgid)
+                self.counts.get_counts(self.cur_node, True)
+                self.msg, self.size = api.find_msg(self._msgid)
+                self.prerender()
+            except Exception as ex:
+                ui.show_message_box("Не удалось определить msgid.\n" + str(ex))
+        elif key in keys.r_links:
+            self.show_open_link_dialog(self.tokens)
+        elif key in keys.r_to_out and self.drafts:
+            draft_msg = outgoing.directory(self.cur_node) + self.msgid()
+            os.rename(draft_msg, draft_msg.replace(".draft", ".out"))
+            self.prerender_msg_or_quit()
+        elif key in keys.r_to_drafts and self.out and not self.drafts and self.msgid().endswith(".out"):
+            out_msg = outgoing.directory(self.cur_node) + self.msgid()
+            os.rename(out_msg, out_msg.replace(".out", ".draft"))
+            self.prerender_msg_or_quit()
+        elif key in keys.r_list and not self.out and not self.drafts:
+            win = ui.MsgListScreen(self.echo.name, self.msgs_data,
+                                   self.msgs_data[self.msgn].msgid, self.mode)
+            selected_msgn = win.show()
+            if win.resized:
+                self.prerender(self.scroll.pos)
+            if selected_msgn > -1:
+                if self.mode != win.mode:
+                    self.mode_stack.append((self.mode, self.msgs_data, self.msgn))
+                self.msgs_data = win.data
+                self.msgn = selected_msgn
+                self.mode = win.mode
+                self.stack.clear()
+                self.read_cur_msg()
+                self.prerender()
+        elif key in keys.r_inlines:
+            parser.INLINE_STYLE_ENABLED = not parser.INLINE_STYLE_ENABLED
+            self.prerender(self.scroll.pos)
+
+    def sign_msg(self):
+        if (not self.msgid().endswith(".out")
+                and not self.msgid().endswith(".draft")):
+            ui.show_message_box("Сообщение уже отправлено")
+            return  #
+
+        private_keys = parser.gpg.list_keys(secret=True)
+        if private_keys:
+            items = []
+            for k in private_keys:
+                user = k['uids'][0]
+                items.append((k['keyid'], "%s (%s)" % (user, k['keyid'])))
+            selected = ui.SelectWindow("Подписать ключом",
+                                       [it[1] for it in items]).show()
+            if selected > 0:
+                sign_msg(self.cur_node, self.msgid(), items[selected - 1][0])
+                self.prerender_msg_or_quit()
+        else:
+            ui.show_message_box("Не удалось подписать сообщение.\n"
+                                "Нет приватных ключей в хранилище:\n%s"
+                                % os.path.abspath(parser.gpg.gnupghome))
+
+
+if sys.version_info >= (3, 11):
+    loc = locale.getlocale()
+else:
+    # noinspection PyDeprecation
+    loc = locale.getdefaultlocale()
 locale.setlocale(locale.LC_ALL, loc[0] + "." + loc[1])
 
-check_config()
-reset_config()
-load_config()
-if db == 0:
-    from api.txt import *
-elif db == 1:
-    from api.aio import *
-elif db == 2:
-    from api.ait import *
-elif db == 3:
-    from api.sqlite import *
-check_directories()
-load_lasts()
-stdscr = curses.initscr()
-try:
-    curses.start_color()
-    curses.use_default_colors()
-    load_colors()
-    curses.noecho()
-    curses.curs_set(False)
-    stdscr.keypad(True)
+config.ensure_exists()
+cfg.load()
+if cfg.db == "txt":
+    import api.txt as api
+elif cfg.db == "aio":
+    import api.aio as api
+elif cfg.db == "ait":
+    import api.ait as api
+elif cfg.db == "sqlite":
+    import api.sqlite as api
+else:
+    raise Exception("Unsupported DB API :: " + cfg.db)
+# create directories
+api.init()
+ui.api = api
+if not os.path.exists("downloads"):
+    os.mkdir("downloads")
+outgoing.init(cfg)
+#
+if cfg.keys == "default":
+    import keys.default as keys
+elif cfg.keys == "android":
+    import keys.android as keys
+elif cfg.keys == "vi":
+    import keys.vi as keys
+else:
+    raise Exception("Unknown Keys Scheme :: " + cfg.keys)
+ui.keys = keys
+search.keys = keys
 
-    stdscr.bkgd(" ", curses.color_pair(1))
-    get_term_size()
-    if show_splash:
-        splash_screen()
-    draw_message_box("Подождите", False)
-    get_counts()
-    stdscr.clear()
-    echo_selector()
+try:
+    ui.initialize_curses()
+    ui.load_theme(cfg)
+    ui.stdscr.bkgd(" ", get_color("text"))
+
+    if cfg.splash:
+        ui.draw_splash(ui.stdscr, splash)
+        curses.napms(2000)
+        ui.stdscr.clear()
+    EchoSelectorScreen().show()
 finally:
-    curses.echo()
-    curses.curs_set(True)
-    stdscr.keypad(False)
-    curses.endwin()
+    ui.terminate_curses()
