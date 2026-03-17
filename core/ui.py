@@ -2,6 +2,7 @@ import curses
 import re
 import textwrap
 import time
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -107,7 +108,10 @@ def get_keystroke(timeout=-1):
     stdscr.timeout(timeout)
     key = -1
     if not keystroke.PENDING_KEYS:
-        key = stdscr.getch()
+        try:
+            key = stdscr.getch()
+        except KeyboardInterrupt as e:
+            sys.exit(0)
     stdscr.timeout(0)
     ks, key, _ = keystroke.getkeystroke(stdscr, key)
     stdscr.timeout(-1)
