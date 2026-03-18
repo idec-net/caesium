@@ -1,7 +1,7 @@
 import curses
 import re
 
-import keys.default as keys
+from core.cmd import Selector
 
 LABEL_SEARCH = "<введите regex для поиска>"
 
@@ -68,20 +68,20 @@ class QuickSearch:
                     if self.idx == -1 and i >= pos:
                         self.idx = len(self.result) - 1
 
-    def on_key_pressed_search(self, key, keystroke, pager):
-        if "Space" == keystroke:
-            keystroke = " "
-        if key in keys.s_home:
+    def on_key_pressed_search(self, key, ks, pager):
+        if "Space" == ks:
+            ks = " "
+        if ks in Selector.HOME:
             self.home()
-        elif key in keys.s_end:
+        elif ks in Selector.END:
             self.end()
-        elif key in keys.s_down:
+        elif ks in Selector.DOWN:
             self.next()
-        elif key in keys.s_up:
+        elif ks in Selector.UP:
             self.prev()
-        elif key in keys.s_npage:
+        elif ks in Selector.NPAGE:
             self.next_after(pager.next_page_top())
-        elif key in keys.s_ppage:
+        elif ks in Selector.PPAGE:
             self.prev_before(pager.prev_page_bottom())
         elif key == curses.KEY_LEFT:
             self.cursor = max(0, self.cursor - 1)
@@ -95,10 +95,10 @@ class QuickSearch:
         elif key == curses.KEY_DC:  # DEL
             self.search(self.query[0:max(0, self.cursor)]
                         + self.query[self.cursor + 1:], pager.pos)
-        elif len(keystroke) == 1 and (not self.width
-                                      or len(self.query) < self.width):
+        elif len(ks) == 1 and (not self.width
+                               or len(self.query) < self.width):
             self.search(self.query[0:self.cursor]
-                        + keystroke
+                        + ks
                         + self.query[self.cursor:], pager.pos)
             self.cursor = min(len(self.query), self.cursor + 1)
 
@@ -136,12 +136,12 @@ class QuickSearch:
                 self.home()
                 break  #
 
-    def ensure_cursor_visible(self, key, cursor, scroll):
+    def ensure_cursor_visible(self, ks, cursor, scroll):
         if self.result:
             cursor = self.result[self.idx]
-            if key in keys.s_npage:
+            if ks in Selector.NPAGE:
                 scroll.pos = cursor
-            elif key in keys.s_ppage:
+            elif ks in Selector.PPAGE:
                 scroll.pos = cursor - scroll.view
             scroll.ensure_visible(cursor)
         return cursor

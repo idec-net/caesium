@@ -22,6 +22,7 @@ from core import (
     __version__, parser, client, config, ui, utils, search, outgoing,
     FEAT_X_C, FEAT_U_E
 )
+from core.cmd import Common, Out, Reader, Selector
 from core.config import (
     get_color, UI_BORDER, UI_TEXT, UI_CURSOR, UI_STATUS
 )
@@ -299,22 +300,22 @@ class EchoSelectorScreen:
                 if self.qs:
                     self.qs.width = ui.WIDTH - len(ui.version) - 12
             elif self.qs:
-                if key in keys.s_csearch or key in keys.s_asearch:
+                if ks in Selector.CSEARCH or key in Selector.ASEARCH:
                     self.qs = None
                     curses.curs_set(0)
                 else:
                     self.qs.on_key_pressed_search(key, ks, self.scroll)
                     self.cursor = self.qs.ensure_cursor_visible(
                         key, self.cursor, self.scroll)
-            elif key in keys.s_osearch:
+            elif ks in Selector.OSEARCH:
                 ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2)
                 curses.curs_set(1)
                 self.qs = search.QuickSearch(self.echoareas, self.on_search_item,
                                              ui.WIDTH - len(ui.version) - 13)
-            elif key in keys.g_quit:
+            elif ks in Common.QUIT:
                 self.go = False
             else:
-                self.on_key_pressed(ks, key)
+                self.on_key_pressed(ks)
 
     def draw(self, win, cursor, scroll, qs):
         h, w = win.getmaxyx()
@@ -384,53 +385,53 @@ class EchoSelectorScreen:
 
         ui.draw_status_bar(win, text=cur_node.nodename)
 
-    def on_key_pressed(self, ks, key):
+    def on_key_pressed(self, ks):
         global node
-        if key in keys.s_up:
+        if ks in Selector.UP:
             self.cursor = max(0, self.cursor - 1)
-        elif key in keys.s_down:
+        elif ks in Selector.DOWN:
             self.cursor = min(self.scroll.content - 1, self.cursor + 1)
-        elif key in keys.s_ppage:
+        elif ks in Selector.PPAGE:
             if self.cursor > self.scroll.pos:
                 self.cursor = self.scroll.pos
             else:
                 self.cursor = max(0, self.cursor - self.scroll.view)
-        elif key in keys.s_npage:
+        elif ks in Selector.NPAGE:
             page_bottom = self.scroll.pos_bottom()
             if self.cursor < page_bottom:
                 self.cursor = page_bottom
             else:
                 self.cursor = min(self.scroll.content - 1, page_bottom + self.scroll.view)
-        elif key in keys.s_home:
+        elif ks in Selector.HOME:
             self.cursor = 0
-        elif key in keys.s_end:
+        elif ks in Selector.END:
             self.cursor = self.scroll.content - 1
-        elif key in keys.s_get or ks in keys.s_fget:
-            self.fetch_mail(force_full_idx=(ks in keys.s_fget))
-        elif key in keys.s_archive and len(cfg.nodes[node].archive) > 0:
+        elif ks in Selector.GET or ks in Selector.FGET:
+            self.fetch_mail(force_full_idx=(ks in Selector.FGET))
+        elif ks in Selector.ARCHIVE and len(cfg.nodes[node].archive) > 0:
             self.toggle_archive()
-        elif key in keys.s_enter:
+        elif ks in Selector.ENTER:
             self.read_echo()
-        elif key in keys.s_out:
+        elif ks in Selector.OUT:
             self.read_outgoing()
-        elif key in keys.s_drafts:
+        elif ks in Selector.DRAFTS:
             self.read_drafts()
-        elif key in keys.s_nnode:
+        elif ks in Selector.NNODE:
             node = node + 1
             if node == len(cfg.nodes):
                 node = 0
             self.reload_echoareas()
-        elif key in keys.s_pnode:
+        elif ks in Selector.PNODE:
             node = node - 1
             if node == -1:
                 node = len(cfg.nodes) - 1
             self.reload_echoareas()
-        elif key in keys.s_config:
+        elif ks in Selector.CONFIG:
             edit_config()
             ui.load_theme(cfg)
             node = 0
             self.reload_echoareas()
-        elif key in keys.s_find or ks in keys.s_find:
+        elif ks in Selector.FIND:
             win = ui.FindQueryWindow()
             find_result = win.show()
             if find_result:
@@ -767,18 +768,18 @@ class EchoReader:
                     self.qs.search(self.qs.query, tnum)
             elif self.qs:
                 self.on_key_pressed_qs(ks, key)
-            elif key in keys.s_osearch:
+            elif ks in Selector.OSEARCH:
                 ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2)
                 curses.curs_set(1)
                 self.qs = search.QuickSearch(self.tokens, self.on_search_item,
                                              ui.WIDTH - len(ui.version) - 13)
-            elif key in keys.r_quit:
+            elif ks in Reader.QUIT:
                 if self.mode_stack:
                     self.mode_restore()
                 else:
                     self.go = False
                     self.next_echo = False
-            elif key in keys.g_quit:
+            elif ks in Common.QUIT:
                 self.go = False
                 self.done = True
             else:
@@ -821,7 +822,7 @@ class EchoReader:
             ui.draw_scrollbarV(scr, 5, w - 1, self.scroll)
 
     def on_key_pressed_qs(self, ks, key):
-        if key in keys.s_csearch or key in keys.s_asearch:
+        if ks in Selector.CSEARCH or ks in Selector.ASEARCH:
             self.qs = None
             curses.curs_set(0)
             return
@@ -834,11 +835,11 @@ class EchoReader:
         if self.qs.result:
             tidx = self.qs.result[self.qs.idx]
             off, _ = self.qs.matches[self.qs.idx]
-            if key in keys.s_home or key in keys.s_end:
+            if ks in Selector.HOME or ks in Selector.END:
                 self.scroll.ensure_visible(self.t2l[tidx].start + off, center=True)
-            elif key in keys.s_npage:
+            elif ks in Selector.NPAGE:
                 self.scroll.ensure_visible(self.t2l[tidx].start + off + self.scroll.view - 1)
-            elif key in keys.s_ppage:
+            elif ks in Selector.PPAGE:
                 self.scroll.ensure_visible(self.t2l[tidx].start + off - self.scroll.view + 1)
             else:
                 self.scroll.ensure_visible(self.t2l[tidx].start + off)
@@ -869,12 +870,12 @@ class EchoReader:
         self.mode = mode
 
     def on_key_pressed(self, ks, key):
-        if key in keys.r_msubj:
+        if ks in Reader.MSUBJ:
             self.toggle_mode(ui.ReaderMode.SUBJ)
             self.stack.clear()
             self.read_cur_msg()
             self.prerender()
-        elif key in keys.r_prev and self.msgn > 0 and self.msgs_data:
+        elif ks in Reader.PREV and self.msgn > 0 and self.msgs_data:
             self.msgn -= 1
             self.stack.clear()
             tmp = self.msgn
@@ -882,7 +883,7 @@ class EchoReader:
             if self.msgn < 0:
                 self.msgn = tmp + 1
             self.prerender()
-        elif key in keys.r_next and self.msgn < len(self.msgs_data) - 1 and self.msgs_data:
+        elif ks in Reader.NEXT and self.msgn < len(self.msgs_data) - 1 and self.msgs_data:
             self.msgn += 1
             self.stack.clear()
             self.read_msg_skip_twit(+1)
@@ -893,32 +894,32 @@ class EchoReader:
                 else:
                     self.msgn = len(self.msgs_data) - 1
             self.prerender()
-        elif key in keys.r_next and (self.msgn == len(self.msgs_data) - 1 or len(self.msgs_data) == 0):
+        elif ks in Reader.NEXT and (self.msgn == len(self.msgs_data) - 1 or len(self.msgs_data) == 0):
             if self.mode == ui.ReaderMode.ECHO:
                 self.go = False
                 self.next_echo = True
-        elif key in keys.r_prep and not any((self.favorites, self.carbonarea, self.out)) and self.repto:
+        elif ks in Reader.PREP and not any((self.favorites, self.carbonarea, self.out)) and self.repto:
             idx = self.find_msgid_idx(self.repto)
             if idx > -1:
                 self.stack.append(self.msgn)
                 self.msgn = idx
                 self.read_cur_msg()
                 self.prerender()
-        elif key in keys.r_nrep and len(self.stack) > 0:
+        elif ks in Reader.NREP and len(self.stack) > 0:
             self.msgn = self.stack.pop()
             self.read_cur_msg()
             self.prerender()
-        elif key in keys.r_up:
+        elif ks in Reader.UP:
             self.scroll.pos -= 1
-        elif key in keys.r_ppage:
+        elif ks in Reader.PPAGE:
             self.scroll.pos -= self.scroll.view
-        elif key in keys.r_npage:
+        elif ks in Reader.NPAGE:
             self.scroll.pos += self.scroll.view
-        elif key in keys.r_home:
+        elif ks in Reader.HOME:
             self.scroll.pos = 0
-        elif key in keys.r_mend:
+        elif ks in Reader.MEND:
             self.scroll.pos = self.scroll.content - self.scroll.view
-        elif key in keys.r_ukeys:
+        elif ks in Reader.UKEYS:
             if not self.msgs_data or self.scroll.pos >= self.scroll.content - self.scroll.view:
                 if self.msgn == len(self.msgs_data) - 1 or not self.msgs_data:
                     if self.mode == ui.ReaderMode.ECHO:
@@ -931,57 +932,57 @@ class EchoReader:
                     self.prerender()
             else:
                 self.scroll.pos += self.scroll.view
-        elif key in keys.r_down:
+        elif ks in Reader.DOWN:
             self.scroll.pos += 1
-        elif key in keys.r_begin and self.msgs_data:
+        elif ks in Reader.BEGIN and self.msgs_data:
             self.msgn = 0
             self.stack.clear()
             self.read_cur_msg()
             self.prerender()
-        elif key in keys.r_end and self.msgs_data:
+        elif ks in Reader.END and self.msgs_data:
             self.msgn = len(self.msgs_data) - 1
             self.stack.clear()
             self.read_cur_msg()
             self.prerender()
-        elif key in keys.r_ins and not any((self.archive, self.out, self.favorites, self.carbonarea)):
+        elif ks in Reader.INS and not any((self.archive, self.out, self.favorites, self.carbonarea)):
             outgoing.new_msg(self.echo.name)
             call_editor(self.cur_node)
-        elif key in keys.r_save and not self.out:
+        elif ks in Reader.SAVE and not self.out:
             save_message_to_file(self.msgid(), self.msg[1])
-        elif key in keys.r_favorites and not self.out:
+        elif ks in Reader.FAVORITES and not self.out:
             saved = api.save_to_favorites(self.msgid(), self.msg)
             ui.draw_message_box("Подождите", False)
             self.counts.get_counts(self.cur_node, False)
             ui.show_message_box("Сообщение добавлено в избранные" if saved else
                                 "Сообщение уже есть в избранных")
-        elif key in keys.r_quote and not any((self.archive, self.out)) and self.msgs_data:
+        elif ks in Reader.QUOTE and not any((self.archive, self.out)) and self.msgs_data:
             outgoing.quote_msg(self.msgid(), self.msg, cfg.oldquote)
             call_editor(self.cur_node)
-        elif key in keys.r_info:
+        elif ks in Reader.INFO:
             subj = textwrap.fill(self.msg[6], ui.WIDTH * 0.75,
                                  subsequent_indent="      ")
             ui.show_message_box("id:   %s\naddr: %s\nsubj: %s"
                                 % (self.msgid(), self.msg[4], subj))
-        elif key in keys.o_edit and self.out:
+        elif ks in Out.EDIT and self.out:
             if self.msgid().endswith(".out") or self.msgid().endswith(".draft"):
                 copyfile(outgoing.directory(self.cur_node) + self.msgid(), "temp")
                 call_editor(self.cur_node, self.msgid())
                 self.prerender_msg_or_quit()
             else:
                 ui.show_message_box("Сообщение уже отправлено")
-        elif (ks in keys.o_sign or key in keys.o_sign) and self.out:
+        elif ks in Out.SIGN and self.out:
             self.sign_msg()
-        elif key in keys.f_delete and self.favorites and self.msgs_data:
+        elif ks in Out.DEL and self.favorites and self.msgs_data:
             ui.draw_message_box("Подождите", False)
             api.remove_from_favorites(self.msgid())
             self.counts.get_counts(self.cur_node, False)
             self.prerender_msg_or_quit()
-        elif key in keys.f_delete and self.drafts and self.msgs_data:
+        elif ks in Out.DEL and self.drafts and self.msgs_data:
             if ui.SelectWindow("Удалить черновик '%s'?" % self.msgid(),
                                ["Нет", "Да"]).show() == 2:
                 os.remove(outgoing.directory(self.cur_node) + self.msgid())
                 self.prerender_msg_or_quit()
-        elif key in keys.r_getmsg and self.size == 0 and self._msgid:
+        elif ks in Reader.GETMSG and self.size == 0 and self._msgid:
             try:
                 ui.draw_message_box("Подождите", False)
                 get_msg(self._msgid)
@@ -990,17 +991,17 @@ class EchoReader:
                 self.prerender()
             except Exception as ex:
                 ui.show_message_box("Не удалось определить msgid.\n" + str(ex))
-        elif key in keys.r_links:
+        elif ks in Reader.LINKS:
             self.show_open_link_dialog(self.tokens)
-        elif key in keys.r_to_out and self.drafts:
+        elif ks in Reader.TO_OUT and self.drafts:
             draft_msg = outgoing.directory(self.cur_node) + self.msgid()
             os.rename(draft_msg, draft_msg.replace(".draft", ".out"))
             self.prerender_msg_or_quit()
-        elif key in keys.r_to_drafts and self.out and not self.drafts and self.msgid().endswith(".out"):
+        elif ks in Reader.TO_DRAFTS and self.out and not self.drafts and self.msgid().endswith(".out"):
             out_msg = outgoing.directory(self.cur_node) + self.msgid()
             os.rename(out_msg, out_msg.replace(".out", ".draft"))
             self.prerender_msg_or_quit()
-        elif key in keys.r_list and not self.out and not self.drafts:
+        elif ks in Reader.LIST and not self.out and not self.drafts:
             win = ui.MsgListScreen(self.echo.name, self.msgs_data,
                                    self.msgs_data[self.msgn].msgid, self.mode)
             selected_msgn = win.show()
@@ -1015,7 +1016,7 @@ class EchoReader:
                 self.stack.clear()
                 self.read_cur_msg()
                 self.prerender()
-        elif key in keys.r_inlines:
+        elif ks in Reader.INLINES:
             parser.INLINE_STYLE_ENABLED = not parser.INLINE_STYLE_ENABLED
             self.prerender(self.scroll.pos)
 
@@ -1069,15 +1070,16 @@ if not os.path.exists("downloads"):
 outgoing.init(cfg)
 #
 if cfg.keys == "default":
+    # noinspection PyUnresolvedReferences
     import keys.default as keys
 elif cfg.keys == "android":
+    # noinspection PyUnresolvedReferences
     import keys.android as keys
 elif cfg.keys == "vi":
+    # noinspection PyUnresolvedReferences
     import keys.vi as keys
 else:
     raise Exception("Unknown Keys Scheme :: " + cfg.keys)
-ui.keys = keys
-search.keys = keys
 
 try:
     ui.initialize_curses()
