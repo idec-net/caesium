@@ -15,6 +15,7 @@ from core.cmd import Qs as qs
 # XTerm Control Sequences - VT100 Mode - Single-character functions
 # https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-VT100-Mode
 
+# TODO: Emacs keystrokes
 # @formatter:off
 c.QUIT.ks = []  # закрыть клиент
 
@@ -49,7 +50,7 @@ r.UKEYS.ks =     []  # noqa: E222  клавиша прокрутки или пе
 r.HOME.ks =      []  # noqa: E222  в начало сообщения
 r.MEND.ks =      []  # noqa: E222  в конец сообщения
 r.BEGIN.ks =     []  # noqa: E222  в начало эхоконференции
-r.END.ks =       []  # noqa: E222  в конце эхоконференции
+r.END.ks =       []  # noqa: E222  в конец эхоконференции
 r.INS.ks =       []  # noqa: E222  добавить сообщение
 r.SAVE.ks =      []  # noqa: E222  сохранить сообщение в файл
 r.FAVORITES.ks = []  # noqa: E222  добавить сообщение в избранные
