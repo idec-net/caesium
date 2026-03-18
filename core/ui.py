@@ -12,7 +12,7 @@ from typing import Optional, List, Tuple
 import api.ait as api
 from api import MsgMetadata
 from core import __version__, parser, utils, search, keystroke
-from core.cmd import Reader, Selector
+from core.cmd import Reader, Selector, Qs
 from core.config import (
     get_color, load_colors, Config, TOKEN2UI,
     UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT
@@ -514,10 +514,10 @@ class MsgListScreen:
                 if self.qs:
                     self.qs.width = WIDTH - len(version) - 12
             elif self.qs:
-                if ks in Selector.CSEARCH:
+                if ks in Qs.CLOSE:
                     self.qs = None
                     curses.curs_set(0)
-                elif ks in Selector.ASEARCH:
+                elif ks in Qs.APPLY:
                     if self.qs.result:
                         self.mode_search_on()
                     self.qs = None
@@ -526,11 +526,11 @@ class MsgListScreen:
                     self.qs.on_key_pressed_search(key, ks, self.scroll)
                     self.cursor = self.qs.ensure_cursor_visible(
                         ks, self.cursor, self.scroll)
-            elif (ks in Selector.CSEARCH
+            elif (ks in Reader.QUIT
                   and self.mode == ReaderMode.SEARCH
                   and self.mode_stack):
                 self.apply_mode(*self.mode_stack.pop())
-            elif ks in Selector.OSEARCH:
+            elif ks in Qs.OPEN:
                 stdscr.move(HEIGHT - 1, len(version) + 2)
                 curses.curs_set(1)
                 self.qs = search.QuickSearch(self.data, self.on_search_item,
@@ -838,10 +838,11 @@ class InputWidget(Widget):
             self.offset -= decrement
 
     def on_key_pressed(self, ks, key):
-        if ks in Selector.HOME:
+        # TODO: Common navigation commands?
+        if key in curses.KEY_HOME:
             self.cursor = 0
             self.offset = 0
-        elif ks in Selector.END:
+        elif key in curses.KEY_END:
             self.cursor = len(self.txt)
             contentWidth = self.w - (len(THEME.input[0]) + len(THEME.input[1]))
             self.offset = max(0, self.cursor - contentWidth + 1)
@@ -1063,13 +1064,13 @@ class FindQueryWindow:
             #
             self.draw_title(self.win)
             self.resized = True
-        elif ks in Selector.CSEARCH:
+        elif ks in Qs.CLOSE:
             curses.curs_set(0)
             if self.find_in_progress:
                 self.find_cancel = True
             else:
                 return False  #
-        elif ks in Selector.ASEARCH and not self.find_in_progress:
+        elif ks in Qs.APPLY and not self.find_in_progress:
             curses.curs_set(0)
             self.find_tick = 0
             self.find()

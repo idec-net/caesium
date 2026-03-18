@@ -1,7 +1,7 @@
 import curses
 import re
 
-from core.cmd import Selector
+from core.cmd import Qs
 
 LABEL_SEARCH = "<введите regex для поиска>"
 
@@ -69,28 +69,28 @@ class QuickSearch:
                         self.idx = len(self.result) - 1
 
     def on_key_pressed_search(self, key, ks, pager):
-        if ks in Selector.HOME:
+        if ks in Qs.HOME:
             self.home()
-        elif ks in Selector.END:
+        elif ks in Qs.END:
             self.end()
-        elif ks in Selector.DOWN:
+        elif ks in Qs.NEXT:
             self.next()
-        elif ks in Selector.UP:
+        elif ks in Qs.PREV:
             self.prev()
-        elif ks in Selector.NPAGE:
+        elif ks in Qs.NPAGE:
             self.next_after(pager.next_page_top())
-        elif ks in Selector.PPAGE:
+        elif ks in Qs.PPAGE:
             self.prev_before(pager.prev_page_bottom())
-        elif key == curses.KEY_LEFT:
+        elif ks in Qs.LEFT:
             self.cursor = max(0, self.cursor - 1)
-        elif key == curses.KEY_RIGHT:
+        elif ks in Qs.RIGHT:
             self.cursor = min(len(self.query), self.cursor + 1)
-        elif key in (curses.KEY_BACKSPACE, 127):
+        elif ks in Qs.BS or key in (curses.KEY_BACKSPACE, 127):  # ???
             # 127 - Ctrl+? - Android backspace
             self.search(self.query[0:max(0, self.cursor - 1)]
                         + self.query[self.cursor:], pager.pos)
             self.cursor = max(0, self.cursor - 1)
-        elif key == curses.KEY_DC:  # DEL
+        elif ks in Qs.DEL:  # DEL
             self.search(self.query[0:max(0, self.cursor)]
                         + self.query[self.cursor + 1:], pager.pos)
         else:
@@ -142,9 +142,9 @@ class QuickSearch:
     def ensure_cursor_visible(self, ks, cursor, scroll):
         if self.result:
             cursor = self.result[self.idx]
-            if ks in Selector.NPAGE:
+            if ks in Qs.NPAGE:
                 scroll.pos = cursor
-            elif ks in Selector.PPAGE:
+            elif ks in Qs.PPAGE:
                 scroll.pos = cursor - scroll.view
             scroll.ensure_visible(cursor)
         return cursor

@@ -2,6 +2,7 @@ from core.cmd import Common as c
 from core.cmd import Out as o
 from core.cmd import Reader as r
 from core.cmd import Selector as s
+from core.cmd import Qs as qs
 
 # @formatter:off
 c.QUIT.ks = ["F10", "q", "S-q"]  # закрыть клиент
@@ -22,9 +23,6 @@ s.DRAFTS.ks =  ["d", "S-d"]  # noqa: E222  черновики
 s.NNODE.ks =   ["."]  # noqa: E222  следующая нода
 s.PNODE.ks =   [","]  # noqa: E222  предыдущая нода
 s.CONFIG.ks =  ["e", "S-e"]  # noqa: E222  редактировать конфиг
-s.OSEARCH.ks = ["s", "S-s"]  # noqa: E222  быстрый поиск
-s.CSEARCH.ks = ["ESC"]  # noqa: E222  закрыть поиск
-s.ASEARCH.ks = ["RET"]  # noqa: E222  закрыть поиск оставив найденные элементы
 s.FIND.ks =    ["y", "S-y"]  # noqa: E222  открыть окно поиска по БД
 
 ## Клавиши для экрана чтения
@@ -59,4 +57,19 @@ r.QUIT.ks =      ["b", "S-b", "ESC"]  # noqa: E222  вернуться на эк
 o.EDIT.ks = ["e", "S-e"]  # редактировать сообщение
 o.SIGN.ks = ["M-s"]  # подписать сообщение PGP-ключом
 o.DEL.ks = ["Del", "x", "S-x"]  # удалить черновик/исходящее/избранное
+
+# Клавиши быстрого поиска
+qs.OPEN.ks =  ["s", "S-s"]  # noqa: E222  открыть текстовое поле быстрого поиска
+qs.CLOSE.ks = ["ESC"]  # noqa: E222  прервать ввод текста
+qs.APPLY.ks = ["RET"]  # noqa: E222  закрыть поиск оставив найденные элементы
+qs.LEFT.ks =  ["Left"]  # noqa: E222  курсор на символ влево
+qs.RIGHT.ks = ["Right"]  # noqa: E222  курсор на символ вправо
+qs.BS.ks =    ["BS"]  # noqa: E222  удалить символ перед курсором
+qs.DEL.ks =   ["Del"]  # noqa: E222  удалить символ под курсором
+qs.HOME.ks =  ["Home"]  # noqa: E222  первое вхождение
+qs.END.ks =   ["End"]  # noqa: E222  последнее вхождение
+qs.PREV.ks =  ["Up"]  # noqa: E222  предыдущее вхождение
+qs.NEXT.ks =  ["Down"]  # noqa: E222  следующее вхождение
+qs.PPAGE.ks = ["PgUp"]  # noqa: E222  вхождение на предыдущей странице
+qs.NPAGE.ks = ["PgDn"]  # noqa: E222  вхождение на следующей странице
 # @formatter:on

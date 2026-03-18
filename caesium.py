@@ -22,7 +22,7 @@ from core import (
     __version__, parser, client, config, ui, utils, search, outgoing,
     FEAT_X_C, FEAT_U_E
 )
-from core.cmd import Common, Out, Reader, Selector
+from core.cmd import Common, Out, Reader, Selector, Qs
 from core.config import (
     get_color, UI_BORDER, UI_TEXT, UI_CURSOR, UI_STATUS
 )
@@ -300,14 +300,14 @@ class EchoSelectorScreen:
                 if self.qs:
                     self.qs.width = ui.WIDTH - len(ui.version) - 12
             elif self.qs:
-                if ks in Selector.CSEARCH or ks in Selector.ASEARCH:
+                if ks in Qs.CLOSE or ks in Qs.APPLY:
                     self.qs = None
                     curses.curs_set(0)
                 else:
                     self.qs.on_key_pressed_search(key, ks, self.scroll)
                     self.cursor = self.qs.ensure_cursor_visible(
                         key, self.cursor, self.scroll)
-            elif ks in Selector.OSEARCH:
+            elif ks in Qs.OPEN:
                 ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2)
                 curses.curs_set(1)
                 self.qs = search.QuickSearch(self.echoareas, self.on_search_item,
@@ -768,7 +768,7 @@ class EchoReader:
                     self.qs.search(self.qs.query, tnum)
             elif self.qs:
                 self.on_key_pressed_qs(ks, key)
-            elif ks in Selector.OSEARCH:
+            elif ks in Qs.OPEN:
                 ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2)
                 curses.curs_set(1)
                 self.qs = search.QuickSearch(self.tokens, self.on_search_item,
@@ -822,7 +822,7 @@ class EchoReader:
             ui.draw_scrollbarV(scr, 5, w - 1, self.scroll)
 
     def on_key_pressed_qs(self, ks, key):
-        if ks in Selector.CSEARCH or ks in Selector.ASEARCH:
+        if ks in Qs.CLOSE or ks in Qs.APPLY:
             self.qs = None
             curses.curs_set(0)
             return
@@ -837,9 +837,9 @@ class EchoReader:
             off, _ = self.qs.matches[self.qs.idx]
             if ks in Selector.HOME or ks in Selector.END:
                 self.scroll.ensure_visible(self.t2l[tidx].start + off, center=True)
-            elif ks in Selector.NPAGE:
+            elif ks in Qs.NPAGE:
                 self.scroll.ensure_visible(self.t2l[tidx].start + off + self.scroll.view - 1)
-            elif ks in Selector.PPAGE:
+            elif ks in Qs.PPAGE:
                 self.scroll.ensure_visible(self.t2l[tidx].start + off - self.scroll.view + 1)
             else:
                 self.scroll.ensure_visible(self.t2l[tidx].start + off)
