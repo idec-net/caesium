@@ -4,14 +4,14 @@ from typing import Tuple, Any, Union
 # VisiData - keys.py
 # https://github.com/saulpw/visidata/blob/develop/visidata/keys.py#L5
 PRETTY_KEYS = {
-    ' ': 'Space',  # must be first
-    '^[': 'Alt+',
-    '^J': 'Enter',
-    '^M': 'Enter',
-    'KEY_ENTER': 'Enter',
+    ' ': 'SPC',  # must be first
+    '^[': 'M-',
+    '^J': 'RET',
+    '^M': 'RET',
+    'KEY_ENTER': 'RET',
     '^I': 'Tab',
-    'KEY_BTAB': 'Shift+Tab',
-    '^@': 'Ctrl+Space',
+    'KEY_BTAB': 'S-Tab',
+    '^@': 'C-SPC',
     'KEY_UP': 'Up',
     'KEY_DOWN': 'Down',
     'KEY_LEFT': 'Left',
@@ -22,47 +22,47 @@ PRETTY_KEYS = {
     'KEY_PPAGE': 'PgUp',
     'KEY_NPAGE': 'PgDn',
 
-    'kUP3': 'Alt+Up',
-    'kUP5': 'Ctrl+Up',
-    'kUP6': 'Ctrl+Shift+Up',
-    'kUP7': 'Alt+Ctrl+Up',
-    'kUP': 'Shift+Up',
-    'kDN3': 'Alt+Down',
-    'kDN5': 'Ctrl+Down',
-    'kDN6': 'Ctrl+Shift+Down',
-    'kDN7': 'Alt+Ctrl+Down',
-    'kDN': 'Shift+Down',
-    'kLFT5': 'Ctrl+Left',
-    'kRIT5': 'Ctrl+Right',
-    'kHOM5': 'Ctrl+Home',
-    'kEND5': 'Ctrl+End',
-    'kPRV5': 'Ctrl+PgUp',
-    'kNXT5': 'Ctrl+PgDn',
-    'KEY_IC5': 'Ctrl+Ins',
-    'KEY_DC5': 'Ctrl+Del',
-    'kDC5': 'Ctrl+Del',
-    'KEY_SDC': 'Shift+Del',
+    'kUP3': 'M-Up',
+    'kUP5': 'C-Up',
+    'kUP6': 'C-S-Up',
+    'kUP7': 'M-C-Up',
+    'kUP': 'S-Up',
+    'kDN3': 'M-Down',
+    'kDN5': 'C-Down',
+    'kDN6': 'C-S-Down',
+    'kDN7': 'M-C-Down',
+    'kDN': 'S-Down',
+    'kLFT5': 'C-Left',
+    'kRIT5': 'C-Right',
+    'kHOM5': 'C-Home',
+    'kEND5': 'C-End',
+    'kPRV5': 'C-PgUp',
+    'kNXT5': 'C-PgDn',
+    'KEY_IC5': 'C-Ins',
+    'KEY_DC5': 'C-Del',
+    'kDC5': 'C-Del',
+    'KEY_SDC': 'S-Del',
 
     'KEY_IC': 'Ins',
     'KEY_DC': 'Del',
 
-    'KEY_SRIGHT': 'Shift+Right',
-    'KEY_SR': 'Shift+Up',
-    'KEY_SF3': 'Alt+Down',
-    'KEY_SF5': 'Ctrl+Down',
-    'KEY_SF6': 'Ctrl+Shift+Down',
-    'KEY_SF7': 'Alt+Ctrl+Down',
-    'KEY_SF': 'Shift+Down',
-    'KEY_SLEFT': 'Shift+Left',
-    'KEY_SHOME': 'Shift+Home',
-    'KEY_SEND': 'Shift+End',
-    'KEY_SPREVIOUS': 'Shift+PgUp',
-    'KEY_SNEXT': 'Shift+PgDn',
+    'KEY_SRIGHT': 'S-Right',
+    'KEY_SR': 'S-Up',
+    'KEY_SF3': 'M-Down',
+    'KEY_SF5': 'C-Down',
+    'KEY_SF6': 'C-S-Down',
+    'KEY_SF7': 'M-C-Down',
+    'KEY_SF': 'S-Down',
+    'KEY_SLEFT': 'S-Left',
+    'KEY_SHOME': 'S-Home',
+    'KEY_SEND': 'S-End',
+    'KEY_SPREVIOUS': 'S-PgUp',
+    'KEY_SNEXT': 'S-PgDn',
 
     'kxIN': 'FocusIn',
     'kxOUT': 'FocusOut',
 
-    'KEY_BACKSPACE': 'Bksp',
+    'KEY_BACKSPACE': 'BS',
     'BUTTON1_RELEASED': 'LeftBtnUp',
     'BUTTON2_RELEASED': 'MiddleBtnUp',
     'BUTTON3_RELEASED': 'RightBtnUp',
@@ -78,11 +78,11 @@ PRETTY_KEYS = {
 for i in range(1, 13):
     d = PRETTY_KEYS
     d[f'KEY_F({i})'] = f'F{i}'
-    d[f'KEY_F({i + 12})'] = f'Shift+F{i}'
-    d[f'KEY_F({i + 24})'] = f'Ctrl+F{i}'
-    d[f'KEY_F({i + 36})'] = f'Ctrl+Shift+F{i}'
-    d[f'KEY_F({i + 48})'] = f'Alt+F{i}'
-    d[f'KEY_F({i + 60})'] = f'Alt+Shift+F{i}'
+    d[f'KEY_F({i + 12})'] = f'S-F{i}'
+    d[f'KEY_F({i + 24})'] = f'C-F{i}'
+    d[f'KEY_F({i + 36})'] = f'C-S-F{i}'
+    d[f'KEY_F({i + 48})'] = f'M-F{i}'
+    d[f'KEY_F({i + 60})'] = f'M-S-F{i}'
 
 
 def prettykeys(key):
@@ -93,7 +93,11 @@ def prettykeys(key):
         key = key.replace(k, v)
 
     # replace ^ with Ctrl but not if ^ is last char
-    key = key[:-1].replace('^', 'Ctrl+') + key[-1]
+    key = key[:-1].replace('^', 'C-') + key[-1]
+    if len(key) == 3 and key.startswith("C-"):
+        key = key[:-1] + key[-1].lower()
+    if len(key) == 1 and key.isupper():
+        key = "S-" + key.lower()
     return key.strip()
 
 
@@ -134,7 +138,7 @@ def getkeystroke(scr: curses.window, init_ch=-1) -> Tuple[str, int, Any]:
         k = ord(k)
     name = prettykeys(curses.keyname(k).decode('utf-8'))
 
-    if name == 'Alt+' and PENDING_KEYS and PENDING_KEYS[0] != curses.KEY_MOUSE:
+    if name == 'M-' and PENDING_KEYS and PENDING_KEYS[0] != curses.KEY_MOUSE:
         k = PENDING_KEYS.pop(0)
         if isinstance(k, str):
             if ord(k) >= 32 and ord(k) != 127:  # 127 == DEL or ^?
@@ -145,10 +149,12 @@ def getkeystroke(scr: curses.window, init_ch=-1) -> Tuple[str, int, Any]:
                 name += prettykeys(curses.keyname(k).decode('utf-8'))
         else:
             name += prettykeys(curses.keyname(k).decode('utf-8'))
-    if name == 'Alt+':  # Single ^[
-        name = 'ESC'
-    elif name == 'Ctrl+?' and k == 127:  # for Android termux
-        name = 'Bksp'
+    if name == "M-":  # Single ^[
+        name = "ESC"
+    elif name == "M-M-":
+        name = "M-ESC"
+    elif name == "C-?" and k == 127:  # for Android termux
+        name = "BS"
     return name, k, None
 
 

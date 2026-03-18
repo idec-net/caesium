@@ -834,8 +834,6 @@ class InputWidget(Widget):
             self.offset -= decrement
 
     def on_key_pressed(self, ks, key):
-        if key == ord(" "):
-            ks = " "
         if ks in Selector.HOME:
             self.cursor = 0
             self.offset = 0
@@ -857,11 +855,16 @@ class InputWidget(Widget):
             txt = self.txt[0:max(0, self.cursor)] + self.txt[self.cursor + 1:]
             if not self.mask or self.mask.match(txt):
                 self.txt = txt
-        elif len(ks) == 1:
-            txt = self.txt[0:self.cursor] + ks + self.txt[self.cursor:]
-            if not self.mask or self.mask.match(txt):
-                self.txt = txt
-                self._move_cursor_right(len(ks))
+        else:
+            if key == ord(" "):
+                ks = " "
+            if len(ks) == 3 and ks.startswith("S-"):
+                ks = ks[-1].upper()
+            if len(ks) == 1:
+                txt = self.txt[0:self.cursor] + ks + self.txt[self.cursor:]
+                if not self.mask or self.mask.match(txt):
+                    self.txt = txt
+                    self._move_cursor_right(len(ks))
 
     def get_win_cursor_pos(self):
         return len(THEME.input[0]) + self.cursor - self.offset
@@ -1077,7 +1080,7 @@ class FindQueryWindow:
                     wid = self.next_focus(wid)
                 self.set_focused(wid)
 
-            elif ks == "Shift+Tab" or key == curses.KEY_UP:
+            elif ks == "S-Tab" or key == curses.KEY_UP:
                 wid = self.prev_focus(self.focused_wid)
                 while wid and not (wid.enabled and wid.focusable):
                     wid = self.prev_focus(wid)

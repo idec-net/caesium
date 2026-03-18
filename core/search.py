@@ -69,8 +69,6 @@ class QuickSearch:
                         self.idx = len(self.result) - 1
 
     def on_key_pressed_search(self, key, ks, pager):
-        if "Space" == ks:
-            ks = " "
         if ks in Selector.HOME:
             self.home()
         elif ks in Selector.END:
@@ -95,12 +93,17 @@ class QuickSearch:
         elif key == curses.KEY_DC:  # DEL
             self.search(self.query[0:max(0, self.cursor)]
                         + self.query[self.cursor + 1:], pager.pos)
-        elif len(ks) == 1 and (not self.width
-                               or len(self.query) < self.width):
-            self.search(self.query[0:self.cursor]
-                        + ks
-                        + self.query[self.cursor:], pager.pos)
-            self.cursor = min(len(self.query), self.cursor + 1)
+        else:
+            if "SPC" == ks:
+                ks = " "
+            if len(ks) == 3 and ks.startswith("S-"):
+                ks = ks[-1].upper()
+            if len(ks) == 1 and (not self.width
+                                 or len(self.query) < self.width):
+                self.search(self.query[0:self.cursor]
+                            + ks
+                            + self.query[self.cursor:], pager.pos)
+                self.cursor = min(len(self.query), self.cursor + 1)
 
     def home(self):
         self.idx = 0

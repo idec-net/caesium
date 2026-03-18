@@ -300,7 +300,7 @@ class EchoSelectorScreen:
                 if self.qs:
                     self.qs.width = ui.WIDTH - len(ui.version) - 12
             elif self.qs:
-                if ks in Selector.CSEARCH or key in Selector.ASEARCH:
+                if ks in Selector.CSEARCH or ks in Selector.ASEARCH:
                     self.qs = None
                     curses.curs_set(0)
                 else:
