@@ -596,7 +596,7 @@ class MsgListScreen:
             self.cursor = max(0, self.cursor - 1)
         elif ks in Selector.DOWN:
             self.cursor = min(scroll.content - 1, self.cursor + 1)
-        elif ks in Selector.NPAGE:
+        elif ks in Selector.PPAGE:
             if self.cursor > scroll.pos:
                 self.cursor = scroll.pos
             else:
@@ -686,12 +686,16 @@ class LabelWidget(Widget):
     focusable: bool = False
     h: int = 1
 
-    def __init__(self, txt="", y=0, x=0):
+    def __init__(self, txt="", y=0, x=0, enabled=True, color: str = None):
         self.x = x
         self.y = y
         self.w = len(txt)
         self.txt = txt
-        self.color = self._color(self.enabled)
+        self.enabled = enabled
+        if color:
+            self.color = get_color(color)
+        else:
+            self.color = self._color(self.enabled)
 
     # noinspection PyUnusedLocal
     @staticmethod

@@ -1,6 +1,8 @@
 import curses
 from typing import Tuple, Any, Union
 
+from core.cmd import Cmd, Common, Out, Reader, Selector
+
 # VisiData - keys.py
 # https://github.com/saulpw/visidata/blob/develop/visidata/keys.py#L5
 PRETTY_KEYS = {
@@ -104,7 +106,38 @@ def prettykeys(key):
 PENDING_KEYS = []
 
 
+class KsSeq:
+    MAX_LEN = 32
+    ks: str = ""  # last keystroke or keystroke sequence
+    sequences = []
+
+    @staticmethod
+    def any_startswith(ks):
+        return any(filter(lambda s: s.startswith(f"{KsSeq.ks} {ks}".strip()),
+                          KsSeq.sequences))
+
+    @staticmethod
+    def init_sequences():
+        KsSeq.sequences = []
+        for group in (Common, Out, Selector, Reader):
+            for attr, val in group.__dict__.items():
+                if isinstance(val, Cmd) and val.ks:
+                    KsSeq.sequences += [_ for _ in val.ks if " " in _]
+
+
 def getkeystroke(scr: curses.window, init_ch=-1) -> Tuple[str, int, Any]:
+    ks, key, _ = _getkeystroke(scr, init_ch)
+    #
+    if len(KsSeq.ks) < KsSeq.MAX_LEN and KsSeq.any_startswith(ks):
+        KsSeq.ks = f"{KsSeq.ks} {ks}".strip()  # make keystroke sequence
+    else:
+        KsSeq.ks = ks  # flush current sequence
+    if KsSeq.ks in KsSeq.sequences:
+        return KsSeq.ks, key, _  #
+    return ks, key, _  #
+
+
+def _getkeystroke(scr: curses.window, init_ch=-1) -> Tuple[str, int, Any]:
     # drainPendingKeys
     if not PENDING_KEYS:
         while True:
