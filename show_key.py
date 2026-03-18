@@ -14,9 +14,9 @@ def show_key():
     layout = GridLayout(
         (ui.LabelWidget("Caesium Keystroke tester",
                         color=UI_HEADER), "h 2 wrap"),
-        (ui.LabelWidget("Press keys to see its translated to keystrokes.",
+        (ui.LabelWidget("Press keys to see how its translated to keystrokes.",
                         color=UI_TEXT), "h 2 wrap"),
-        (ui.LabelWidget("Test sequences: " + ", ".join(KsSeq.sequences),
+        (ui.LabelWidget("Test sequences: " + "; ".join(KsSeq.sequences),
                         color=UI_TEXT), "h 2 wrap"),
         (ui.LabelWidget("Press Ctrl+C to exit.",
                         color=UI_TEXT), "h 2 wrap"),

@@ -4,6 +4,17 @@ from core.cmd import Reader as r
 from core.cmd import Selector as s
 from core.cmd import Qs as qs
 
+# Keep in mind a terminal can't handle some combinations.
+# Use `show_key.py` tool to check how Caesium translates some key combinations
+# to keystroke.
+# In general, modifier order is `M-` `C-` `S-`.
+#
+# Fix Keyboard Input on Terminals - Please
+# https://www.leonerd.org.uk/hacks/fixterms/
+#
+# XTerm Control Sequences - VT100 Mode - Single-character functions
+# https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-VT100-Mode
+
 # @formatter:off
 c.QUIT.ks = ["F10", "q", "S-q"]  # закрыть клиент
 

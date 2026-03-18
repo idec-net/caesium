@@ -4,6 +4,17 @@ from core.cmd import Reader as r
 from core.cmd import Selector as s
 from core.cmd import Qs as qs
 
+# Keep in mind a terminal can't handle some combinations.
+# Use `show_key.py` tool to check how Caesium translates some key combinations
+# to keystroke.
+# In general, modifier order is `M-` `C-` `S-`.
+#
+# Fix Keyboard Input on Terminals - Please
+# https://www.leonerd.org.uk/hacks/fixterms/
+#
+# XTerm Control Sequences - VT100 Mode - Single-character functions
+# https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-VT100-Mode
+
 # @formatter:off
 c.QUIT.ks = ["F10", "z", "S-z"]  # закрыть клиент
 
@@ -56,7 +67,7 @@ r.QUIT.ks =      ["q", "S-q", "ESC"]  # noqa: E222  вернуться на эк
 # Клавиши для просмотра исходящих
 o.EDIT.ks = ["e", "S-e"]  # редактировать сообщение
 o.SIGN.ks = ["M-s", "M-S-s"]  # подписать сообщение PGP-ключом
-o.DEL.ks = ["Del"]              # удалить черновик/исходящее/избранное
+o.DEL.ks = ["Del"]  # удалить черновик/исходящее/избранное
 
 # Клавиши быстрого поиска
 qs.OPEN.ks =  ["s", "S-s"]  # noqa: E222  открыть текстовое поле быстрого поиска
