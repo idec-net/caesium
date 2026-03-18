@@ -19,7 +19,7 @@ from typing import List, Optional, Union
 
 from api import MsgMetadata
 from core import (
-    __version__, parser, client, config, ui, utils, search, outgoing,
+    __version__, parser, client, config, ui, utils, search, outgoing, keystroke,
     FEAT_X_C, FEAT_U_E
 )
 from core.cmd import Common, Out, Reader, Selector, Qs
@@ -429,6 +429,7 @@ class EchoSelectorScreen:
         elif ks in Selector.CONFIG:
             edit_config()
             ui.load_theme(cfg)
+            load_keys()
             node = 0
             self.reload_echoareas()
         elif ks in Selector.FIND:
@@ -876,6 +877,7 @@ class EchoReader:
         self.msgn = self.find_msgid_idx(msgid)
         self.mode = mode
 
+    # noinspection PyUnusedLocal
     def on_key_pressed(self, ks, key):
         if ks in Reader.MSUBJ:
             self.toggle_mode(ui.ReaderMode.SUBJ)
@@ -1075,19 +1077,24 @@ ui.api = api
 if not os.path.exists("downloads"):
     os.mkdir("downloads")
 outgoing.init(cfg)
-#
-if cfg.keys == "default":
-    # noinspection PyUnresolvedReferences
-    import keys.default as keys
-elif cfg.keys == "android":
-    # noinspection PyUnresolvedReferences
-    import keys.android as keys
-elif cfg.keys == "vi":
-    # noinspection PyUnresolvedReferences
-    import keys.vi as keys
-else:
-    raise Exception("Unknown Keys Scheme :: " + cfg.keys)
 
+
+def load_keys():
+    if cfg.keys == "default":
+        # noinspection PyUnresolvedReferences
+        import keys.default as keys
+    elif cfg.keys == "android":
+        # noinspection PyUnresolvedReferences
+        import keys.android as keys
+    elif cfg.keys == "vi":
+        # noinspection PyUnresolvedReferences
+        import keys.vi as keys
+    else:
+        raise Exception("Unknown Keys Scheme :: " + cfg.keys)
+    keystroke.KsSeq.init_sequences()
+
+
+load_keys()
 try:
     ui.initialize_curses()
     ui.load_theme(cfg)
