@@ -739,51 +739,12 @@ class EchoReader:
         return matches
 
     def show(self):
-        while self.go:
-            ui.stdscr.clear()
-            status = None
-            if self.msgs_data:
-                self.draw(ui.stdscr)
-                status = utils.msgn_status(len(self.msgs_data), self.msgn, ui.WIDTH)
-            else:
-                ui.draw_reader(ui.stdscr, self.echo.name, "", self.out)
-            ui.draw_status_bar(ui.stdscr, mode=self.mode, text=status)
-            if self.qs:
-                self.qs.draw(ui.stdscr, ui.HEIGHT - 1, len(ui.version) + 2,
-                             get_color(UI_STATUS))
-                ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2 + self.qs.cursor)
-            #
-            ks, key, _ = ui.get_keystroke()
-            if ks and any(("Shift+" in ks, "Alt+" in ks, "Ctrl+" in ks)):
-                key = -1  # beware Android backspace "Ctrl+?" (127)
-            #
-            if key == curses.KEY_RESIZE:
-                ui.set_term_size()
-                self.prerender(self.scroll.pos)
-                ui.stdscr.clear()
-                if self.qs:
-                    self.qs.items = self.tokens
-                    self.qs.width = ui.WIDTH - len(ui.version) - 12
-                    tnum, _ = parser.find_visible_token(self.tokens, self.scroll.pos)
-                    self.qs.search(self.qs.query, tnum)
-            elif self.qs:
-                self.on_key_pressed_qs(ks, key)
-            elif ks in Qs.OPEN:
-                ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2)
-                curses.curs_set(1)
-                self.qs = search.QuickSearch(self.tokens, self.on_search_item,
-                                             ui.WIDTH - len(ui.version) - 13)
-            elif ks in Reader.QUIT:
-                if self.mode_stack:
-                    self.mode_restore()
-                else:
-                    self.go = False
-                    self.next_echo = False
-            elif ks in Common.QUIT:
-                self.go = False
-                self.done = True
-            else:
-                self.on_key_pressed(ks, key)
+        try:
+            while self.go:
+                self._show()
+        except SystemExit:
+            self.go = False
+            self.done = True
 
         if self.mode == ui.ReaderMode.ECHO:
             self.counts.lasts[self.echo.name] = self.msgn
@@ -791,6 +752,52 @@ class EchoReader:
                 pickle.dump(self.counts.lasts, f)
         ui.stdscr.clear()
         return not self.done, self.next_echo
+
+    def _show(self):
+        ui.stdscr.clear()
+        status = None
+        if self.msgs_data:
+            self.draw(ui.stdscr)
+            status = utils.msgn_status(len(self.msgs_data), self.msgn, ui.WIDTH)
+        else:
+            ui.draw_reader(ui.stdscr, self.echo.name, "", self.out)
+        ui.draw_status_bar(ui.stdscr, mode=self.mode, text=status)
+        if self.qs:
+            self.qs.draw(ui.stdscr, ui.HEIGHT - 1, len(ui.version) + 2,
+                         get_color(UI_STATUS))
+            ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2 + self.qs.cursor)
+        #
+        ks, key, _ = ui.get_keystroke()
+        if ks and any(("Shift+" in ks, "Alt+" in ks, "Ctrl+" in ks)):
+            key = -1  # beware Android backspace "Ctrl+?" (127)
+        #
+        if key == curses.KEY_RESIZE:
+            ui.set_term_size()
+            self.prerender(self.scroll.pos)
+            ui.stdscr.clear()
+            if self.qs:
+                self.qs.items = self.tokens
+                self.qs.width = ui.WIDTH - len(ui.version) - 12
+                tnum, _ = parser.find_visible_token(self.tokens, self.scroll.pos)
+                self.qs.search(self.qs.query, tnum)
+        elif self.qs:
+            self.on_key_pressed_qs(ks, key)
+        elif ks in Qs.OPEN:
+            ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2)
+            curses.curs_set(1)
+            self.qs = search.QuickSearch(self.tokens, self.on_search_item,
+                                         ui.WIDTH - len(ui.version) - 13)
+        elif ks in Reader.QUIT:
+            if self.mode_stack:
+                self.mode_restore()
+            else:
+                self.go = False
+                self.next_echo = False
+        elif ks in Common.QUIT:
+            self.go = False
+            self.done = True
+        else:
+            self.on_key_pressed(ks, key)
 
     def draw(self, scr):
         h, w = scr.getmaxyx()

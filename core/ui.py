@@ -12,7 +12,7 @@ from typing import Optional, List, Tuple
 import api.ait as api
 from api import MsgMetadata
 from core import __version__, parser, utils, search, keystroke
-from core.cmd import Reader, Selector, Qs
+from core.cmd import Common, Reader, Selector, Qs
 from core.config import (
     get_color, load_colors, Config, TOKEN2UI,
     UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT
@@ -90,7 +90,7 @@ def initialize_curses():
     curses.noecho()
     curses.set_escdelay(50)  # ms
     curses.curs_set(0)
-    curses.cbreak()
+    curses.raw()
     stdscr.keypad(True)
     set_term_size()
 
@@ -100,7 +100,7 @@ def terminate_curses():
     if stdscr:
         stdscr.keypad(False)
     curses.echo(True)
-    curses.nocbreak()
+    curses.noraw()
     curses.endwin()
 
 
@@ -108,13 +108,12 @@ def get_keystroke(timeout=-1):
     stdscr.timeout(timeout)
     key = -1
     if not keystroke.PENDING_KEYS:
-        try:
-            key = stdscr.getch()
-        except KeyboardInterrupt as e:
-            sys.exit(0)
+        key = stdscr.getch()
     stdscr.timeout(0)
     ks, key, _ = keystroke.getkeystroke(stdscr, key)
     stdscr.timeout(-1)
+    if ks == "C-c" or ks in Common.QUIT:
+        sys.exit(0)
     return ks, key, _
 
 
@@ -839,10 +838,10 @@ class InputWidget(Widget):
 
     def on_key_pressed(self, ks, key):
         # TODO: Common navigation commands?
-        if key in curses.KEY_HOME:
+        if key == curses.KEY_HOME:
             self.cursor = 0
             self.offset = 0
-        elif key in curses.KEY_END:
+        elif key == curses.KEY_END:
             self.cursor = len(self.txt)
             contentWidth = self.w - (len(THEME.input[0]) + len(THEME.input[1]))
             self.offset = max(0, self.cursor - contentWidth + 1)
