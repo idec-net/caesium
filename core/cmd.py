@@ -12,7 +12,7 @@ class Cmd:
         return f'{self.group}.{self.desc}'
 
     def __contains__(self, item):
-        return item in self.ks
+        return self.ks and item in self.ks
 
 
 class Group(type):
