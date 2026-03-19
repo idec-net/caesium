@@ -727,7 +727,7 @@ class EchoReader:
         for offset, line in enumerate(token.render):
             pos = 0
             while match := p.search(line, pos):
-                if pos >= len(line):
+                if pos >= len(line) or match.start() == match.end():
                     break
                 matches.append((offset, match))
                 pos = match.end()

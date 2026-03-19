@@ -644,13 +644,13 @@ class MsgListScreen:
         result_subj = []
         p = 0
         while match := pattern.search(it.fr, p):
-            if p >= len(it.fr):
+            if p >= len(it.fr) or match.start() == match.end():
                 break
             result_name.append(match)
             p = match.end()
         p = 0
         while match := pattern.search(it.subj, p):
-            if p >= len(it.subj):
+            if p >= len(it.subj) or match.start() == match.end():
                 break
             result_subj.append(match)
             p = match.end()
