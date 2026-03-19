@@ -1,7 +1,7 @@
 import curses
 from typing import Tuple, Any, Union
 
-from core.cmd import Cmd, Common, Out, Reader, Selector
+from core import cmd
 
 # VisiData - keys.py
 # https://github.com/saulpw/visidata/blob/develop/visidata/keys.py#L5
@@ -123,9 +123,11 @@ class KsSeq:
     @staticmethod
     def init_sequences():
         KsSeq.sequences = []
-        for group in (Common, Out, Selector, Reader):
+        for k, group in cmd.__dict__.items():
+            if not isinstance(group, type):
+                continue  #
             for attr, val in group.__dict__.items():
-                if isinstance(val, Cmd) and val.ks:
+                if isinstance(val, cmd.Cmd) and val.ks:
                     KsSeq.sequences += [_ for _ in val.ks if " " in _]
 
 
