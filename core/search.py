@@ -1,7 +1,7 @@
 import curses
 import re
 
-import keys.default as keys
+from core.cmd import Qs
 
 LABEL_SEARCH = "<введите regex для поиска>"
 
@@ -68,39 +68,42 @@ class QuickSearch:
                     if self.idx == -1 and i >= pos:
                         self.idx = len(self.result) - 1
 
-    def on_key_pressed_search(self, key, keystroke, pager):
-        if "Space" == keystroke:
-            keystroke = " "
-        if key in keys.s_home:
+    def on_key_pressed_search(self, key, ks, pager):
+        if ks in Qs.HOME:
             self.home()
-        elif key in keys.s_end:
+        elif ks in Qs.END:
             self.end()
-        elif key in keys.s_down:
+        elif ks in Qs.NEXT:
             self.next()
-        elif key in keys.s_up:
+        elif ks in Qs.PREV:
             self.prev()
-        elif key in keys.s_npage:
+        elif ks in Qs.NPAGE:
             self.next_after(pager.next_page_top())
-        elif key in keys.s_ppage:
+        elif ks in Qs.PPAGE:
             self.prev_before(pager.prev_page_bottom())
-        elif key == curses.KEY_LEFT:
+        elif ks in Qs.LEFT:
             self.cursor = max(0, self.cursor - 1)
-        elif key == curses.KEY_RIGHT:
+        elif ks in Qs.RIGHT:
             self.cursor = min(len(self.query), self.cursor + 1)
-        elif key in (curses.KEY_BACKSPACE, 127):
+        elif ks in Qs.BS or key in (curses.KEY_BACKSPACE, 127):  # ???
             # 127 - Ctrl+? - Android backspace
             self.search(self.query[0:max(0, self.cursor - 1)]
                         + self.query[self.cursor:], pager.pos)
             self.cursor = max(0, self.cursor - 1)
-        elif key == curses.KEY_DC:  # DEL
+        elif ks in Qs.DEL:  # DEL
             self.search(self.query[0:max(0, self.cursor)]
                         + self.query[self.cursor + 1:], pager.pos)
-        elif len(keystroke) == 1 and (not self.width
-                                      or len(self.query) < self.width):
-            self.search(self.query[0:self.cursor]
-                        + keystroke
-                        + self.query[self.cursor:], pager.pos)
-            self.cursor = min(len(self.query), self.cursor + 1)
+        else:
+            if "SPC" == ks:
+                ks = " "
+            if len(ks) == 3 and ks.startswith("S-"):
+                ks = ks[-1].upper()
+            if len(ks) == 1 and (not self.width
+                                 or len(self.query) < self.width):
+                self.search(self.query[0:self.cursor]
+                            + ks
+                            + self.query[self.cursor:], pager.pos)
+                self.cursor = min(len(self.query), self.cursor + 1)
 
     def home(self):
         self.idx = 0
@@ -136,12 +139,12 @@ class QuickSearch:
                 self.home()
                 break  #
 
-    def ensure_cursor_visible(self, key, cursor, scroll):
+    def ensure_cursor_visible(self, ks, cursor, scroll):
         if self.result:
             cursor = self.result[self.idx]
-            if key in keys.s_npage:
+            if ks in Qs.NPAGE:
                 scroll.pos = cursor
-            elif key in keys.s_ppage:
+            elif ks in Qs.PPAGE:
                 scroll.pos = cursor - scroll.view
             scroll.ensure_visible(cursor)
         return cursor

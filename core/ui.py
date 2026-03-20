@@ -10,9 +10,9 @@ from itertools import cycle
 from typing import Optional, List, Tuple
 
 import api.ait as api
-import keys.default as keys
 from api import MsgMetadata
 from core import __version__, parser, utils, search, keystroke
+from core.cmd import Common, Reader, Selector, Qs
 from core.config import (
     get_color, load_colors, Config, TOKEN2UI,
     UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT
@@ -90,7 +90,7 @@ def initialize_curses():
     curses.noecho()
     curses.set_escdelay(50)  # ms
     curses.curs_set(0)
-    curses.cbreak()
+    curses.raw()
     stdscr.keypad(True)
     set_term_size()
 
@@ -100,7 +100,7 @@ def terminate_curses():
     if stdscr:
         stdscr.keypad(False)
     curses.echo(True)
-    curses.nocbreak()
+    curses.noraw()
     curses.endwin()
 
 
@@ -108,13 +108,12 @@ def get_keystroke(timeout=-1):
     stdscr.timeout(timeout)
     key = -1
     if not keystroke.PENDING_KEYS:
-        try:
-            key = stdscr.getch()
-        except KeyboardInterrupt as e:
-            sys.exit(0)
+        key = stdscr.getch()
     stdscr.timeout(0)
     ks, key, _ = keystroke.getkeystroke(stdscr, key)
     stdscr.timeout(-1)
+    if ks == "C-c" or ks in Common.QUIT:
+        sys.exit(0)
     return ks, key, _
 
 
@@ -332,7 +331,7 @@ class SelectWindow:
             self.draw(self.win, self.items, self.cursor, self.scroll)
             self.win.refresh()
             #
-            key = stdscr.getch()
+            ks, key, _ = get_keystroke()
             #
             if key == curses.KEY_RESIZE:
                 set_term_size()
@@ -340,12 +339,12 @@ class SelectWindow:
                 stdscr.refresh()
                 self.win = self.init_win(self.items, self.title, self.win)
                 self.resized = True
-            elif key in keys.s_enter:
+            elif ks in Selector.ENTER:
                 return self.cursor + 1  # return 1-based index
-            elif key in keys.r_quit:
+            elif ks in Reader.QUIT:
                 return False  #
             else:
-                self.on_key_pressed(key, self.scroll)
+                self.on_key_pressed(ks, self.scroll)
 
     @staticmethod
     def draw(win, items, cursor, scroll):
@@ -365,25 +364,25 @@ class SelectWindow:
         if scroll.is_scrollable:
             draw_scrollbarV(win, 1, w - 1, scroll)
 
-    def on_key_pressed(self, key, scroll):  # type: (int, ScrollCalc) -> None
-        if key in keys.r_up:
+    def on_key_pressed(self, ks, scroll):  # type: (str, ScrollCalc) -> None
+        if ks in Reader.UP:
             self.cursor -= 1
             if self.cursor < 0:
                 self.cursor = scroll.content - 1
-        elif key in keys.r_down:
+        elif ks in Reader.DOWN:
             self.cursor += 1
             if self.cursor >= self.scroll.content:
                 self.cursor = 0
-        elif key in keys.r_home:
+        elif ks in Reader.HOME:
             self.cursor = 0
-        elif key in keys.r_mend:
+        elif ks in Reader.MEND:
             self.cursor = scroll.content - 1
-        elif key in keys.r_ppage:
+        elif ks in Reader.PPAGE:
             if self.cursor > scroll.pos:
                 self.cursor = scroll.pos
             else:
                 self.cursor = max(0, self.cursor - scroll.view)
-        elif key in keys.r_npage:
+        elif ks in Reader.NPAGE:
             page_bottom = scroll.pos_bottom()
             if self.cursor < page_bottom:
                 self.cursor = page_bottom
@@ -514,10 +513,10 @@ class MsgListScreen:
                 if self.qs:
                     self.qs.width = WIDTH - len(version) - 12
             elif self.qs:
-                if key in keys.s_csearch:
+                if ks in Qs.CLOSE:
                     self.qs = None
                     curses.curs_set(0)
-                elif key in keys.s_asearch:
+                elif ks in Qs.APPLY:
                     if self.qs.result:
                         self.mode_search_on()
                     self.qs = None
@@ -525,22 +524,22 @@ class MsgListScreen:
                 else:
                     self.qs.on_key_pressed_search(key, ks, self.scroll)
                     self.cursor = self.qs.ensure_cursor_visible(
-                        key, self.cursor, self.scroll)
-            elif (key in keys.s_csearch
+                        ks, self.cursor, self.scroll)
+            elif (ks in Reader.QUIT
                   and self.mode == ReaderMode.SEARCH
                   and self.mode_stack):
                 self.apply_mode(*self.mode_stack.pop())
-            elif key in keys.s_osearch:
+            elif ks in Qs.OPEN:
                 stdscr.move(HEIGHT - 1, len(version) + 2)
                 curses.curs_set(1)
                 self.qs = search.QuickSearch(self.data, self.on_search_item,
                                              WIDTH - len(version) - 13)
-            elif key in keys.s_enter:
+            elif ks in Selector.ENTER:
                 return self.cursor  #
-            elif key in keys.r_quit:
+            elif ks in Reader.QUIT:
                 return -1  #
             else:
-                self.on_key_pressed(key, self.scroll)
+                self.on_key_pressed(ks, self.scroll)
 
     @staticmethod
     def draw_title(win, echo):
@@ -586,30 +585,30 @@ class MsgListScreen:
         draw_status_bar(win, mode=self.mode,
                         text=utils.msgn_status(len(data), cursor, w))
 
-    def on_key_pressed(self, key, scroll):
-        if key in keys.r_msubj:
+    def on_key_pressed(self, ks, scroll):
+        if ks in Reader.MSUBJ:
             if self.mode != ReaderMode.SUBJ:
                 self.mode_subj_on()
             elif self.mode_stack:
                 self.apply_mode(*self.mode_stack.pop())
-        elif key in keys.s_up:
+        elif ks in Selector.UP:
             self.cursor = max(0, self.cursor - 1)
-        elif key in keys.s_down:
+        elif ks in Selector.DOWN:
             self.cursor = min(scroll.content - 1, self.cursor + 1)
-        elif key in keys.s_ppage:
+        elif ks in Selector.PPAGE:
             if self.cursor > scroll.pos:
                 self.cursor = scroll.pos
             else:
                 self.cursor = max(0, self.cursor - scroll.view)
-        elif key in keys.s_npage:
+        elif ks in Selector.NPAGE:
             page_bottom = scroll.pos_bottom()
             if self.cursor < page_bottom:
                 self.cursor = page_bottom
             else:
                 self.cursor = min(scroll.content - 1, page_bottom + scroll.view)
-        elif key in keys.s_home:
+        elif ks in Selector.HOME:
             self.cursor = 0
-        elif key in keys.s_end:
+        elif ks in Selector.END:
             self.cursor = scroll.content - 1
 
     def apply_mode(self, mode, data, msgid):
@@ -686,12 +685,16 @@ class LabelWidget(Widget):
     focusable: bool = False
     h: int = 1
 
-    def __init__(self, txt="", y=0, x=0):
+    def __init__(self, txt="", y=0, x=0, enabled=True, color: str = None):
         self.x = x
         self.y = y
         self.w = len(txt)
         self.txt = txt
-        self.color = self._color(self.enabled)
+        self.enabled = enabled
+        if color:
+            self.color = get_color(color)
+        else:
+            self.color = self._color(self.enabled)
 
     # noinspection PyUnusedLocal
     @staticmethod
@@ -834,12 +837,11 @@ class InputWidget(Widget):
             self.offset -= decrement
 
     def on_key_pressed(self, ks, key):
-        if key == ord(" "):
-            ks = " "
-        if key in keys.s_home:
+        # TODO: Common navigation commands?
+        if key == curses.KEY_HOME:
             self.cursor = 0
             self.offset = 0
-        elif key in keys.s_end:
+        elif key == curses.KEY_END:
             self.cursor = len(self.txt)
             contentWidth = self.w - (len(THEME.input[0]) + len(THEME.input[1]))
             self.offset = max(0, self.cursor - contentWidth + 1)
@@ -857,11 +859,16 @@ class InputWidget(Widget):
             txt = self.txt[0:max(0, self.cursor)] + self.txt[self.cursor + 1:]
             if not self.mask or self.mask.match(txt):
                 self.txt = txt
-        elif len(ks) == 1:
-            txt = self.txt[0:self.cursor] + ks + self.txt[self.cursor:]
-            if not self.mask or self.mask.match(txt):
-                self.txt = txt
-                self._move_cursor_right(len(ks))
+        else:
+            if key == ord(" "):
+                ks = " "
+            if len(ks) == 3 and ks.startswith("S-"):
+                ks = ks[-1].upper()
+            if len(ks) == 1:
+                txt = self.txt[0:self.cursor] + ks + self.txt[self.cursor:]
+                if not self.mask or self.mask.match(txt):
+                    self.txt = txt
+                    self._move_cursor_right(len(ks))
 
     def get_win_cursor_pos(self):
         return len(THEME.input[0]) + self.cursor - self.offset
@@ -1056,13 +1063,13 @@ class FindQueryWindow:
             #
             self.draw_title(self.win)
             self.resized = True
-        elif key in keys.s_csearch:
+        elif ks in Qs.CLOSE:
             curses.curs_set(0)
             if self.find_in_progress:
                 self.find_cancel = True
             else:
                 return False  #
-        elif key in keys.s_asearch and not self.find_in_progress:
+        elif ks in Qs.APPLY and not self.find_in_progress:
             curses.curs_set(0)
             self.find_tick = 0
             self.find()
@@ -1077,7 +1084,7 @@ class FindQueryWindow:
                     wid = self.next_focus(wid)
                 self.set_focused(wid)
 
-            elif ks == "Shift+Tab" or key == curses.KEY_UP:
+            elif ks == "S-Tab" or key == curses.KEY_UP:
                 wid = self.prev_focus(self.focused_wid)
                 while wid and not (wid.enabled and wid.focusable):
                     wid = self.prev_focus(wid)
