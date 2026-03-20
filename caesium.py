@@ -19,7 +19,7 @@ from typing import List, Optional, Union
 
 from api import MsgMetadata
 from core import (
-    __version__, parser, client, config, ui, utils, search, outgoing, keystroke,
+    __version__, parser, client, config, ui, utils, outgoing, keystroke,
     FEAT_X_C, FEAT_U_E
 )
 from core.cmd import Common, Out, Reader, Selector, Qs
@@ -241,7 +241,7 @@ class EchoSelectorScreen:
     cursor: int = 0
     echoareas: List[config.Echo] = None
     scroll: ui.ScrollCalc = None
-    qs: Optional[search.QuickSearch] = None
+    qs: Optional[ui.QuickSearch] = None
     go: bool = True
 
     def __init__(self):
@@ -310,8 +310,8 @@ class EchoSelectorScreen:
             elif ks in Qs.OPEN:
                 ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2)
                 curses.curs_set(1)
-                self.qs = search.QuickSearch(self.echoareas, self.on_search_item,
-                                             ui.WIDTH - len(ui.version) - 13)
+                self.qs = ui.QuickSearch(self.echoareas, self.on_search_item,
+                                         ui.WIDTH - len(ui.version) - 13)
             elif ks in Common.QUIT:
                 self.go = False
             else:
@@ -330,7 +330,7 @@ class EchoSelectorScreen:
 
     @staticmethod
     def draw_echo_selector(win, start, cursor, archive, qs, counts):
-        # type: (curses.window, int, int, bool, search.QuickSearch, List[List[str]]) -> None
+        # type: (curses.window, int, int, bool, ui.QuickSearch, List[List[str]]) -> None
         h, w = win.getmaxyx()
         color = get_color(UI_BORDER)
         win.addstr(0, 0, "─" * w, color)
@@ -583,7 +583,7 @@ class EchoReader:
     scroll: ui.ScrollCalc  # message body scroll calculator
     t2l: List[parser.RangeLines]  # tokens rendered lines range
     _msgid: Optional[str] = None  # non-current-echo message id, navigated by ii-link
-    qs: Optional[search.QuickSearch] = None  # quick search helper
+    qs: Optional[ui.QuickSearch] = None  # quick search helper
     #
     go: bool = True  # show reader
     done: bool = False  # close app
@@ -786,8 +786,8 @@ class EchoReader:
         elif ks in Qs.OPEN:
             ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2)
             curses.curs_set(1)
-            self.qs = search.QuickSearch(self.tokens, self.on_search_item,
-                                         ui.WIDTH - len(ui.version) - 13)
+            self.qs = ui.QuickSearch(self.tokens, self.on_search_item,
+                                     ui.WIDTH - len(ui.version) - 13)
         elif ks in Reader.QUIT:
             if self.mode_stack:
                 self.mode_restore()
@@ -842,7 +842,7 @@ class EchoReader:
             curses.curs_set(0)
             return
         #
-        pager = search.Pager(
+        pager = ui.Pager(
             parser.find_visible_token(self.tokens, self.scroll.pos)[0],
             lambda: parser.find_visible_token(self.tokens, self.scroll.pos + self.scroll.view)[0],
             lambda: parser.find_visible_token(self.tokens, self.scroll.pos)[0] - 1)

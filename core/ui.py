@@ -10,7 +10,7 @@ from typing import Optional, List, Tuple
 
 import api.ait as api
 from api import MsgMetadata, FindQuery
-from core import __version__, parser, utils, search, keystroke
+from core import __version__, parser, utils, keystroke
 from core.cmd import Common, Reader, Selector, Qs
 from core.config import (
     get_color, load_colors, Config, TOKEN2UI, ECHO_FIND,
@@ -18,6 +18,7 @@ from core.config import (
 )
 from core.layout import GridLayout, CC
 
+LABEL_SEARCH = "<введите regex для поиска>"
 LABEL_ANY_KEY = "Нажмите любую клавишу"
 LABEL_ESC = "Esc - отмена"
 LABEL_FIND = "Поиск"
@@ -397,7 +398,7 @@ class SelectWindow:
 
 # region Render Body
 def render_body(scr, tokens, scroll, qs=None):
-    # type: (curses.window, List[parser.Token], int, search.QuickSearch) -> None
+    # type: (curses.window, List[parser.Token], int, QuickSearch) -> None
     if not tokens:
         return
     h, w = scr.getmaxyx()
@@ -486,7 +487,7 @@ class MsgListScreen:
         self.scroll = ScrollCalc(len(self.data), HEIGHT - 2)
         self.scroll.ensure_visible(self.cursor, center=True)
         self.resized = False
-        self.qs = None  # type: Optional[search.QuickSearch]
+        self.qs = None  # type: Optional[QuickSearch]
         self.mode_stack = []  # type: List[Tuple[ReaderMode, List[MsgMetadata], str]]
 
     def cur_msg(self):
@@ -537,8 +538,8 @@ class MsgListScreen:
             elif ks in Qs.OPEN:
                 stdscr.move(HEIGHT - 1, len(version) + 2)
                 curses.curs_set(1)
-                self.qs = search.QuickSearch(self.data, self.on_search_item,
-                                             WIDTH - len(version) - 13)
+                self.qs = QuickSearch(self.data, self.on_search_item,
+                                      WIDTH - len(version) - 13)
             elif ks in Selector.ENTER:
                 return self.cursor  #
             elif ks in Reader.QUIT:
@@ -1213,3 +1214,147 @@ class FindQueryWindow:
         self.lbl_progress.set_txt(progress)
         self._show()
         return api.FIND_OK
+
+
+class Pager:
+    pos: int = 0
+
+    def __init__(self, pos, next_page_top, prev_page_bottom):
+        self.pos = pos
+        self.next_page_top = next_page_top
+        self.prev_page_bottom = prev_page_bottom
+
+    def next_page_top(self):
+        pass
+
+    def prev_page_bottom(self):
+        pass
+
+
+class QuickSearch:
+    def __init__(self, items, matcher, width=0):
+        self.items = items
+        self.query = ""
+        self.cursor = 0
+        self.matches = []
+        self.result = []
+        self.idx = 0
+        self.err = ""
+        self.matcher = matcher
+        self.width = width
+
+    def draw(self, win, y, x, color):
+        # type: (curses.window, int, int, int) -> None
+        win.addstr(y, x, " " * (self.width or len(self.query)), color)
+        if self.query:
+            idx = self.idx + 1 if self.result else 0
+            line = "%s  (%s%d / %d)" % (self.query, self.err, idx, len(self.result))
+            win.addnstr(y, x, line, self.width or len(line), color)
+        else:
+            win.addstr(y, x, LABEL_SEARCH, color)
+        win.move(y, x + len(self.query))
+
+    def search(self, query, pos):
+        self.result = []
+        self.matches = []
+        self.idx = -1
+        self.query = query
+        self.err = ""
+        if not query:
+            return  #
+        try:
+            template = re.compile(query, re.IGNORECASE)
+        except re.error:
+            self.err = THEME.error[0] + " "
+            return  # error
+
+        sidx = 0
+        for i, item in enumerate(self.items):
+            if matches := self.matcher(sidx, template, item):
+                for m in matches:
+                    self.result.append(i)
+                    self.matches.append(m)
+                    sidx += 1
+                    if self.idx == -1 and i >= pos:
+                        self.idx = len(self.result) - 1
+
+    def on_key_pressed_search(self, key, ks, pager):
+        if ks in Qs.HOME:
+            self.home()
+        elif ks in Qs.END:
+            self.end()
+        elif ks in Qs.NEXT:
+            self.next()
+        elif ks in Qs.PREV:
+            self.prev()
+        elif ks in Qs.NPAGE:
+            self.next_after(pager.next_page_top())
+        elif ks in Qs.PPAGE:
+            self.prev_before(pager.prev_page_bottom())
+        elif ks in Qs.LEFT:
+            self.cursor = max(0, self.cursor - 1)
+        elif ks in Qs.RIGHT:
+            self.cursor = min(len(self.query), self.cursor + 1)
+        elif ks in Qs.BS or key in (curses.KEY_BACKSPACE, 127):  # ???
+            # 127 - Ctrl+? - Android backspace
+            self.search(self.query[0:max(0, self.cursor - 1)]
+                        + self.query[self.cursor:], pager.pos)
+            self.cursor = max(0, self.cursor - 1)
+        elif ks in Qs.DEL:  # DEL
+            self.search(self.query[0:max(0, self.cursor)]
+                        + self.query[self.cursor + 1:], pager.pos)
+        else:
+            if "SPC" == ks:
+                ks = " "
+            if len(ks) == 3 and ks.startswith("S-"):
+                ks = ks[-1].upper()
+            if len(ks) == 1 and (not self.width
+                                 or len(self.query) < self.width):
+                self.search(self.query[0:self.cursor]
+                            + ks
+                            + self.query[self.cursor:], pager.pos)
+                self.cursor = min(len(self.query), self.cursor + 1)
+
+    def home(self):
+        self.idx = 0
+
+    def end(self):
+        self.idx = len(self.result) - 1
+
+    def next(self):
+        self.idx += 1
+        if self.idx >= len(self.result):
+            self.idx = 0
+
+    def prev(self):
+        self.idx -= 1
+        if self.idx < 0:
+            self.idx = len(self.result) - 1
+
+    def next_after(self, pos):
+        if not self.result:
+            return  #
+        while self.result[self.idx] < pos:
+            self.idx += 1
+            if self.idx >= len(self.result):
+                self.end()
+                break  #
+
+    def prev_before(self, pos):
+        if not self.result:
+            return  #
+        while self.result[self.idx] > pos:
+            self.idx -= 1
+            if self.idx < 0:
+                self.home()
+                break  #
+
+    def ensure_cursor_visible(self, ks, cursor, scroll):
+        if self.result:
+            cursor = self.result[self.idx]
+            if ks in Qs.NPAGE:
+                scroll.pos = cursor
+            elif ks in Qs.PPAGE:
+                scroll.pos = cursor - scroll.view
+            scroll.ensure_visible(cursor)
+        return cursor
