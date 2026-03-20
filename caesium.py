@@ -803,8 +803,15 @@ class EchoReader:
     def draw(self, scr):
         h, w = scr.getmaxyx()
         ui.draw_reader(scr, self.msg[1], self.msgid(), self.out)
-        if self.echo.desc and w >= 80:
-            ui.draw_title(scr, 0, w - 2 - len(self.echo.desc), self.echo.desc)
+        if w >= 80:
+            if self.echo != config.ECHO_FIND:
+                if self.echo.desc:
+                    ui.draw_title(scr, 0, w - 2 - len(self.echo.desc),
+                                  self.echo.desc)
+            else:
+                title = f"Найденные сообщения '{ui.FindQueryWindow.query.query}'"
+                ui.draw_title(scr, 0, w - 2 - len(title), title)
+
         color = get_color(UI_TEXT)
         if not self.out:
             if w >= 80:

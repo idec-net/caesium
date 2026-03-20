@@ -13,7 +13,7 @@ from api import MsgMetadata, FindQuery
 from core import __version__, parser, utils, search, keystroke
 from core.cmd import Common, Reader, Selector, Qs
 from core.config import (
-    get_color, load_colors, Config, TOKEN2UI,
+    get_color, load_colors, Config, TOKEN2UI, ECHO_FIND,
     UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT
 )
 from core.layout import GridLayout, CC
@@ -545,10 +545,17 @@ class MsgListScreen:
         _, w = win.getmaxyx()
         color = get_color(UI_BORDER)
         win.addstr(0, 0, "─" * w, color)
-        if w >= 80:
-            draw_title(win, 0, 0, "Список сообщений в конференции " + echo)
+        if echo == ECHO_FIND:
+            if w >= 80:
+                draw_title(win, 0, 0, f"Найденные сообщения"
+                                      f" '{FindQueryWindow.query.query}'")
+            else:
+                draw_title(win, 0, 0, f"'{FindQueryWindow.query.query}'")
         else:
-            draw_title(win, 0, 0, echo)
+            if w >= 80:
+                draw_title(win, 0, 0, "Список сообщений в конференции " + echo)
+            else:
+                draw_title(win, 0, 0, echo)
 
     def draw(self, win, data, cursor, scroll):
         # type: (curses.window, List[MsgMetadata], int, ScrollCalc) -> None
