@@ -506,9 +506,7 @@ class MsgListScreen:
             self.scroll.ensure_visible(self.cursor)
             self.draw(stdscr, self.data, self.cursor, self.scroll)
             if self.qs:
-                self.qs.draw(stdscr, HEIGHT - 1, len(version) + 2,
-                             get_color(UI_STATUS))
-                stdscr.move(HEIGHT - 1, len(version) + 2 + self.qs.cursor)
+                self.qs.draw(stdscr)
             #
             ks, key, _ = get_keystroke()
             #
@@ -517,6 +515,7 @@ class MsgListScreen:
                 self.scroll = ScrollCalc(len(self.data), HEIGHT - 2)
                 self.resized = True
                 if self.qs:
+                    self.qs.y = HEIGHT - 1
                     self.qs.width = WIDTH - len(version) - 12
             elif self.qs:
                 if ks in Qs.CLOSE:
@@ -536,10 +535,7 @@ class MsgListScreen:
                   and self.mode_stack):
                 self.apply_mode(*self.mode_stack.pop())
             elif ks in Qs.OPEN:
-                stdscr.move(HEIGHT - 1, len(version) + 2)
-                curses.curs_set(1)
-                self.qs = QuickSearch(self.data, self.on_search_item,
-                                      WIDTH - len(version) - 13)
+                self.qs = newQuickSearch(self.data, self.on_search_item)
             elif ks in Selector.ENTER:
                 return self.cursor  #
             elif ks in Reader.QUIT:
@@ -848,6 +844,8 @@ class InputWidget(Widget):
         self.cursor = max(0, self.cursor - decrement)
         if self.cursor - self.offset < 0:
             self.offset -= decrement
+        if self.offset and self.offset == self.cursor:
+            self.offset -= 1
 
     def on_key_pressed(self, ks, key):
         # TODO: Common navigation commands?
@@ -889,7 +887,7 @@ class InputWidget(Widget):
 
 class InputRegexWidget(InputWidget):
     regexOn: bool = True
-    error: bool = False
+    err: bool = False
 
     def __init__(self, txt="", y=0, x=0, w=0, *, placeholder="", regexOn=False):
         super().__init__(txt=txt, y=y, x=x, w=w, placeholder=placeholder)
@@ -900,27 +898,29 @@ class InputRegexWidget(InputWidget):
         self.placeholder = placeholder
         self.color = self._color(self.focused, self.enabled)
         self.regexOn = regexOn
-        self._test_regex()
+        self.template = self._compile_regex()
 
-    def _test_regex(self):
+    def _compile_regex(self):
+        template = None
         try:
             if self.regexOn:
-                re.compile(self.txt)
-            self.error = False
+                template = re.compile(self.txt, re.IGNORECASE)
+            self.err = False
         except re.error:
-            self.error = True
+            self.err = True
+        return template
 
     def on_key_pressed(self, ks, key):
         super().on_key_pressed(ks, key)
-        self._test_regex()
+        self.template = self._compile_regex()
 
     def set_regexOn(self, regex):
         self.regexOn = regex
-        self._test_regex()
+        self.template = self._compile_regex()
 
     def draw(self, win):  # type: (curses.window) -> None
         super().draw(win)
-        if self.w > 3 and self.error:
+        if self.w > 3 and self.err:
             err = THEME.error[0]
             err_len = len(err) + len(THEME.input[1]) + 1
             win.addstr(self.y, self.x + self.w - err_len,
@@ -1106,7 +1106,7 @@ class FindQueryWindow:
             else:
                 return False  # close win
         elif ks in Qs.APPLY and not self.find_in_progress:
-            if self.inp_query.regexOn and self.inp_query.error:
+            if self.inp_query.regexOn and self.inp_query.err:
                 self.refreshCursor()
                 return True  #
             curses.curs_set(0)
@@ -1231,46 +1231,48 @@ class Pager:
         pass
 
 
-class QuickSearch:
-    def __init__(self, items, matcher, width=0):
+def newQuickSearch(items, matcher):
+    stdscr.move(HEIGHT - 1, len(version) + 2)
+    curses.curs_set(1)
+    return QuickSearch(items, matcher,
+                       y=HEIGHT - 1, x=len(version) + 2,
+                       w=WIDTH - len(version) - 13)
+
+
+class QuickSearch(InputRegexWidget):
+    def __init__(self, items, matcher,
+                 y=0, x=0, w=0, *, placeholder=LABEL_SEARCH, color=UI_STATUS):
+        super().__init__(y=y, x=x, w=w, placeholder=placeholder, regexOn=True)
         self.items = items
-        self.query = ""
-        self.cursor = 0
         self.matches = []
         self.result = []
         self.idx = 0
-        self.err = ""
         self.matcher = matcher
-        self.width = width
+        self.color = get_color(color)
+        self.statTxt = ""
+        self.statPos = 0
 
-    def draw(self, win, y, x, color):
-        # type: (curses.window, int, int, int) -> None
-        win.addstr(y, x, " " * (self.width or len(self.query)), color)
-        if self.query:
-            idx = self.idx + 1 if self.result else 0
-            line = "%s  (%s%d / %d)" % (self.query, self.err, idx, len(self.result))
-            win.addnstr(y, x, line, self.width or len(line), color)
-        else:
-            win.addstr(y, x, LABEL_SEARCH, color)
-        win.move(y, x + len(self.query))
+    def draw(self, win):
+        # type: (curses.window) -> None
+        super().draw(win)
+        if self.txt and not self.err:
+            win.addstr(self.y, self.x + self.statPos, self.statTxt, self.color)
+        win.move(self.y, self.x + self.get_win_cursor_pos())
 
     def search(self, query, pos):
         self.result = []
         self.matches = []
         self.idx = -1
-        self.query = query
-        self.err = ""
-        if not query:
+
+        if self.txt != query:
+            self.txt = query
+            self.template = self._compile_regex()
+        if not (query and self.template):
             return  #
-        try:
-            template = re.compile(query, re.IGNORECASE)
-        except re.error:
-            self.err = THEME.error[0] + " "
-            return  # error
 
         sidx = 0
         for i, item in enumerate(self.items):
-            if matches := self.matcher(sidx, template, item):
+            if matches := self.matcher(sidx, self.template, item):
                 for m in matches:
                     self.result.append(i)
                     self.matches.append(m)
@@ -1279,6 +1281,7 @@ class QuickSearch:
                         self.idx = len(self.result) - 1
 
     def on_key_pressed_search(self, key, ks, pager):
+        prevTxt = self.txt
         if ks in Qs.HOME:
             self.home()
         elif ks in Qs.END:
@@ -1292,28 +1295,25 @@ class QuickSearch:
         elif ks in Qs.PPAGE:
             self.prev_before(pager.prev_page_bottom())
         elif ks in Qs.LEFT:
-            self.cursor = max(0, self.cursor - 1)
+            self._move_cursor_left(1)
         elif ks in Qs.RIGHT:
-            self.cursor = min(len(self.query), self.cursor + 1)
-        elif ks in Qs.BS or key in (curses.KEY_BACKSPACE, 127):  # ???
-            # 127 - Ctrl+? - Android backspace
-            self.search(self.query[0:max(0, self.cursor - 1)]
-                        + self.query[self.cursor:], pager.pos)
-            self.cursor = max(0, self.cursor - 1)
-        elif ks in Qs.DEL:  # DEL
-            self.search(self.query[0:max(0, self.cursor)]
-                        + self.query[self.cursor + 1:], pager.pos)
+            self._move_cursor_right(1)
         else:
-            if "SPC" == ks:
-                ks = " "
-            if len(ks) == 3 and ks.startswith("S-"):
-                ks = ks[-1].upper()
-            if len(ks) == 1 and (not self.width
-                                 or len(self.query) < self.width):
-                self.search(self.query[0:self.cursor]
-                            + ks
-                            + self.query[self.cursor:], pager.pos)
-                self.cursor = min(len(self.query), self.cursor + 1)
+            super().on_key_pressed(ks, key)
+
+        if self.txt != prevTxt:
+            self.search(self.txt, pager.pos)
+
+        if self.txt and not self.err:
+            idx = self.idx + 1 if self.result else 0
+            self.statTxt = "(%d/%d)" % (idx, len(self.result))
+            self.statPos = self.w - len(self.statTxt) - len(THEME.input[1])
+            if self.get_win_cursor_pos() + 1 >= self.statPos:
+                self.offset += self.get_win_cursor_pos() + 1 - self.statPos
+        elif self.err:
+            errPos = self.w - len(THEME.error[0]) - len(THEME.input[1]) - 1  #
+            if self.get_win_cursor_pos() + 1 >= errPos:
+                self.offset += self.get_win_cursor_pos() + 1 - errPos
 
     def home(self):
         self.idx = 0
