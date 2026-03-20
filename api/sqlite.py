@@ -2,15 +2,12 @@
 import sqlite3
 from typing import Optional, List, Callable
 
-from . import MsgMetadata
+from . import MsgMetadata, FindQuery, build_find_matcher
 from core import FEAT_FEATURES, FEAT_X_C
 
 con = None  # type: Optional[sqlite3.Connection]
 c = None  # type: Optional[sqlite3.Cursor]
 
-
-# TODO: Support SQLite case-insensitive matching of Unicode
-#
 # Frequently Asked Questions
 # (18) Case-insensitive matching of Unicode characters does not work.
 # https://www.sqlite.org/faq.html#q18
@@ -243,34 +240,35 @@ FIND_CANCEL = 1
 FIND_OK = 0
 
 
-def find_query_msgids(query, msgid, body, subj, fr, to, echoarea,
-                      limit=1000, progress_handler=None):
-    # type: (str, bool, bool, bool, bool, bool, str, int, Callable) -> List[MsgMetadata]
-    if not query or not any((msgid, body, subj, fr, to)):
-        return []
+def find_query_msgids(fq: FindQuery,
+                      progress_handler: Callable = None) -> List[MsgMetadata]:
+    if not fq.query or not any((fq.msgid, fq.body, fq.subj, fq.fr, fq.to)):
+        return []  #
+
+    match = build_find_matcher(fq)
+    con.create_function("MATCH", 1, match)
+
     if progress_handler:
         con.set_progress_handler(progress_handler, 100)
+    #
     args = []
     where = "TRUE AND (FALSE"
-    if msgid:
+    if fq.msgid:
         where += " OR msgid = ?"
-        args.append(query)
-    if body:
-        where += " OR body LIKE ?"
-        args.append("%" + query + "%")
-    if subj:
-        where += " OR subject LIKE ?"
-        args.append("%" + query + "%")
-    if fr:
-        where += " OR fr LIKE ?"
-        args.append("%" + query + "%")
-    if to:
-        where += " OR t LIKE ?"
-        args.append("%" + query + "%")
+        args.append(fq.query)
+    if fq.body:
+        where += " OR MATCH(body)"
+    if fq.subj:
+        where += " OR MATCH(subject)"
+    if fq.fr:
+        where += " OR MATCH(fr)"
+    if fq.to:
+        where += " OR MATCH(t)"
     where += ")"
-    if echoarea:
+    if fq.echo and fq.echo_query:
         where += " AND echoarea LIKE ?"
-        args.append(echoarea)
+        args.append(fq.echo_query)
+
     try:
         rows = c.execute(
             "SELECT DISTINCT msgid, tags, echoarea, time, fr, addr, t, subject"
@@ -278,13 +276,14 @@ def find_query_msgids(query, msgid, body, subj, fr, to, echoarea,
             " WHERE %s"
             " ORDER BY id"
             " LIMIT ?;" % where,
-            (*args, limit))
+            (*args, fq.limit))
         return list(map(lambda r: MsgMetadata.from_list(r[0], r[1:]), rows))
     except sqlite3.OperationalError as ex:
         if "interrupted" == str(ex):
-            return []
+            return []  #
         raise ex
     finally:
+        con.create_function("MATCH", 1, None)
         con.set_progress_handler(None, 1)
 
 

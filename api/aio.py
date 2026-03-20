@@ -3,7 +3,7 @@ import codecs
 import os
 from typing import Optional, List, Callable
 
-from . import MsgMetadata
+from . import MsgMetadata, build_find_matcher, FindQuery
 
 storage = "aio/"
 
@@ -197,20 +197,16 @@ FIND_CANCEL = 1
 FIND_OK = 0
 
 
-def find_query_msgids(query, msgid, body, subj, fr, to, echoarea,
-                      limit=1000, progress_handler=None):
-    # type: (str, bool, bool, bool, bool, bool, str, int, Callable) -> List[MsgMetadata]
-    query_low = query.lower()
-
-    def match(s):
-        return query_low in s.lower()
+def find_query_msgids(fq: FindQuery,
+                      progress_handler: Callable = None) -> List[MsgMetadata]:
+    match = build_find_matcher(fq)
 
     echoareas = sorted(list(filter(
         lambda e: e.endswith(".aio") and e not in ("favorites.aio",
                                                    "carbonarea.aio"),
         os.listdir(storage))))
-    if echoarea:
-        echoareas = list(filter(lambda e: echoarea in e[0:-4], echoareas))
+    if fq.echo and fq.echo_query:
+        echoareas = list(filter(lambda e: fq.echo_query in e[0:-4], echoareas))
 
     find_result = []
     total_msg_progress = 0
@@ -225,7 +221,7 @@ def find_query_msgids(query, msgid, body, subj, fr, to, echoarea,
         echo_total_msgs = len(echo_msgs)
 
         for msg in echo_msgs:
-            if len(find_result) >= limit:
+            if len(find_result) >= fq.limit:
                 return find_result  #
             #
             total_msg_progress += 1
@@ -239,19 +235,19 @@ def find_query_msgids(query, msgid, body, subj, fr, to, echoarea,
             #
             msg = msg.split(chr(15))
             msgid_, msg[0] = msg[0].split(":")
-            if msgid and msgid_ == query:
+            if fq.msgid and msgid_ == fq.query:
                 find_result.append(MsgMetadata.from_list(msgid_, msg))
                 continue  #
-            if body and match("\n".join(msg[7:])):
+            if fq.body and match("\n".join(msg[7:])):
                 find_result.append(MsgMetadata.from_list(msgid_, msg))
                 continue  #
-            if subj and match(msg[6]):
+            if fq.subj and match(msg[6]):
                 find_result.append(MsgMetadata.from_list(msgid_, msg))
                 continue  #
-            if fr and match(msg[3]):
+            if fq.fr and match(msg[3]):
                 find_result.append(MsgMetadata.from_list(msgid_, msg))
                 continue  #
-            if to and match(msg[5]):
+            if fq.to and match(msg[5]):
                 find_result.append(MsgMetadata.from_list(msgid_, msg))
                 continue  #
     return find_result

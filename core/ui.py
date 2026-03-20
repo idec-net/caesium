@@ -3,14 +3,13 @@ import re
 import textwrap
 import time
 import sys
-from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from itertools import cycle
 from typing import Optional, List, Tuple
 
 import api.ait as api
-from api import MsgMetadata
+from api import MsgMetadata, FindQuery
 from core import __version__, parser, utils, search, keystroke
 from core.cmd import Common, Reader, Selector, Qs
 from core.config import (
@@ -42,7 +41,7 @@ class ThemeUtf8:
     NAME = "utf8"
     checkbox = ["□ ", "▣ ", "◪ "]
     input = ["", "", curses.A_UNDERLINE]
-    spinner = r"⣄⡆⠇⠋⠙⠸⢰⣠"
+    spinner = r"⣄⡆⠇⠋⠙⠸⢰⣠"  # "|⠸|⢰|" unicode git issue???
 
 
 THEME = ThemeAscii
@@ -874,24 +873,6 @@ class InputWidget(Widget):
         return len(THEME.input[0]) + self.cursor - self.offset
 
 
-@dataclass
-class FindQuery:
-    DEFAULT_LIMIT = 10000
-    query: str = ""
-    msgid: bool = True
-    body: bool = True
-    subj: bool = True
-    fr: bool = True
-    to: bool = True
-    echo: bool = True
-    echo_query: str = ""
-    limit: str = ""
-    regex: bool = False
-    case: bool = False
-    word: bool = False
-    orig: bool = False
-
-
 class FindQueryWindow:
     layout: GridLayout = None
     query = FindQuery()
@@ -928,14 +909,14 @@ class FindQueryWindow:
                                      mask=re.compile(r"^[0-9]{0,7}$"),
                                      placeholder=str(FindQuery.DEFAULT_LIMIT))
 
-        self.chk_regex = CheckBoxWidget("Regex (TODO)",
+        self.chk_regex = CheckBoxWidget("Regex",
                                         checked=self.query.regex)
-        self.chk_case = CheckBoxWidget("Учитывать регистр (TODO)",
+        self.chk_case = CheckBoxWidget("Учитывать регистр",
                                        checked=self.query.case)
-        self.chk_word = CheckBoxWidget("Слова целиком (TODO)",
+        self.chk_word = CheckBoxWidget("Слово целиком",
                                        checked=self.query.word)
-        self.chk_orig = CheckBoxWidget("Искать в подписях (TODO)",
-                                       checked=self.query.orig)
+        self.chk_orig = CheckBoxWidget("Не искать в подписях",
+                                       checked=not self.query.orig)
         self.lbl_progress = LabelWidget("")
 
         self.widgets = [  # in focus order
@@ -1129,7 +1110,11 @@ class FindQueryWindow:
         self.query.to = self.chk_to.checked
         self.query.echo = self.chk_echo.checked
         self.query.echo_query = self.inp_echo.txt
-        self.query.limit = self.inp_limit.txt
+        self.query.limit = int(self.inp_limit.txt or "0") or FindQuery.DEFAULT_LIMIT
+        self.query.regex = self.chk_regex.checked
+        self.query.case = self.chk_case.checked
+        self.query.word = self.chk_word.checked
+        self.query.orig = not self.chk_orig.checked
 
         if self.find_in_progress is None:
             self.lbl_progress.set_txt("")
@@ -1148,15 +1133,7 @@ class FindQueryWindow:
     def find(self):
         self.find_in_progress = True
         self.find_result = api.find_query_msgids(
-            query=self.query.query,
-            msgid=self.query.msgid,
-            body=self.query.body,
-            subj=self.query.subj,
-            fr=self.query.fr,
-            to=self.query.to,
-            echoarea=self.query.echo_query if self.query.echo else None,
-            limit=int(self.query.limit or "0") or FindQuery.DEFAULT_LIMIT,
-            progress_handler=self.find_progress_handler)
+            self.query, progress_handler=self.find_progress_handler)
         self.find_in_progress = False
 
     def find_progress_handler(self, param=None):
