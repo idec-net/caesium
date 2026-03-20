@@ -3,22 +3,22 @@ import re
 import textwrap
 import time
 import sys
-from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from itertools import cycle
 from typing import Optional, List, Tuple
 
 import api.ait as api
-from api import MsgMetadata
-from core import __version__, parser, utils, search, keystroke
+from api import MsgMetadata, FindQuery
+from core import __version__, parser, utils, keystroke
 from core.cmd import Common, Reader, Selector, Qs
 from core.config import (
-    get_color, load_colors, Config, TOKEN2UI,
+    get_color, load_colors, Config, TOKEN2UI, ECHO_FIND,
     UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT
 )
 from core.layout import GridLayout, CC
 
+LABEL_SEARCH = "<введите regex для поиска>"
 LABEL_ANY_KEY = "Нажмите любую клавишу"
 LABEL_ESC = "Esc - отмена"
 LABEL_FIND = "Поиск"
@@ -36,13 +36,19 @@ class ThemeAscii:
     checkbox = ["[ ] ", "[x] ", "[/] "]
     input = ["[", "]", curses.A_NORMAL]
     spinner = r"-\|/"
+    error = ["(!)", curses.A_BOLD]
 
 
 class ThemeUtf8:
     NAME = "utf8"
     checkbox = ["□ ", "▣ ", "◪ "]
     input = ["", "", curses.A_UNDERLINE]
+    # TODO: Cool Android-compatible UTF-spinner
+    # Right side only braille cells (dots ⊆ 4568)
+    # incorrect in Noto except Symbols 2, on mobile only #3935
+    # https://github.com/google/fonts/issues/3935
     spinner = r"⣄⡆⠇⠋⠙⠸⢰⣠"
+    error = ["⛔", curses.A_BOLD]
 
 
 THEME = ThemeAscii
@@ -392,7 +398,7 @@ class SelectWindow:
 
 # region Render Body
 def render_body(scr, tokens, scroll, qs=None):
-    # type: (curses.window, List[parser.Token], int, search.QuickSearch) -> None
+    # type: (curses.window, List[parser.Token], int, QuickSearch) -> None
     if not tokens:
         return
     h, w = scr.getmaxyx()
@@ -481,7 +487,7 @@ class MsgListScreen:
         self.scroll = ScrollCalc(len(self.data), HEIGHT - 2)
         self.scroll.ensure_visible(self.cursor, center=True)
         self.resized = False
-        self.qs = None  # type: Optional[search.QuickSearch]
+        self.qs = None  # type: Optional[QuickSearch]
         self.mode_stack = []  # type: List[Tuple[ReaderMode, List[MsgMetadata], str]]
 
     def cur_msg(self):
@@ -500,9 +506,7 @@ class MsgListScreen:
             self.scroll.ensure_visible(self.cursor)
             self.draw(stdscr, self.data, self.cursor, self.scroll)
             if self.qs:
-                self.qs.draw(stdscr, HEIGHT - 1, len(version) + 2,
-                             get_color(UI_STATUS))
-                stdscr.move(HEIGHT - 1, len(version) + 2 + self.qs.cursor)
+                self.qs.draw(stdscr)
             #
             ks, key, _ = get_keystroke()
             #
@@ -511,6 +515,7 @@ class MsgListScreen:
                 self.scroll = ScrollCalc(len(self.data), HEIGHT - 2)
                 self.resized = True
                 if self.qs:
+                    self.qs.y = HEIGHT - 1
                     self.qs.width = WIDTH - len(version) - 12
             elif self.qs:
                 if ks in Qs.CLOSE:
@@ -530,10 +535,7 @@ class MsgListScreen:
                   and self.mode_stack):
                 self.apply_mode(*self.mode_stack.pop())
             elif ks in Qs.OPEN:
-                stdscr.move(HEIGHT - 1, len(version) + 2)
-                curses.curs_set(1)
-                self.qs = search.QuickSearch(self.data, self.on_search_item,
-                                             WIDTH - len(version) - 13)
+                self.qs = newQuickSearch(self.data, self.on_search_item)
             elif ks in Selector.ENTER:
                 return self.cursor  #
             elif ks in Reader.QUIT:
@@ -546,10 +548,17 @@ class MsgListScreen:
         _, w = win.getmaxyx()
         color = get_color(UI_BORDER)
         win.addstr(0, 0, "─" * w, color)
-        if w >= 80:
-            draw_title(win, 0, 0, "Список сообщений в конференции " + echo)
+        if echo == ECHO_FIND:
+            if w >= 80:
+                draw_title(win, 0, 0, f"Найденные сообщения"
+                                      f" '{FindQueryWindow.query.query}'")
+            else:
+                draw_title(win, 0, 0, f"'{FindQueryWindow.query.query}'")
         else:
-            draw_title(win, 0, 0, echo)
+            if w >= 80:
+                draw_title(win, 0, 0, "Список сообщений в конференции " + echo)
+            else:
+                draw_title(win, 0, 0, echo)
 
     def draw(self, win, data, cursor, scroll):
         # type: (curses.window, List[MsgMetadata], int, ScrollCalc) -> None
@@ -644,13 +653,13 @@ class MsgListScreen:
         result_subj = []
         p = 0
         while match := pattern.search(it.fr, p):
-            if p >= len(it.fr):
+            if p >= len(it.fr) or match.start() == match.end():
                 break
             result_name.append(match)
             p = match.end()
         p = 0
         while match := pattern.search(it.subj, p):
-            if p >= len(it.subj):
+            if p >= len(it.subj) or match.start() == match.end():
                 break
             result_subj.append(match)
             p = match.end()
@@ -835,6 +844,8 @@ class InputWidget(Widget):
         self.cursor = max(0, self.cursor - decrement)
         if self.cursor - self.offset < 0:
             self.offset -= decrement
+        if self.offset and self.offset == self.cursor:
+            self.offset -= 1
 
     def on_key_pressed(self, ks, key):
         # TODO: Common navigation commands?
@@ -874,22 +885,46 @@ class InputWidget(Widget):
         return len(THEME.input[0]) + self.cursor - self.offset
 
 
-@dataclass
-class FindQuery:
-    DEFAULT_LIMIT = 10000
-    query: str = ""
-    msgid: bool = True
-    body: bool = True
-    subj: bool = True
-    fr: bool = True
-    to: bool = True
-    echo: bool = True
-    echo_query: str = ""
-    limit: str = ""
-    regex: bool = False
-    case: bool = False
-    word: bool = False
-    orig: bool = False
+class InputRegexWidget(InputWidget):
+    regexOn: bool = True
+    err: bool = False
+
+    def __init__(self, txt="", y=0, x=0, w=0, *, placeholder="", regexOn=False):
+        super().__init__(txt=txt, y=y, x=x, w=w, placeholder=placeholder)
+        self.x = x
+        self.y = y
+        self.w = w
+        self.txt = txt
+        self.placeholder = placeholder
+        self.color = self._color(self.focused, self.enabled)
+        self.regexOn = regexOn
+        self.template = self._compile_regex()
+
+    def _compile_regex(self):
+        template = None
+        try:
+            if self.regexOn:
+                template = re.compile(self.txt, re.IGNORECASE)
+            self.err = False
+        except re.error:
+            self.err = True
+        return template
+
+    def on_key_pressed(self, ks, key):
+        super().on_key_pressed(ks, key)
+        self.template = self._compile_regex()
+
+    def set_regexOn(self, regex):
+        self.regexOn = regex
+        self.template = self._compile_regex()
+
+    def draw(self, win):  # type: (curses.window) -> None
+        super().draw(win)
+        if self.w > 3 and self.err:
+            err = THEME.error[0]
+            err_len = len(err) + len(THEME.input[1]) + 1
+            win.addstr(self.y, self.x + self.w - err_len,
+                       err, self.color | THEME.error[1])
 
 
 class FindQueryWindow:
@@ -910,8 +945,9 @@ class FindQueryWindow:
         self.win = self.init_win()
         h, w = self.win.getmaxyx()
         #
-        self.inp_query = InputWidget(self.query.query,
-                                     placeholder="<введите текст для поиска>")
+        self.inp_query = InputRegexWidget(
+            self.query.query, placeholder="<введите текст для поиска>",
+            regexOn=self.query.regex)
         self.lbl_search_in = LabelWidget("Искать в:")
 
         self.chk_msgid = CheckBoxWidget("Id", checked=self.query.msgid)
@@ -928,14 +964,14 @@ class FindQueryWindow:
                                      mask=re.compile(r"^[0-9]{0,7}$"),
                                      placeholder=str(FindQuery.DEFAULT_LIMIT))
 
-        self.chk_regex = CheckBoxWidget("Regex (TODO)",
+        self.chk_regex = CheckBoxWidget("Regex",
                                         checked=self.query.regex)
-        self.chk_case = CheckBoxWidget("Учитывать регистр (TODO)",
+        self.chk_case = CheckBoxWidget("Учитывать регистр",
                                        checked=self.query.case)
-        self.chk_word = CheckBoxWidget("Слова целиком (TODO)",
+        self.chk_word = CheckBoxWidget("Слово целиком",
                                        checked=self.query.word)
-        self.chk_orig = CheckBoxWidget("Искать в подписях (TODO)",
-                                       checked=self.query.orig)
+        self.chk_orig = CheckBoxWidget("Не искать в подписях",
+                                       checked=not self.query.orig)
         self.lbl_progress = LabelWidget("")
 
         self.widgets = [  # in focus order
@@ -1068,14 +1104,17 @@ class FindQueryWindow:
             if self.find_in_progress:
                 self.find_cancel = True
             else:
-                return False  #
+                return False  # close win
         elif ks in Qs.APPLY and not self.find_in_progress:
+            if self.inp_query.regexOn and self.inp_query.err:
+                self.refreshCursor()
+                return True  #
             curses.curs_set(0)
             self.find_tick = 0
             self.find()
             self.find_cancel = False
             if self.find_result:
-                return False
+                return False  # close win
             self.update_state()
         elif key != -1:
             if ks == "Tab" or key == curses.KEY_DOWN:
@@ -1120,6 +1159,7 @@ class FindQueryWindow:
             return  #
         self.inp_echo.set_enabled(self.chk_echo.checked)
         self.chk_word.set_enabled(not self.chk_regex.checked)
+        self.inp_query.set_regexOn(self.chk_regex.checked)
 
         self.query.query = self.inp_query.txt
         self.query.msgid = self.chk_msgid.checked
@@ -1129,13 +1169,19 @@ class FindQueryWindow:
         self.query.to = self.chk_to.checked
         self.query.echo = self.chk_echo.checked
         self.query.echo_query = self.inp_echo.txt
-        self.query.limit = self.inp_limit.txt
+        self.query.limit = int(self.inp_limit.txt or "0") or FindQuery.DEFAULT_LIMIT
+        self.query.regex = self.chk_regex.checked
+        self.query.case = self.chk_case.checked
+        self.query.word = self.chk_word.checked
+        self.query.orig = not self.chk_orig.checked
 
         if self.find_in_progress is None:
             self.lbl_progress.set_txt("")
         else:
             self.lbl_progress.set_txt("Ничего не найдено")
+        self.refreshCursor()
 
+    def refreshCursor(self):
         if isinstance(self.focused_wid, InputWidget):
             y, x = self.win.getbegyx()
             inp_cursor_x = self.focused_wid.get_win_cursor_pos()
@@ -1148,15 +1194,7 @@ class FindQueryWindow:
     def find(self):
         self.find_in_progress = True
         self.find_result = api.find_query_msgids(
-            query=self.query.query,
-            msgid=self.query.msgid,
-            body=self.query.body,
-            subj=self.query.subj,
-            fr=self.query.fr,
-            to=self.query.to,
-            echoarea=self.query.echo_query if self.query.echo else None,
-            limit=int(self.query.limit or "0") or FindQuery.DEFAULT_LIMIT,
-            progress_handler=self.find_progress_handler)
+            self.query, progress_handler=self.find_progress_handler)
         self.find_in_progress = False
 
     def find_progress_handler(self, param=None):
@@ -1176,3 +1214,147 @@ class FindQueryWindow:
         self.lbl_progress.set_txt(progress)
         self._show()
         return api.FIND_OK
+
+
+class Pager:
+    pos: int = 0
+
+    def __init__(self, pos, next_page_top, prev_page_bottom):
+        self.pos = pos
+        self.next_page_top = next_page_top
+        self.prev_page_bottom = prev_page_bottom
+
+    def next_page_top(self):
+        pass
+
+    def prev_page_bottom(self):
+        pass
+
+
+def newQuickSearch(items, matcher):
+    stdscr.move(HEIGHT - 1, len(version) + 2)
+    curses.curs_set(1)
+    return QuickSearch(items, matcher,
+                       y=HEIGHT - 1, x=len(version) + 2,
+                       w=WIDTH - len(version) - 13)
+
+
+class QuickSearch(InputRegexWidget):
+    def __init__(self, items, matcher,
+                 y=0, x=0, w=0, *, placeholder=LABEL_SEARCH, color=UI_STATUS):
+        super().__init__(y=y, x=x, w=w, placeholder=placeholder, regexOn=True)
+        self.items = items
+        self.matches = []
+        self.result = []
+        self.idx = 0
+        self.matcher = matcher
+        self.color = get_color(color)
+        self.statTxt = ""
+        self.statPos = 0
+
+    def draw(self, win):
+        # type: (curses.window) -> None
+        super().draw(win)
+        if self.txt and not self.err:
+            win.addstr(self.y, self.x + self.statPos, self.statTxt, self.color)
+        win.move(self.y, self.x + self.get_win_cursor_pos())
+
+    def search(self, query, pos):
+        self.result = []
+        self.matches = []
+        self.idx = -1
+
+        if self.txt != query:
+            self.txt = query
+            self.template = self._compile_regex()
+        if not (query and self.template):
+            return  #
+
+        sidx = 0
+        for i, item in enumerate(self.items):
+            if matches := self.matcher(sidx, self.template, item):
+                for m in matches:
+                    self.result.append(i)
+                    self.matches.append(m)
+                    sidx += 1
+                    if self.idx == -1 and i >= pos:
+                        self.idx = len(self.result) - 1
+
+    def on_key_pressed_search(self, key, ks, pager):
+        prevTxt = self.txt
+        if ks in Qs.HOME:
+            self.home()
+        elif ks in Qs.END:
+            self.end()
+        elif ks in Qs.NEXT:
+            self.next()
+        elif ks in Qs.PREV:
+            self.prev()
+        elif ks in Qs.NPAGE:
+            self.next_after(pager.next_page_top())
+        elif ks in Qs.PPAGE:
+            self.prev_before(pager.prev_page_bottom())
+        elif ks in Qs.LEFT:
+            self._move_cursor_left(1)
+        elif ks in Qs.RIGHT:
+            self._move_cursor_right(1)
+        else:
+            super().on_key_pressed(ks, key)
+
+        if self.txt != prevTxt:
+            self.search(self.txt, pager.pos)
+
+        if self.txt and not self.err:
+            idx = self.idx + 1 if self.result else 0
+            self.statTxt = "(%d/%d)" % (idx, len(self.result))
+            self.statPos = self.w - len(self.statTxt) - len(THEME.input[1])
+            if self.get_win_cursor_pos() + 1 >= self.statPos:
+                self.offset += self.get_win_cursor_pos() + 1 - self.statPos
+        elif self.err:
+            errPos = self.w - len(THEME.error[0]) - len(THEME.input[1]) - 1  #
+            if self.get_win_cursor_pos() + 1 >= errPos:
+                self.offset += self.get_win_cursor_pos() + 1 - errPos
+
+    def home(self):
+        self.idx = 0
+
+    def end(self):
+        self.idx = len(self.result) - 1
+
+    def next(self):
+        self.idx += 1
+        if self.idx >= len(self.result):
+            self.idx = 0
+
+    def prev(self):
+        self.idx -= 1
+        if self.idx < 0:
+            self.idx = len(self.result) - 1
+
+    def next_after(self, pos):
+        if not self.result:
+            return  #
+        while self.result[self.idx] < pos:
+            self.idx += 1
+            if self.idx >= len(self.result):
+                self.end()
+                break  #
+
+    def prev_before(self, pos):
+        if not self.result:
+            return  #
+        while self.result[self.idx] > pos:
+            self.idx -= 1
+            if self.idx < 0:
+                self.home()
+                break  #
+
+    def ensure_cursor_visible(self, ks, cursor, scroll):
+        if self.result:
+            cursor = self.result[self.idx]
+            if ks in Qs.NPAGE:
+                scroll.pos = cursor
+            elif ks in Qs.PPAGE:
+                scroll.pos = cursor - scroll.view
+            scroll.ensure_visible(cursor)
+        return cursor

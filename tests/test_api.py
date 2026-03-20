@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from api import MsgMetadata
+from api import MsgMetadata, FindQuery, build_find_matcher
 
 
 def test_init_aio():
@@ -290,25 +290,165 @@ def test_find_query_msgids(api):
     api.save_message([("1" * 20, msg1), ("2" * 20, msg2)], "node", ["user"])
 
     # msgid exact
-    data = api.find_query_msgids("1" * 20, True, False, False, True, False, "")
+    data = api.find_query_msgids(FindQuery("1" * 20, True, False, False, True, False, False))
     assert data == [MsgMetadata.from_list("1" * 20, msg1)]
-    data = api.find_query_msgids("1" * 19, True, False, False, True, False, "")
+    data = api.find_query_msgids(FindQuery("1" * 19, True, False, False, True, False, False))
     assert data == []
     # unicode body
-    data = api.find_query_msgids("Мсг2", True, True, True, True, True, "")
+    data = api.find_query_msgids(FindQuery("Мсг2", True, True, True, True, True, False))
     assert data == [MsgMetadata.from_list("2" * 20, msg2)]
     # unicode subj
-    data = api.find_query_msgids("Сабж", True, True, True, True, True, "")
+    data = api.find_query_msgids(FindQuery("Сабж", True, True, True, True, True, False))
     assert data == [MsgMetadata.from_list("1" * 20, msg1)]
     # unicode from
-    data = api.find_query_msgids("юзер", False, False, False, True, False, "")
+    data = api.find_query_msgids(FindQuery("юзер", False, False, False, True, False, False))
     assert data == [MsgMetadata.from_list("1" * 20, msg1)]
     # unicode to
-    data = api.find_query_msgids("юзер", False, False, False, False, True, "")
+    data = api.find_query_msgids(FindQuery("юзер", False, False, False, False, True, False))
     assert data == [MsgMetadata.from_list("2" * 20, msg2)]
     # unicode echo only
-    data = api.find_query_msgids("Row2", True, True, True, True, True, "test2.local")
+    data = api.find_query_msgids(FindQuery("Row2", True, True, True, True, True, True, "test2.local"))
     assert data == [MsgMetadata.from_list("2" * 20, msg2)]
     # empty results
-    data = api.find_query_msgids("Unknown", True, True, True, True, True, "")
+    data = api.find_query_msgids(FindQuery("Unknown", True, True, True, True, True, False))
     assert data == []
+
+
+# noinspection PyTestParametrized
+@pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
+def test_find_query_matcher(api):
+    msg1 = ["ii/ok", "test.local", "0", "u", "n,1", "t", "S", "", "", "zxcqwe+", "zxcQWE+"]
+    msg2 = ["ii/ok", "test.local", "1", "u", "n,1", "t", "S", "", "", " +++ zxc+", " zxc+"]
+    msg3 = ["ii/ok", "test.local", "1", "u", "n,1", "t", "S", "", "", " qwe+", " QWE+"]
+    msg4 = ["ii/ok", "test.local", "1", "u", "n,1", "t", "S", "", "", " +++ qwe+", " +++ QWE+"]
+    msg5 = ["ii/ok", "test.local", "1", "u", "n,1", "t", "S", "", "", "юникод+", ""]
+    msg6 = ["ii/ok", "test.local", "1", "u", "n,1", "t", "S", "", "", " +++ ЮНИКОД+", ""]
+    api.save_message([("1" * 20, msg1),
+                      ("2" * 20, msg2),
+                      ("3" * 20, msg3),
+                      ("4" * 20, msg4),
+                      ("5" * 20, msg5),
+                      ("6" * 20, msg6)],
+                     "node", None)
+
+    def query(q, regex=False, case=False, word=False, orig=False):
+        return FindQuery(
+            query=q,
+            msgid=False, subj=False, fr=False, to=False, echo=False, body=True,
+            regex=regex, case=case, word=word, orig=orig)
+    #
+    data = api.find_query_msgids(query("qwe+", regex=True, orig=True))
+    assert data == [MsgMetadata.from_list("1" * 20, msg1),
+                    MsgMetadata.from_list("3" * 20, msg3),
+                    MsgMetadata.from_list("4" * 20, msg4)]
+
+    data = api.find_query_msgids(query("qwe+", case=True, word=True))
+    assert data == [MsgMetadata.from_list("3" * 20, msg3)]
+
+    data = api.find_query_msgids(query("юникод+", case=False, orig=True))
+    assert data == [MsgMetadata.from_list("5" * 20, msg5),
+                    MsgMetadata.from_list("6" * 20, msg6)]
+
+    data = api.find_query_msgids(query("юникод+", case=True, orig=True))
+    assert data == [MsgMetadata.from_list("5" * 20, msg5)]
+
+
+def test_find_matcher_regex():
+    # any case, anywhere
+    matcher = build_find_matcher(
+        FindQuery("qwe+", regex=True, case=False, word=False, orig=True))
+    assert not matcher("\n +++ zxc+")  # query
+    assert not matcher("\n zxc+")  # query
+    assert matcher("\n qwe+")
+    assert matcher("\n QWE+")
+    assert matcher("\n +++ QWE+")
+    assert matcher("\n +++ qwe+")
+    assert matcher("zxcqwe+")
+    assert matcher("zxcQWE+")
+    assert matcher(" +++ zxcQWE+")
+    assert matcher(" +++ zxcqwe+")
+
+    # case, anywhere
+    matcher = build_find_matcher(
+        FindQuery("qwe+", regex=True, case=True, word=False, orig=True))
+    assert not matcher("\n +++ zxc+")  # query
+    assert not matcher("\n zxc+")  # query
+    assert not matcher("\n QWE+")  # case
+    assert not matcher("\n +++ QWE+")  # case
+    assert matcher("\n qwe+")
+    assert matcher("\n +++ qwe+")
+
+    # any case, not origin
+    matcher = build_find_matcher(
+        FindQuery("qwe+", regex=True, case=False, word=False, orig=False))
+    assert not matcher("\n +++ zxc+")  # query
+    assert not matcher("\n zxc+")  # query
+    assert not matcher("\n +++ QWE+")  # origin
+    assert not matcher("\n +++ qwe+")  # origin
+    assert matcher("\n QWE+")
+    assert matcher("\n qwe+")
+
+    # case, not origin
+    matcher = build_find_matcher(
+        FindQuery("qwe+", regex=True, case=True, word=False, orig=False))
+    assert not matcher("\n +++ zxc+")  # query
+    assert not matcher("\n zxc+")  # query
+    assert not matcher("\n +++ qwe+")  # origin
+    assert not matcher("\n +++ QWE+")  # origin
+    assert not matcher("\n QWE+")  # case
+    assert matcher("\n qwe+")
+
+
+def test_find_matcher_word():
+    # any case, anywhere
+    matcher = build_find_matcher(
+        FindQuery("qwe+", regex=False, case=False, word=True, orig=True))
+    assert not matcher("\n +++ zxc+")  # query
+    assert not matcher("\n zxc+")  # query
+    assert not matcher("zxcqwe+")  # word
+    assert not matcher("zxcQWE+")  # word
+    assert not matcher(" +++ zxcQWE+")  # word
+    assert not matcher(" +++ zxcqwe+")  # word
+    assert matcher("\n qwe+")
+    assert matcher("\n QWE+")
+    assert matcher("\n.QWE+.")
+    assert matcher("\n-QWE+-")
+    assert matcher("\n +++ QWE+")
+    assert matcher("\n +++ qwe+")
+
+    # case, anywhere
+    matcher = build_find_matcher(
+        FindQuery("qwe+", regex=False, case=True, word=True, orig=True))
+    assert not matcher("\n +++ zxc+")  # query
+    assert not matcher("\n zxc+")  # query
+    assert not matcher("\n QWE+")  # case
+    assert not matcher("\n +++ QWE+")  # case
+    assert not matcher("\n zxcqwe+")  # word
+    assert matcher("\n qwe+")
+    assert matcher("\n.qwe+.")
+    assert matcher("\n-qwe+-")
+    assert matcher("\n +++ qwe+")
+
+    # any case, not origin
+    matcher = build_find_matcher(
+        FindQuery("qwe+", regex=False, case=False, word=True, orig=False))
+    assert not matcher("\n +++ zxc+")  # query
+    assert not matcher("\n zxc+")  # query
+    assert not matcher("\n +++ QWE+")  # origin
+    assert not matcher("\n +++ qwe+")  # origin
+    assert not matcher("\n zxcqwe+")  # word
+    assert not matcher("\n zxcQWE+")  # word
+    assert matcher("\n QWE+")
+    assert matcher("\n qwe+")
+
+    # case, not origin
+    matcher = build_find_matcher(FindQuery("qwe+", regex=False, case=True, word=True, orig=False))
+    assert not matcher("\n +++ zxc+\n")  # query
+    assert not matcher("\n zxc+\n")  # query
+    assert not matcher("\n +++ qwe+\n")  # origin
+    assert not matcher("\n +++ QWE+\n")  # origin
+    assert not matcher("\n QWE+\n")  # case
+    assert not matcher("\n zxcqwe+\n")  # word
+    assert not matcher("\n zxcQWE+\n")  # word
+    assert matcher("\n qwe+\n")
+    assert matcher("qwe+")

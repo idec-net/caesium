@@ -19,12 +19,12 @@ from typing import List, Optional, Union
 
 from api import MsgMetadata
 from core import (
-    __version__, parser, client, config, ui, utils, search, outgoing, keystroke,
+    __version__, parser, client, config, ui, utils, outgoing, keystroke,
     FEAT_X_C, FEAT_U_E
 )
 from core.cmd import Common, Out, Reader, Selector, Qs
 from core.config import (
-    get_color, UI_BORDER, UI_TEXT, UI_CURSOR, UI_STATUS
+    get_color, UI_BORDER, UI_TEXT, UI_CURSOR
 )
 
 # TODO: Add http/https/socks proxy support
@@ -241,7 +241,7 @@ class EchoSelectorScreen:
     cursor: int = 0
     echoareas: List[config.Echo] = None
     scroll: ui.ScrollCalc = None
-    qs: Optional[search.QuickSearch] = None
+    qs: Optional[ui.QuickSearch] = None
     go: bool = True
 
     def __init__(self):
@@ -298,7 +298,8 @@ class EchoSelectorScreen:
                 self.scroll = ui.ScrollCalc(len(self.echoareas), ui.HEIGHT - 2, self.cursor)
                 ui.stdscr.clear()
                 if self.qs:
-                    self.qs.width = ui.WIDTH - len(ui.version) - 12
+                    self.qs.y = ui.HEIGHT - 1
+                    self.qs.width = ui.WIDTH - len(ui.version) - 13
             elif self.qs:
                 if ks in Qs.CLOSE or ks in Qs.APPLY:
                     self.qs = None
@@ -308,10 +309,7 @@ class EchoSelectorScreen:
                     self.cursor = self.qs.ensure_cursor_visible(
                         key, self.cursor, self.scroll)
             elif ks in Qs.OPEN:
-                ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2)
-                curses.curs_set(1)
-                self.qs = search.QuickSearch(self.echoareas, self.on_search_item,
-                                             ui.WIDTH - len(ui.version) - 13)
+                self.qs = ui.newQuickSearch(self.echoareas, self.on_search_item)
             elif ks in Common.QUIT:
                 self.go = False
             else:
@@ -324,13 +322,12 @@ class EchoSelectorScreen:
         if scroll.is_scrollable:
             ui.draw_scrollbarV(win, 1, w - 1, scroll)
         if qs:
-            qs.draw(win, h - 1, len(ui.version) + 2, get_color(UI_STATUS))
-            win.move(h - 1, len(ui.version) + 2 + self.qs.cursor)
+            qs.draw(win)
         win.refresh()
 
     @staticmethod
     def draw_echo_selector(win, start, cursor, archive, qs, counts):
-        # type: (curses.window, int, int, bool, search.QuickSearch, List[List[str]]) -> None
+        # type: (curses.window, int, int, bool, ui.QuickSearch, List[List[str]]) -> None
         h, w = win.getmaxyx()
         color = get_color(UI_BORDER)
         win.addstr(0, 0, "─" * w, color)
@@ -583,7 +580,7 @@ class EchoReader:
     scroll: ui.ScrollCalc  # message body scroll calculator
     t2l: List[parser.RangeLines]  # tokens rendered lines range
     _msgid: Optional[str] = None  # non-current-echo message id, navigated by ii-link
-    qs: Optional[search.QuickSearch] = None  # quick search helper
+    qs: Optional[ui.QuickSearch] = None  # quick search helper
     #
     go: bool = True  # show reader
     done: bool = False  # close app
@@ -727,7 +724,7 @@ class EchoReader:
         for offset, line in enumerate(token.render):
             pos = 0
             while match := p.search(line, pos):
-                if pos >= len(line):
+                if pos >= len(line) or match.start() == match.end():
                     break
                 matches.append((offset, match))
                 pos = match.end()
@@ -764,9 +761,7 @@ class EchoReader:
             ui.draw_reader(ui.stdscr, self.echo.name, "", self.out)
         ui.draw_status_bar(ui.stdscr, mode=self.mode, text=status)
         if self.qs:
-            self.qs.draw(ui.stdscr, ui.HEIGHT - 1, len(ui.version) + 2,
-                         get_color(UI_STATUS))
-            ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2 + self.qs.cursor)
+            self.qs.draw(ui.stdscr)
         #
         ks, key, _ = ui.get_keystroke()
         if ks and any(("Shift+" in ks, "Alt+" in ks, "Ctrl+" in ks)):
@@ -778,16 +773,14 @@ class EchoReader:
             ui.stdscr.clear()
             if self.qs:
                 self.qs.items = self.tokens
-                self.qs.width = ui.WIDTH - len(ui.version) - 12
+                self.qs.y = ui.HEIGHT - 1
+                self.qs.width = ui.WIDTH - len(ui.version) - 13
                 tnum, _ = parser.find_visible_token(self.tokens, self.scroll.pos)
-                self.qs.search(self.qs.query, tnum)
+                self.qs.search(self.qs.txt, tnum)
         elif self.qs:
             self.on_key_pressed_qs(ks, key)
         elif ks in Qs.OPEN:
-            ui.stdscr.move(ui.HEIGHT - 1, len(ui.version) + 2)
-            curses.curs_set(1)
-            self.qs = search.QuickSearch(self.tokens, self.on_search_item,
-                                         ui.WIDTH - len(ui.version) - 13)
+            self.qs = ui.newQuickSearch(self.tokens, self.on_search_item)
         elif ks in Reader.QUIT:
             if self.mode_stack:
                 self.mode_restore()
@@ -803,8 +796,15 @@ class EchoReader:
     def draw(self, scr):
         h, w = scr.getmaxyx()
         ui.draw_reader(scr, self.msg[1], self.msgid(), self.out)
-        if self.echo.desc and w >= 80:
-            ui.draw_title(scr, 0, w - 2 - len(self.echo.desc), self.echo.desc)
+        if w >= 80:
+            if self.echo != config.ECHO_FIND:
+                if self.echo.desc:
+                    ui.draw_title(scr, 0, w - 2 - len(self.echo.desc),
+                                  self.echo.desc)
+            else:
+                title = f"Найденные сообщения '{ui.FindQueryWindow.query.query}'"
+                ui.draw_title(scr, 0, w - 2 - len(title), title)
+
         color = get_color(UI_TEXT)
         if not self.out:
             if w >= 80:
@@ -835,7 +835,7 @@ class EchoReader:
             curses.curs_set(0)
             return
         #
-        pager = search.Pager(
+        pager = ui.Pager(
             parser.find_visible_token(self.tokens, self.scroll.pos)[0],
             lambda: parser.find_visible_token(self.tokens, self.scroll.pos + self.scroll.view)[0],
             lambda: parser.find_visible_token(self.tokens, self.scroll.pos)[0] - 1)

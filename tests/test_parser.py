@@ -529,7 +529,7 @@ def test_inline_italic_quote():
     assert tokens[10].render == ["."]
 
 
-def test_attachments_xpm():
+def test_attach_xpm():
     parser.INLINE_STYLE_ENABLED = True
     xpm = ["/* XPM */",
            "static char *file_xpm[] = {",
@@ -543,7 +543,7 @@ def test_attachments_xpm():
     assert len(tokens) == 2
 
 
-def test_attachments_xpm_code():
+def test_attach_xpm_code():
     parser.INLINE_STYLE_ENABLED = False
     xpm = ["/* XPM */",
            "static char *file_xpm[] = {",
@@ -556,7 +556,7 @@ def test_attachments_xpm_code():
     assert tokens[3] == Token(TT.TEXT, "Non-XPM", 3)
 
 
-def test_attachments_base64():
+def test_attach_base64():
     parser.INLINE_STYLE_ENABLED = True
     text = textwrap.fill(base64.b64encode("test data".encode("utf-8"))
                          .decode("utf-8"), 5).split("\n")
@@ -570,7 +570,7 @@ def test_attachments_base64():
     assert len(tokens) == 2
 
 
-def test_attachments_base64_code():
+def test_attach_base64_code():
     parser.INLINE_STYLE_ENABLED = False
     text = textwrap.fill(base64.b64encode("test data".encode("utf-8"))
                          .decode("utf-8"), 5).split("\n")
@@ -584,7 +584,7 @@ def test_attachments_base64_code():
     assert tokens[4] == Token(TT.TEXT, "String w Non base64 chars ....", 4)
 
 
-def test_attachments_base64_filename():
+def test_attach_base64_filename():
     parser.INLINE_STYLE_ENABLED = True
     text = textwrap.fill(base64.b64encode("test data".encode("utf-8"))
                          .decode("utf-8"), 5).split("\n")
@@ -596,7 +596,7 @@ def test_attachments_base64_filename():
                                   filedata="test data".encode("utf-8"))
 
 
-def test_attachments_pgp_key_code():
+def test_attach_pgp_key_code():
     parser.INLINE_STYLE_ENABLED = False
     tokens = parser.tokenize([parser.BEGIN_PGP_KEY, "11111", parser.END_PGP_KEY])
     assert tokens[0] == Token.CODE(parser.BEGIN_PGP_KEY, 0)
@@ -604,7 +604,7 @@ def test_attachments_pgp_key_code():
     assert tokens[2] == Token.CODE(parser.END_PGP_KEY, 2)
 
 
-def test_attachments_pgp_key_filename():
+def test_attach_pgp_key_filename():
     parser.INLINE_STYLE_ENABLED = True
     lines = [parser.BEGIN_PGP_KEY, "11111", parser.END_PGP_KEY]
     tokens = parser.tokenize(lines)
@@ -616,7 +616,7 @@ def test_attachments_pgp_key_filename():
     assert tokens[2] == Token.CODE("Error: Invalid key", 0)
 
 
-def test_attachments_pgp_key_filename_in_code_block():
+def test_attachm_pgp_key_filename_in_code_block():
     parser.INLINE_STYLE_ENABLED = True
     lines = ["====", parser.BEGIN_PGP_KEY, "11111", parser.END_PGP_KEY, "===="]
     tokens = parser.tokenize(lines)
