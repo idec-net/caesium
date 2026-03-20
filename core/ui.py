@@ -35,13 +35,19 @@ class ThemeAscii:
     checkbox = ["[ ] ", "[x] ", "[/] "]
     input = ["[", "]", curses.A_NORMAL]
     spinner = r"-\|/"
+    error = ["(!)", curses.A_BOLD]
 
 
 class ThemeUtf8:
     NAME = "utf8"
     checkbox = ["□ ", "▣ ", "◪ "]
     input = ["", "", curses.A_UNDERLINE]
-    spinner = r"⣄⡆⠇⠋⠙⠸⢰⣠"  # "|⠸|⢰|" unicode git issue???
+    # TODO: Cool Android-compatible UTF-spinner
+    # Right side only braille cells (dots ⊆ 4568)
+    # incorrect in Noto except Symbols 2, on mobile only #3935
+    # https://github.com/google/fonts/issues/3935
+    spinner = r"⣄⡆⠇⠋⠙⠸⢰⣠"
+    error = ["⛔", curses.A_BOLD]
 
 
 THEME = ThemeAscii
@@ -880,6 +886,46 @@ class InputWidget(Widget):
         return len(THEME.input[0]) + self.cursor - self.offset
 
 
+class InputRegexWidget(InputWidget):
+    regexOn: bool = True
+    error: bool = False
+
+    def __init__(self, txt="", y=0, x=0, w=0, *, placeholder="", regexOn=False):
+        super().__init__(txt=txt, y=y, x=x, w=w, placeholder=placeholder)
+        self.x = x
+        self.y = y
+        self.w = w
+        self.txt = txt
+        self.placeholder = placeholder
+        self.color = self._color(self.focused, self.enabled)
+        self.regexOn = regexOn
+        self._test_regex()
+
+    def _test_regex(self):
+        try:
+            if self.regexOn:
+                re.compile(self.txt)
+            self.error = False
+        except re.error:
+            self.error = True
+
+    def on_key_pressed(self, ks, key):
+        super().on_key_pressed(ks, key)
+        self._test_regex()
+
+    def set_regexOn(self, regex):
+        self.regexOn = regex
+        self._test_regex()
+
+    def draw(self, win):  # type: (curses.window) -> None
+        super().draw(win)
+        if self.w > 3 and self.error:
+            err = THEME.error[0]
+            err_len = len(err) + len(THEME.input[1]) + 1
+            win.addstr(self.y, self.x + self.w - err_len,
+                       err, self.color | THEME.error[1])
+
+
 class FindQueryWindow:
     layout: GridLayout = None
     query = FindQuery()
@@ -898,8 +944,9 @@ class FindQueryWindow:
         self.win = self.init_win()
         h, w = self.win.getmaxyx()
         #
-        self.inp_query = InputWidget(self.query.query,
-                                     placeholder="<введите текст для поиска>")
+        self.inp_query = InputRegexWidget(
+            self.query.query, placeholder="<введите текст для поиска>",
+            regexOn=self.query.regex)
         self.lbl_search_in = LabelWidget("Искать в:")
 
         self.chk_msgid = CheckBoxWidget("Id", checked=self.query.msgid)
@@ -1056,14 +1103,17 @@ class FindQueryWindow:
             if self.find_in_progress:
                 self.find_cancel = True
             else:
-                return False  #
+                return False  # close win
         elif ks in Qs.APPLY and not self.find_in_progress:
+            if self.inp_query.regexOn and self.inp_query.error:
+                self.refreshCursor()
+                return True  #
             curses.curs_set(0)
             self.find_tick = 0
             self.find()
             self.find_cancel = False
             if self.find_result:
-                return False
+                return False  # close win
             self.update_state()
         elif key != -1:
             if ks == "Tab" or key == curses.KEY_DOWN:
@@ -1108,6 +1158,7 @@ class FindQueryWindow:
             return  #
         self.inp_echo.set_enabled(self.chk_echo.checked)
         self.chk_word.set_enabled(not self.chk_regex.checked)
+        self.inp_query.set_regexOn(self.chk_regex.checked)
 
         self.query.query = self.inp_query.txt
         self.query.msgid = self.chk_msgid.checked
@@ -1127,7 +1178,9 @@ class FindQueryWindow:
             self.lbl_progress.set_txt("")
         else:
             self.lbl_progress.set_txt("Ничего не найдено")
+        self.refreshCursor()
 
+    def refreshCursor(self):
         if isinstance(self.focused_wid, InputWidget):
             y, x = self.win.getbegyx()
             inp_cursor_x = self.focused_wid.get_win_cursor_pos()

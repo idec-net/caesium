@@ -2,6 +2,7 @@ import curses
 import re
 
 from core.cmd import Qs
+from core import ui
 
 LABEL_SEARCH = "<введите regex для поиска>"
 
@@ -55,7 +56,7 @@ class QuickSearch:
         try:
             template = re.compile(query, re.IGNORECASE)
         except re.error:
-            self.err = "err "
+            self.err = ui.THEME.error[0] + " "
             return  # error
 
         sidx = 0
