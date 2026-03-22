@@ -57,6 +57,23 @@ def test_modeSubj():
     assert msgs.msgn == 0
 
 
+def test_modeSubj_differMsgid():
+    msgs = MsgModeStack(ReaderMode.ECHO, [msg("0"), msg("1")], 1)
+    #
+    msgs.modeSubjOn([msg("1"), msg("01"), msg("001"), msg("0001")])
+    assert msgs.stack == [(ReaderMode.ECHO, [msg("0"), msg("1")], 1)]
+    assert msgs.mode == ReaderMode.SUBJ
+    assert msgs.data == [msg("1"), msg("01"), msg("001"), msg("0001")]
+    assert msgs.msgn == 0
+    #
+    msgs.msgn = 3  # 0001
+    msgs.pop()
+    assert not msgs.stack
+    assert msgs.mode == ReaderMode.ECHO
+    assert msgs.data == [msg("0"), msg("1")]
+    assert msgs.msgn == 1  # no 0001 msg, restore firstly selected
+
+
 def test_modeQs():
     msgs = MsgModeStack(ReaderMode.ECHO, [msg("0"), msg("1")], 1)
     #

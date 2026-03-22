@@ -520,7 +520,9 @@ class MsgModeStack:
             self.mode, self.data, self.msgn = self.stack.pop()
         #
         if m:
-            self.msgn = self.findMsgidIdx(m.msgid)
+            msgn = self.findMsgidIdx(m.msgid)
+            if msgn > -1:
+                self.msgn = msgn
         return self.mode, self.data, self.msgn
 
     def curMsg(self):
