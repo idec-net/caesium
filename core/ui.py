@@ -37,6 +37,8 @@ class ThemeAscii:
     input = ["[", "]", curses.A_NORMAL]
     spinner = r"-\|/"
     error = ["(!)", curses.A_BOLD]
+    title = ["[", "]"]
+    ellipsis = "..."
 
 
 class ThemeUtf8:
@@ -49,6 +51,8 @@ class ThemeUtf8:
     # https://github.com/google/fonts/issues/3935
     spinner = r"⣄⡆⠇⠋⠙⠸⢰⣠"
     error = ["⛔", curses.A_BOLD]
+    title = ["┤", "├"]
+    ellipsis = "…"
 
 
 THEME = ThemeAscii
@@ -137,14 +141,17 @@ def draw_splash(scr, splash):  # type: (curses.window, List[str]) -> None
 def draw_title(scr, y, x, title):
     h, w = scr.getmaxyx()
     x = max(0, x)
-    if (x + len(title) + 2) > w:
-        title = title[:w - x - 2 - 3] + '...'
+    borders = len(THEME.title[0]) + len(THEME.title[1])
+    if (x + len(title) + borders) > w:
+        title = title[:w - x - borders - len(THEME.ellipsis)] + THEME.ellipsis
     #
     color = get_color(UI_BORDER)
-    scr.addstr(y, x, "[", color)
-    scr.addstr(y, x + 1 + len(title), "]", color)
+    if THEME.title[0]:
+        scr.addstr(y, x, THEME.title[0], color)
+    if THEME.title[1]:
+        scr.addstr(y, x + len(THEME.title[0]) + len(title), THEME.title[1], color)
     color = get_color(UI_TITLES)
-    scr.addstr(y, x + 1, title, color)
+    scr.addstr(y, x + len(THEME.title[0]), title, color)
 
 
 def draw_message_box(smsg, wait):
@@ -305,7 +312,8 @@ class SelectWindow:
         self.resized = False
 
     def init_win(self, items, title, win=None):
-        test_width = items + [LABEL_ESC + "[]", title + "[]"]
+        test_width = items + [LABEL_ESC + THEME.title[0] + THEME.title[1],
+                              title + THEME.title[0] + THEME.title[1]]
         w = 0 if not items else max(map(lambda it: len(it), test_width))
         h = min(HEIGHT - 2, len(items))
         w = min(WIDTH - 2, w)
@@ -321,10 +329,10 @@ class SelectWindow:
         lbl_esc = LABEL_ESC[0:min(w - 2, len(LABEL_ESC))]
         win.attrset(color)
         win.border()
-        win.addstr(0, 1, "[", color)
-        win.addstr(0, 2 + len(lbl_title), "]", color)
-        win.addstr(h + 1, 1, "[", color)
-        win.addstr(h + 1, 2 + len(lbl_esc), "]", color)
+        win.addstr(0, 1, THEME.title[0], color)
+        win.addstr(0, 2 + len(lbl_title), THEME.title[1], color)
+        win.addstr(h + 1, 1, THEME.title[0], color)
+        win.addstr(h + 1, 2 + len(lbl_esc), THEME.title[1], color)
 
         color = get_color(UI_TITLES)
         win.addstr(0, 2, lbl_title, color)
@@ -477,34 +485,87 @@ def render_token(scr, token: parser.Token, y, x, h, offset, text_attr, qs=None):
 # endregion Render Body
 
 
-class MsgListScreen:
-    def __init__(self, echo, msgs_data, msgid, mode):
-        # type: (str, List[MsgMetadata], str, ReaderMode) -> MsgListScreen
-        self.echo = echo
+class MsgModeStack:
+    stack: List[Tuple[ReaderMode, List[MsgMetadata], int]] = None
+
+    mode: ReaderMode = None
+    data: List[MsgMetadata] = None
+    msgn: int = None
+
+    def __init__(self, mode, data, msgn):
+        self.stack = []
         self.mode = mode
-        self.data = msgs_data  # type: List[MsgMetadata]
-        self.cursor = self.find_msgid_idx(msgid)
-        self.scroll = ScrollCalc(len(self.data), HEIGHT - 2)
-        self.scroll.ensure_visible(self.cursor, center=True)
-        self.resized = False
-        self.qs = None  # type: Optional[QuickSearch]
-        self.mode_stack = []  # type: List[Tuple[ReaderMode, List[MsgMetadata], str]]
+        self.data = data
+        self.msgn = msgn
 
-    def cur_msg(self):
-        return self.data[self.cursor]
+    def modeSubjOn(self, data):
+        self.push(ReaderMode.SUBJ, data)
 
-    def find_msgid_idx(self, msgid):
-        for i, d in enumerate(self.data):
+    def modeSubjOff(self):
+        if self.mode != ReaderMode.SUBJ:
+            return
+        self.pop()
+
+    def modeQsOn(self, indexes):
+        data = [self.data[idx] for idx in indexes]
+        self.push(ReaderMode.SEARCH, data)
+
+    def push(self, mode, data):
+        m = self.curMsg()
+        #
+        if self.mode != mode:
+            self.stack.append((self.mode, self.data, self.msgn))
+        self.mode = mode
+        self.data = data
+        #
+        if m:
+            self.msgn = self.findMsgidIdx(m.msgid)
+
+    def pop(self):
+        m = self.curMsg()
+        #
+        if self.stack:
+            self.mode, self.data, self.msgn = self.stack.pop()
+        #
+        if m:
+            msgn = self.findMsgidIdx(m.msgid)
+            if msgn > -1:
+                self.msgn = msgn
+        return self.mode, self.data, self.msgn
+
+    def curMsg(self):
+        if self.msgn > -1:
+            return self.data[self.msgn]
+        return None
+
+    def hasNext(self):
+        return self.msgn < len(self.data) - 1 and self.data
+
+    def findMsgidIdx(self, msgid, data=None):
+        for i, d in enumerate(data or self.data):
             if d.msgid == msgid:
                 return i
-        return len(self.data) - 1
+        return -1
+
+
+class MsgListScreen:
+    msgs: MsgModeStack = None
+    scroll: ScrollCalc = None
+
+    def __init__(self, echo: str, msgs: MsgModeStack):
+        self.echo = echo
+        self.msgs = msgs
+        self.scroll = ScrollCalc(len(msgs.data), HEIGHT - 2)
+        self.scroll.ensure_visible(msgs.msgn, center=True)
+        self.resized = False
+        self.qs = None  # type: Optional[QuickSearch]
 
     def show(self):  # type: () -> int
         stdscr.clear()
         self.draw_title(stdscr, self.echo)
         while True:
-            self.scroll.ensure_visible(self.cursor)
-            self.draw(stdscr, self.data, self.cursor, self.scroll)
+            self.scroll.ensure_visible(self.msgs.msgn)
+            self.draw(stdscr, self.msgs.data, self.msgs.msgn, self.scroll)
             if self.qs:
                 self.qs.draw(stdscr)
             #
@@ -512,7 +573,7 @@ class MsgListScreen:
             #
             if key == curses.KEY_RESIZE:
                 set_term_size()
-                self.scroll = ScrollCalc(len(self.data), HEIGHT - 2)
+                self.scroll = ScrollCalc(len(self.msgs.data), HEIGHT - 2)
                 self.resized = True
                 if self.qs:
                     self.qs.y = HEIGHT - 1
@@ -523,23 +584,23 @@ class MsgListScreen:
                     curses.curs_set(0)
                 elif ks in Qs.APPLY:
                     if self.qs.result:
-                        self.mode_search_on()
+                        self.msgs.modeQsOn(self.qs.result)
+                        self.updateScroll()
                     self.qs = None
                     curses.curs_set(0)
                 else:
                     self.qs.on_key_pressed_search(key, ks, self.scroll)
-                    self.cursor = self.qs.ensure_cursor_visible(
-                        ks, self.cursor, self.scroll)
-            elif (ks in Reader.QUIT
-                  and self.mode == ReaderMode.SEARCH
-                  and self.mode_stack):
-                self.apply_mode(*self.mode_stack.pop())
+                    self.msgs.msgn = self.qs.ensure_cursor_visible(
+                        ks, self.msgs.msgn, self.scroll)
             elif ks in Qs.OPEN:
-                self.qs = newQuickSearch(self.data, self.on_search_item)
+                self.qs = newQuickSearch(self.msgs.data, self.on_search_item)
             elif ks in Selector.ENTER:
-                return self.cursor  #
+                return self.msgs.msgn  #
             elif ks in Reader.QUIT:
-                return -1  #
+                if not self.msgs.stack:
+                    return -1  #
+                self.msgs.pop()
+                self.updateScroll()
             else:
                 self.on_key_pressed(ks, self.scroll)
 
@@ -591,59 +652,41 @@ class MsgListScreen:
         #
         if scroll.is_scrollable:
             draw_scrollbarV(win, 1, w - 1, scroll)
-        draw_status_bar(win, mode=self.mode,
+        draw_status_bar(win, mode=self.msgs.mode,
                         text=utils.msgn_status(len(data), cursor, w))
+
+    def updateScroll(self):
+        self.scroll = ScrollCalc(len(self.msgs.data), HEIGHT - 2)
+        self.scroll.ensure_visible(self.msgs.msgn, center=True)
 
     def on_key_pressed(self, ks, scroll):
         if ks in Reader.MSUBJ:
-            if self.mode != ReaderMode.SUBJ:
-                self.mode_subj_on()
-            elif self.mode_stack:
-                self.apply_mode(*self.mode_stack.pop())
-        elif ks in Selector.UP:
-            self.cursor = max(0, self.cursor - 1)
-        elif ks in Selector.DOWN:
-            self.cursor = min(scroll.content - 1, self.cursor + 1)
-        elif ks in Selector.PPAGE:
-            if self.cursor > scroll.pos:
-                self.cursor = scroll.pos
+            if self.msgs.mode != ReaderMode.SUBJ:
+                m = self.msgs.curMsg()
+                data = api.find_subj_msgids(m.echo, m.subj)
+                self.msgs.modeSubjOn(data)
             else:
-                self.cursor = max(0, self.cursor - scroll.view)
+                self.msgs.modeSubjOff()
+            self.updateScroll()
+        elif ks in Selector.UP:
+            self.msgs.msgn = max(0, self.msgs.msgn - 1)
+        elif ks in Selector.DOWN:
+            self.msgs.msgn = min(scroll.content - 1, self.msgs.msgn + 1)
+        elif ks in Selector.PPAGE:
+            if self.msgs.msgn > scroll.pos:
+                self.msgs.msgn = scroll.pos
+            else:
+                self.msgs.msgn = max(0, self.msgs.msgn - scroll.view)
         elif ks in Selector.NPAGE:
             page_bottom = scroll.pos_bottom()
-            if self.cursor < page_bottom:
-                self.cursor = page_bottom
+            if self.msgs.msgn < page_bottom:
+                self.msgs.msgn = page_bottom
             else:
-                self.cursor = min(scroll.content - 1, page_bottom + scroll.view)
+                self.msgs.msgn = min(scroll.content - 1, page_bottom + scroll.view)
         elif ks in Selector.HOME:
-            self.cursor = 0
+            self.msgs.msgn = 0
         elif ks in Selector.END:
-            self.cursor = scroll.content - 1
-
-    def apply_mode(self, mode, data, msgid):
-        self.data = data
-        self.cursor = self.find_msgid_idx(msgid)
-        self.mode = mode
-        self.scroll = ScrollCalc(len(self.data), HEIGHT - 2)
-        self.scroll.ensure_visible(self.cursor, center=True)
-
-    def mode_subj_on(self):
-        msg = self.cur_msg()
-        if self.mode != ReaderMode.SUBJ:
-            if not self.mode_stack or self.mode_stack[-1][0] != self.mode:
-                self.mode_stack.append((self.mode, self.data, msg.msgid))
-        data = api.find_subj_msgids(msg.echo, msg.subj)
-        self.apply_mode(ReaderMode.SUBJ, data=data, msgid=msg.msgid)
-
-    def mode_search_on(self):
-        msg = self.cur_msg()
-        if self.mode != ReaderMode.SEARCH:
-            if not self.mode_stack or self.mode_stack[-1][0] != self.mode:
-                self.mode_stack.append((self.mode, self.data, msg.msgid))
-        self.apply_mode(ReaderMode.SEARCH,
-                        data=[self.data[idx]
-                              for idx in self.qs.result],
-                        msgid=msg.msgid)
+            self.msgs.msgn = scroll.content - 1
 
     # noinspection PyUnusedLocal
     @staticmethod
@@ -751,7 +794,7 @@ class CheckBoxWidget(Widget):
     def _color(focused, enabled):
         if enabled:
             return get_color(UI_TITLES if focused else UI_TEXT)
-        return get_color(UI_COMMENT)
+        return get_color(UI_COMMENT) | curses.A_ITALIC
 
     def set_checked(self, checked):
         if self.checked == checked:
@@ -970,7 +1013,7 @@ class FindQueryWindow:
                                        checked=self.query.case)
         self.chk_word = CheckBoxWidget("Слово целиком",
                                        checked=self.query.word)
-        self.chk_orig = CheckBoxWidget("Не искать в подписях",
+        self.chk_orig = CheckBoxWidget("Пропускать подписи",
                                        checked=not self.query.orig)
         self.lbl_progress = LabelWidget("")
 
@@ -1358,3 +1401,7 @@ class QuickSearch(InputRegexWidget):
                 scroll.pos = cursor - scroll.view
             scroll.ensure_visible(cursor)
         return cursor
+
+
+class ReaderWidget(Widget):
+    pass

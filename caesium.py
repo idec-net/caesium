@@ -17,7 +17,6 @@ import traceback
 from shutil import copyfile
 from typing import List, Optional, Union
 
-from api import MsgMetadata
 from core import (
     __version__, parser, client, config, ui, utils, outgoing, keystroke,
     FEAT_X_C, FEAT_U_E
@@ -589,8 +588,7 @@ class EchoReader:
     def __init__(self, echo: config.Echo, msgn, archive, counts,
                  mode=ui.ReaderMode.ECHO, msgids=None):
         self.echo = echo
-        self.mode = mode
-        self.mode_stack = []
+        self.msgs = ui.MsgModeStack(mode, msgids, msgn)
         self.archive = archive
         self.counts = counts
         #
@@ -605,31 +603,25 @@ class EchoReader:
         self.repto = ""
         self.stack = []
         if not msgids:
-            self.msgs_data = self.get_msgs_metadata()  # type: List[MsgMetadata]
+            self.msgs.data = self.get_msgs_metadata()
         else:
-            self.msgs_data = msgids  # type: List[MsgMetadata]
+            self.msgs.data = msgids
 
-        self.msgn = min(msgn, len(self.msgs_data) - 1)
-        if self.msgs_data:
+        self.msgs.msgn = min(msgn, len(self.msgs.data) - 1)
+        if self.msgs.data:
             self.read_msg_skip_twit(-1)
-            if self.msgn < 0:
+            if self.msgs.msgn < 0:
                 self.next_echo = True
         self.prerender()
 
     def msgid(self):
-        return self._msgid or self.msgs_data[self.msgn].msgid
-
-    def find_msgid_idx(self, msgid):
-        for i, d in enumerate(self.msgs_data):
-            if d.msgid == msgid:
-                return i
-        return -1
+        return self._msgid or self.msgs.curMsg().msgid
 
     def get_msgs_metadata(self):
         if self.out:
             return outgoing.get_out_msgs_metadata(self.cur_node, self.drafts)
         elif self.echo == config.ECHO_FIND:
-            return self.msgs_data  #
+            return self.msgs.data  #
         else:
             return api.get_echo_msgs_metadata(self.echo.name)
 
@@ -638,14 +630,14 @@ class EchoReader:
         if self.out:
             self.msg, self.size = outgoing.read_out_msg(self.msgid(), self.cur_node)
         else:
-            data = self.msgs_data[self.msgn]
-            self.msg, self.size = api.read_msg(self._msgid or data.msgid, data.echo)
+            m = self.msgs.curMsg()
+            self.msg, self.size = api.read_msg(self._msgid or m.msgid, m.echo)
 
     def read_msg_skip_twit(self, increment):
         self.read_cur_msg()
         while self.msg[3] in cfg.twit or self.msg[5] in cfg.twit:
-            self.msgn += increment
-            if self.msgn < 0 or len(self.msgs_data) <= self.msgn:
+            self.msgs.msgn += increment
+            if self.msgs.msgn < 0 or len(self.msgs.data) <= self.msgs.msgn:
                 break
             self.read_cur_msg()
 
@@ -657,9 +649,9 @@ class EchoReader:
         self.scroll = ui.ScrollCalc(height, view, pos)
 
     def prerender_msg_or_quit(self):
-        self.msgs_data = self.get_msgs_metadata()
-        if self.msgs_data:
-            self.msgn = min(self.msgn, len(self.msgs_data) - 1)
+        self.msgs.data = self.get_msgs_metadata()
+        if self.msgs.data:
+            self.msgs.msgn = min(self.msgs.msgn, len(self.msgs.data) - 1)
             self.read_cur_msg()
             self.prerender()
         else:
@@ -703,19 +695,19 @@ class EchoReader:
                 ui.show_message_box("Конференция отсутствует в БД ноды")
         else:
             msgid = link[5:]
-            idx = self.find_msgid_idx(msgid)
+            idx = self.msgs.findMsgidIdx(msgid)
             if idx > -1:  # msgid in same echoarea
-                if not self.stack or self.stack[-1] != self.msgn:
-                    self.stack.append(self.msgn)
-                self.msgn = idx
+                if not self.stack or self.stack[-1] != self.msgs.msgn:
+                    self.stack.append(self.msgs.msgn)
+                self.msgs.msgn = idx
                 self.read_cur_msg()
                 self.prerender()
             else:
                 self.msg, self.size = api.find_msg(link[5:])
                 self._msgid = link[5:]
                 self.prerender()
-                if not self.stack or self.stack[-1] != self.msgn:
-                    self.stack.append(self.msgn)
+                if not self.stack or self.stack[-1] != self.msgs.msgn:
+                    self.stack.append(self.msgs.msgn)
 
     @staticmethod
     def on_search_item(sidx, p, token):
@@ -744,8 +736,8 @@ class EchoReader:
             self.go = False
             self.done = True
 
-        if self.mode == ui.ReaderMode.ECHO:
-            self.counts.lasts[self.echo.name] = self.msgn
+        if self.msgs.mode == ui.ReaderMode.ECHO:
+            self.counts.lasts[self.echo.name] = self.msgs.msgn
             with open("lasts.lst", "wb") as f:
                 pickle.dump(self.counts.lasts, f)
         ui.stdscr.clear()
@@ -754,18 +746,16 @@ class EchoReader:
     def _show(self):
         ui.stdscr.clear()
         status = None
-        if self.msgs_data:
+        if self.msgs.data:
             self.draw(ui.stdscr)
-            status = utils.msgn_status(len(self.msgs_data), self.msgn, ui.WIDTH)
+            status = utils.msgn_status(len(self.msgs.data), self.msgs.msgn, ui.WIDTH)
         else:
             ui.draw_reader(ui.stdscr, self.echo.name, "", self.out)
-        ui.draw_status_bar(ui.stdscr, mode=self.mode, text=status)
+        ui.draw_status_bar(ui.stdscr, mode=self.msgs.mode, text=status)
         if self.qs:
             self.qs.draw(ui.stdscr)
         #
         ks, key, _ = ui.get_keystroke()
-        if ks and any(("Shift+" in ks, "Alt+" in ks, "Ctrl+" in ks)):
-            key = -1  # beware Android backspace "Ctrl+?" (127)
         #
         if key == curses.KEY_RESIZE:
             ui.set_term_size()
@@ -782,7 +772,7 @@ class EchoReader:
         elif ks in Qs.OPEN:
             self.qs = ui.newQuickSearch(self.tokens, self.on_search_item)
         elif ks in Reader.QUIT:
-            if self.mode_stack:
+            if self.msgs.stack:
                 self.mode_restore()
             else:
                 self.go = False
@@ -796,14 +786,11 @@ class EchoReader:
     def draw(self, scr):
         h, w = scr.getmaxyx()
         ui.draw_reader(scr, self.msg[1], self.msgid(), self.out)
-        if w >= 80:
-            if self.echo != config.ECHO_FIND:
-                if self.echo.desc:
-                    ui.draw_title(scr, 0, w - 2 - len(self.echo.desc),
-                                  self.echo.desc)
-            else:
-                title = f"Найденные сообщения '{ui.FindQueryWindow.query.query}'"
-                ui.draw_title(scr, 0, w - 2 - len(title), title)
+        if w >= 80 and self.echo == config.ECHO_FIND:
+            title = f"Найденные сообщения '{ui.FindQueryWindow.query.query}'"
+            ui.draw_title(scr, 0, w - 2 - len(title), title)
+        elif w >= 80 and self.echo.desc:
+            ui.draw_title(scr, 0, w - 2 - len(self.echo.desc), self.echo.desc)
 
         color = get_color(UI_TEXT)
         if not self.out:
@@ -853,69 +840,56 @@ class EchoReader:
                 self.scroll.ensure_visible(self.t2l[tidx].start + off)
 
     def mode_restore(self):
-        msgid = self.msgs_data[self.msgn].msgid
-        self.mode, self.msgs_data, self.msgn = self.mode_stack.pop()
-        idx = self.find_msgid_idx(msgid)
-        if idx > -1:
-            self.msgn = idx
-        if msgid != self.msgs_data[self.msgn].msgid:
+        msgid = self.msgs.curMsg().msgid
+        self.msgs.pop()
+        if msgid != self.msgs.curMsg().msgid:
             self.stack.clear()
             self.read_cur_msg()
             self.prerender()
-
-    def toggle_mode(self, mode):
-        if self.mode == mode:
-            if self.mode_stack:
-                self.mode_restore()
-            return  #
-        msgid = self.msgs_data[self.msgn].msgid
-        if mode == ui.ReaderMode.SUBJ:
-            self.mode_stack.append((self.mode, self.msgs_data, self.msgn))
-            self.msgs_data = api.find_subj_msgids(self.msg[1], self.msg[6])
-        else:
-            return  #
-        self.msgn = self.find_msgid_idx(msgid)
-        self.mode = mode
 
     # noinspection PyUnusedLocal
     def on_key_pressed(self, ks, key):
         if ks in Reader.MSUBJ:
-            self.toggle_mode(ui.ReaderMode.SUBJ)
+            if self.msgs.mode != ui.ReaderMode.SUBJ:
+                data = api.find_subj_msgids(self.msg[1], self.msg[6])
+                self.msgs.modeSubjOn(data)
+            else:
+                self.msgs.modeSubjOff()
             self.stack.clear()
             self.read_cur_msg()
             self.prerender()
-        elif ks in Reader.PREV and self.msgn > 0 and self.msgs_data:
-            self.msgn -= 1
+        elif ks in Reader.PREV and self.msgs.msgn > 0 and self.msgs.data:
+            self.msgs.msgn -= 1
             self.stack.clear()
-            tmp = self.msgn
+            tmp = self.msgs.msgn
             self.read_msg_skip_twit(-1)
-            if self.msgn < 0:
-                self.msgn = tmp + 1
+            if self.msgs.msgn < 0:
+                self.msgs.msgn = tmp + 1
             self.prerender()
-        elif ks in Reader.NEXT and self.msgn < len(self.msgs_data) - 1 and self.msgs_data:
-            self.msgn += 1
+        elif ks in Reader.NEXT and self.msgs.hasNext():
+            self.msgs.msgn += 1
             self.stack.clear()
             self.read_msg_skip_twit(+1)
-            if self.msgn >= len(self.msgs_data):
-                if self.mode == ui.ReaderMode.ECHO:
+            if self.msgs.msgn >= len(self.msgs.data):
+                if self.msgs.mode == ui.ReaderMode.ECHO:
                     self.go = False
                     self.next_echo = True
                 else:
-                    self.msgn = len(self.msgs_data) - 1
+                    self.msgs.msgn = len(self.msgs.data) - 1
             self.prerender()
-        elif ks in Reader.NEXT and (self.msgn == len(self.msgs_data) - 1 or len(self.msgs_data) == 0):
-            if self.mode == ui.ReaderMode.ECHO:
+        elif ks in Reader.NEXT and not self.msgs.hasNext():
+            if self.msgs.mode == ui.ReaderMode.ECHO:
                 self.go = False
                 self.next_echo = True
         elif ks in Reader.PREP and not any((self.favorites, self.carbonarea, self.out)) and self.repto:
-            idx = self.find_msgid_idx(self.repto)
+            idx = self.msgs.findMsgidIdx(self.repto)
             if idx > -1:
-                self.stack.append(self.msgn)
-                self.msgn = idx
+                self.stack.append(self.msgs.msgn)
+                self.msgs.msgn = idx
                 self.read_cur_msg()
                 self.prerender()
         elif ks in Reader.NREP and len(self.stack) > 0:
-            self.msgn = self.stack.pop()
+            self.msgs.msgn = self.stack.pop()
             self.read_cur_msg()
             self.prerender()
         elif ks in Reader.UP:
@@ -929,13 +903,13 @@ class EchoReader:
         elif ks in Reader.MEND:
             self.scroll.pos = self.scroll.content - self.scroll.view
         elif ks in Reader.UKEYS:
-            if not self.msgs_data or self.scroll.pos >= self.scroll.content - self.scroll.view:
-                if self.msgn == len(self.msgs_data) - 1 or not self.msgs_data:
-                    if self.mode == ui.ReaderMode.ECHO:
+            if not self.msgs.data or self.scroll.pos >= self.scroll.content - self.scroll.view:
+                if not self.msgs.hasNext():
+                    if self.msgs.mode == ui.ReaderMode.ECHO:
                         self.next_echo = True
                         self.go = False
                 else:
-                    self.msgn += 1
+                    self.msgs.msgn += 1
                     self.stack.clear()
                     self.read_cur_msg()
                     self.prerender()
@@ -943,13 +917,13 @@ class EchoReader:
                 self.scroll.pos += self.scroll.view
         elif ks in Reader.DOWN:
             self.scroll.pos += 1
-        elif ks in Reader.BEGIN and self.msgs_data:
-            self.msgn = 0
+        elif ks in Reader.BEGIN and self.msgs.data:
+            self.msgs.msgn = 0
             self.stack.clear()
             self.read_cur_msg()
             self.prerender()
-        elif ks in Reader.END and self.msgs_data:
-            self.msgn = len(self.msgs_data) - 1
+        elif ks in Reader.END and self.msgs.data:
+            self.msgs.msgn = len(self.msgs.data) - 1
             self.stack.clear()
             self.read_cur_msg()
             self.prerender()
@@ -964,11 +938,11 @@ class EchoReader:
             self.counts.get_counts(self.cur_node, False)
             ui.show_message_box("Сообщение добавлено в избранные" if saved else
                                 "Сообщение уже есть в избранных")
-        elif ks in Reader.QUOTE and not any((self.archive, self.out)) and self.msgs_data:
+        elif ks in Reader.QUOTE and not any((self.archive, self.out)) and self.msgs.data:
             outgoing.quote_msg(self.msgid(), self.msg, cfg.oldquote)
             call_editor(self.cur_node)
         elif ks in Reader.INFO:
-            subj = textwrap.fill(self.msg[6], ui.WIDTH * 0.75,
+            subj = textwrap.fill(self.msg[6], int(ui.WIDTH * 0.75) - 8,
                                  subsequent_indent="      ")
             ui.show_message_box("id:   %s\naddr: %s\nsubj: %s"
                                 % (self.msgid(), self.msg[4], subj))
@@ -981,12 +955,12 @@ class EchoReader:
                 ui.show_message_box("Сообщение уже отправлено")
         elif ks in Out.SIGN and self.out:
             self.sign_msg()
-        elif ks in Out.DEL and self.favorites and self.msgs_data:
+        elif ks in Out.DEL and self.favorites and self.msgs.data:
             ui.draw_message_box("Подождите", False)
             api.remove_from_favorites(self.msgid())
             self.counts.get_counts(self.cur_node, False)
             self.prerender_msg_or_quit()
-        elif ks in Out.DEL and self.drafts and self.msgs_data:
+        elif ks in Out.DEL and self.drafts and self.msgs.data:
             if ui.SelectWindow("Удалить черновик '%s'?" % self.msgid(),
                                ["Нет", "Да"]).show() == 2:
                 os.remove(outgoing.directory(self.cur_node) + self.msgid())
@@ -1011,20 +985,19 @@ class EchoReader:
             os.rename(out_msg, out_msg.replace(".out", ".draft"))
             self.prerender_msg_or_quit()
         elif ks in Reader.LIST and not self.out and not self.drafts:
-            win = ui.MsgListScreen(self.echo.name, self.msgs_data,
-                                   self.msgs_data[self.msgn].msgid, self.mode)
+            mode = self.msgs.mode
+            msgid = self.msgs.curMsg().msgid
+            win = ui.MsgListScreen(self.echo.name, self.msgs)
             selected_msgn = win.show()
-            if win.resized:
-                self.prerender(self.scroll.pos)
-            if selected_msgn > -1:
-                if self.mode != win.mode:
-                    self.mode_stack.append((self.mode, self.msgs_data, self.msgn))
-                self.msgs_data = win.data
-                self.msgn = selected_msgn
-                self.mode = win.mode
+            self.msgs = win.msgs
+            if selected_msgn == -1:
+                self.msgs.msgn = self.msgs.findMsgidIdx(msgid)
+            if mode != self.msgs.mode or selected_msgn > -1:
                 self.stack.clear()
                 self.read_cur_msg()
                 self.prerender()
+            elif win.resized:
+                self.prerender(self.scroll.pos)
         elif ks in Reader.INLINES:
             parser.INLINE_STYLE_ENABLED = not parser.INLINE_STYLE_ENABLED
             self.prerender(self.scroll.pos)
@@ -1045,7 +1018,8 @@ class EchoReader:
                                        [it[1] for it in items]).show()
             if selected > 0:
                 sign_msg(self.cur_node, self.msgid(), items[selected - 1][0])
-                self.prerender_msg_or_quit()
+                self.read_cur_msg()
+                self.prerender()
         else:
             ui.show_message_box("Не удалось подписать сообщение.\n"
                                 "Нет приватных ключей в хранилище:\n%s"
