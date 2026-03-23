@@ -404,87 +404,6 @@ class SelectWindow:
                 self.cursor = min(scroll.content - 1, page_bottom + scroll.view)
 
 
-# region Render Body
-def render_body(scr, tokens, scroll, qs=None):
-    # type: (curses.window, List[parser.Token], int, QuickSearch) -> None
-    if not tokens:
-        return
-    h, w = scr.getmaxyx()
-    tnum, offset = parser.find_visible_token(tokens, scroll)
-    line_num = tokens[tnum].line_num
-    for y in range(5, h - 1):
-        scr.addstr(y, 0, " " * w, 1)
-    y, x = (5, 0)
-    text_attr = 0
-    if parser.INLINE_STYLE_ENABLED:
-        # Rewind tokens from the begin of line to apply inline text attributes
-        first_token = tnum
-        while tokens[first_token].line_num == line_num and first_token > 0:
-            first_token -= 1
-        for token in tokens[first_token:tnum]:
-            text_attr = apply_attribute(token, text_attr)
-
-    for token in tokens[tnum:]:
-        if token.line_num > line_num:
-            line_num = token.line_num
-            y, x = (y + 1, 0)
-        if y >= h - 1:
-            break  # tokens
-        #
-        text_attr = apply_attribute(token, text_attr)
-        #
-        y, x = render_token(scr, token, y, x, h, offset, text_attr, qs)
-        offset = 0  # required in the first partial multiline token only
-
-
-def apply_attribute(token, text_attr):
-    if token.type == parser.TT.URL:
-        text_attr |= curses.A_UNDERLINE
-    else:
-        text_attr &= ~curses.A_UNDERLINE
-
-    if token.type == parser.TT.ITALIC_BEGIN:
-        text_attr |= curses.A_ITALIC
-    elif token.type == parser.TT.ITALIC_END:
-        text_attr &= ~curses.A_ITALIC
-
-    elif token.type == parser.TT.BOLD_BEGIN:
-        text_attr |= curses.A_BOLD
-    elif token.type == parser.TT.BOLD_END:
-        text_attr &= ~curses.A_BOLD
-    return text_attr
-
-
-def render_token(scr, token: parser.Token, y, x, h, offset, text_attr, qs=None):
-    matches = []
-    # noinspection PyUnresolvedReferences
-    if (qs and qs.result
-            and hasattr(token, 'search_idx')
-            and token.search_idx is not None):
-        # noinspection PyUnresolvedReferences
-        matches = token.search_matches
-    #
-    for i, line in enumerate(token.render[offset:]):
-        if y + i >= h - 1:
-            return y + i, x  #
-        attr = get_color(TOKEN2UI.get(token.type, UI_TEXT))
-        if line:
-            scr.addstr(y + i, x, line, attr | text_attr)
-            #
-            for m_idx, (off, match) in enumerate(matches):
-                if off == offset + i:
-                    scr.addstr(y + i, x + match.start(),
-                               line[match.start():match.end()],
-                               attr | text_attr | curses.A_REVERSE)
-
-        if len(token.render) > 1 and i + offset < len(token.render) - 1:
-            x = 0  # new line in multiline token -- carriage return
-        else:
-            x += len(line)  # last/single line -- move caret in line
-    return y + (len(token.render) - 1) - offset, x  #
-# endregion Render Body
-
-
 class MsgModeStack:
     stack: List[Tuple[ReaderMode, List[MsgMetadata], int]] = None
 
@@ -1404,4 +1323,147 @@ class QuickSearch(InputRegexWidget):
 
 
 class ReaderWidget(Widget):
-    pass
+    tokens: List[parser.Token]  # message bode tokens
+    scroll: ScrollCalc  # message body scroll calculator
+    t2l: List[parser.RangeLines]  # tokens rendered lines range
+    #
+    msg: List[str] = None
+    size: int = 0
+
+    def __init__(self):
+        self.msg = ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"]
+
+    def setRect(self, x=None, y=None, w=None, h=None):
+        if x is not None:
+            self.x = x
+        if y is not None:
+            self.y = y
+        if w is not None:
+            self.w = w
+        if h is not None:
+            self.h = h
+
+    def setMsg(self, msg, size):
+        self.msg = msg
+        self.size = size
+
+    def prerender(self, pos=0):
+        self.tokens = parser.tokenize(self.msg[8:])
+        height = parser.prerender(self.tokens, self.w, self.h)
+        self.t2l = parser.token_line_map(self.tokens)
+        self.scroll = ScrollCalc(height, self.h, pos)
+
+    def draw(self, scr, qs=None):
+        self.render_body(scr, self.tokens, self.scroll.pos, qs)
+        if self.scroll.is_scrollable:
+            draw_scrollbarV(scr, self.y, self.x + self.w - 1, self.scroll)
+
+    def render_body(self, scr, tokens, scroll, qs=None):
+        # type: (curses.window, List[parser.Token], int, QuickSearch) -> None
+        if not tokens:
+            return
+        tnum, offset = parser.find_visible_token(tokens, scroll)
+        line_num = tokens[tnum].line_num
+        y, x = (self.y, self.x)
+        h, w = (self.y + self.h, self.x + self.w)
+        text_attr = 0
+        if parser.INLINE_STYLE_ENABLED:
+            # Rewind tokens from the begin of line to apply inline text attributes
+            first_token = tnum
+            while tokens[first_token].line_num == line_num and first_token > 0:
+                first_token -= 1
+            for token in tokens[first_token:tnum]:
+                text_attr = ReaderWidget.applyAttr(token, text_attr)
+
+        for token in tokens[tnum:]:
+            if token.line_num > line_num:
+                line_num = token.line_num
+                y, x = (y + 1, self.x)
+            if y >= h:
+                break  # tokens
+            #
+            text_attr = ReaderWidget.applyAttr(token, text_attr)
+            #
+            y, x = self.renderToken(scr, token, y, x, h, offset, text_attr, qs)
+            offset = 0  # required in the first partial multiline token only
+
+    @staticmethod
+    def applyAttr(token, text_attr):
+        if token.type == parser.TT.URL:
+            text_attr |= curses.A_UNDERLINE
+        else:
+            text_attr &= ~curses.A_UNDERLINE
+
+        if token.type == parser.TT.ITALIC_BEGIN:
+            text_attr |= curses.A_ITALIC
+        elif token.type == parser.TT.ITALIC_END:
+            text_attr &= ~curses.A_ITALIC
+
+        elif token.type == parser.TT.BOLD_BEGIN:
+            text_attr |= curses.A_BOLD
+        elif token.type == parser.TT.BOLD_END:
+            text_attr &= ~curses.A_BOLD
+        return text_attr
+
+    def renderToken(self, scr, token: parser.Token, y, x, h, offset, text_attr, qs=None):
+        matches = []
+        # noinspection PyUnresolvedReferences
+        if (qs and qs.result
+                and hasattr(token, 'search_idx')
+                and token.search_idx is not None):
+            # noinspection PyUnresolvedReferences
+            matches = token.search_matches
+        #
+        for i, line in enumerate(token.render[offset:]):
+            if y + i >= h:
+                return y + i, x  #
+            attr = get_color(TOKEN2UI.get(token.type, UI_TEXT))
+            if line:
+                scr.addstr(y + i, x, line, attr | text_attr)
+                #
+                for m_idx, (off, match) in enumerate(matches):
+                    if off == offset + i:
+                        scr.addstr(y + i, x + match.start(),
+                                   line[match.start():match.end()],
+                                   attr | text_attr | curses.A_REVERSE)
+
+            if len(token.render) > 1 and i + offset < len(token.render) - 1:
+                x = self.x  # new line in multiline token -- carriage return
+            else:
+                x += len(line)  # last/single line -- move caret in line
+        return y + (len(token.render) - 1) - offset, x  #
+
+    def on_key_pressed(self, ks, key):
+        if ks in Reader.UP:
+            self.scroll.pos -= 1
+        elif ks in Reader.DOWN:
+            self.scroll.pos += 1
+        elif ks in Reader.PPAGE:
+            self.scroll.pos -= self.scroll.view
+        elif ks in Reader.NPAGE:
+            self.scroll.pos += self.scroll.view
+        elif ks in Reader.HOME:
+            self.scroll.pos = 0
+        elif ks in Reader.MEND:
+            self.scroll.pos = self.scroll.content - self.scroll.view
+        else:
+            return False  # not handled
+        return True  # handled
+
+    # region QuickSearch
+    def qsPager(self):
+        return Pager(
+            parser.find_visible_token(self.tokens, self.scroll.pos)[0],
+            lambda: parser.find_visible_token(self.tokens, self.scroll.pos + self.scroll.view)[0],
+            lambda: parser.find_visible_token(self.tokens, self.scroll.pos)[0] - 1)
+
+    def ensureVisibleOnQsKey(self, ks, tidx, off):
+        if ks in Qs.HOME or ks in Qs.END:
+            self.scroll.ensure_visible(self.t2l[tidx].start + off, center=True)
+        elif ks in Qs.NPAGE:
+            self.scroll.ensure_visible(self.t2l[tidx].start + off + self.scroll.view - 1)
+        elif ks in Qs.PPAGE:
+            self.scroll.ensure_visible(self.t2l[tidx].start + off - self.scroll.view + 1)
+        else:
+            self.scroll.ensure_visible(self.t2l[tidx].start + off)
+    # endregion QuickSearch

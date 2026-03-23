@@ -215,8 +215,10 @@ def test_url_gem_md():
     assert len(tokens) == 5
     assert parser.prerender(tokens, width=25, height=10) == 2
     scr = ScrMock(w=25, h=10)
+    reader = ui.ReaderWidget()
+    reader.setRect(x=0, y=5, w=25, h=4)
     # noinspection PyTypeChecker
-    ui.render_body(scr, tokens, 0)
+    reader.render_body(scr, tokens, 0)
     assert tokens[0].render == ["Regular text w "]
     assert tokens[1].render == ["url title"]
     assert tokens[2].render == ["."]
@@ -225,8 +227,8 @@ def test_url_gem_md():
     text = scr.to_str()
     assert text[4:8] == ["",
                          "Regular text w url title.",
-                         "=> Url with Title        ",
-                         "                         "]
+                         "=> Url with Title",
+                         ""]
 
 
 SOFT_WRAP = """==     long-long-long-long-header
@@ -732,10 +734,12 @@ def test_render_token_right_border_new_line():
     ])
     parser.prerender(tokens, width=62, height=30)
     scr = ScrMock(w=62, h=30)
+    reader = ui.ReaderWidget()
+    reader.setRect(x=0, y=5, w=62, h=24)
     # noinspection PyTypeChecker
-    ui.render_body(scr, tokens, 0)
+    reader.render_body(scr, tokens, 0)
     text = scr.to_str()
-    assert text[6] == ". " + " " * 60
+    assert text[6] == ". "
 
 
 def test_render_token_bottom_inline_overlapped():
@@ -744,11 +748,13 @@ def test_render_token_bottom_inline_overlapped():
     ])
     parser.prerender(tokens, width=10, height=30)
     scr = ScrMock(8, 10)  # 8 = 5 header + 2 body + 1 status line
+    reader = ui.ReaderWidget()
+    reader.setRect(x=0, y=5, w=10, h=2)
     # noinspection PyTypeChecker
-    ui.render_body(scr, tokens, 0)
+    reader.render_body(scr, tokens, 0)
     text = scr.to_str()
     assert text[5] == "1234567890"
-    assert text[6] == "234 678   "
+    assert text[6] == "234 678 "
     assert text[7] == ""  # status line
 
 
@@ -759,12 +765,14 @@ def test_render_token_new_line_at_last_space():
 
     parser.prerender(tokens, width=62, height=30)
     scr = ScrMock(30, 62)
+    reader = ui.ReaderWidget()
+    reader.setRect(x=0, y=5, w=62, h=24)
     # noinspection PyTypeChecker
-    ui.render_body(scr, tokens, 0)
+    reader.render_body(scr, tokens, 0)
     text = scr.to_str()
     assert text[5] == "aaaa.aa aaaaaaaa aaaaaa aaaaa. aaaaaaaa aaa aaaaaaaaaaa a aaa:"
-    assert text[6] == "https://aaaaaa                                                "
-    assert text[7] == " " * 62
+    assert text[6] == "https://aaaaaa"
+    assert text[7] == ""
 
 
 def test_find_pos_by_anchor():
