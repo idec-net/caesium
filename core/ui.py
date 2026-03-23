@@ -794,7 +794,7 @@ class CheckBoxWidget(Widget):
     def _color(focused, enabled):
         if enabled:
             return get_color(UI_TITLES if focused else UI_TEXT)
-        return get_color(UI_COMMENT)
+        return get_color(UI_COMMENT) | curses.A_ITALIC
 
     def set_checked(self, checked):
         if self.checked == checked:
