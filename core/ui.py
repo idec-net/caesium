@@ -37,6 +37,8 @@ class ThemeAscii:
     input = ["[", "]", curses.A_NORMAL]
     spinner = r"-\|/"
     error = ["(!)", curses.A_BOLD]
+    title = ["[", "]"]
+    ellipsis = "..."
 
 
 class ThemeUtf8:
@@ -49,6 +51,8 @@ class ThemeUtf8:
     # https://github.com/google/fonts/issues/3935
     spinner = r"⣄⡆⠇⠋⠙⠸⢰⣠"
     error = ["⛔", curses.A_BOLD]
+    title = ["┤", "├"]
+    ellipsis = "…"
 
 
 THEME = ThemeAscii
@@ -137,14 +141,17 @@ def draw_splash(scr, splash):  # type: (curses.window, List[str]) -> None
 def draw_title(scr, y, x, title):
     h, w = scr.getmaxyx()
     x = max(0, x)
-    if (x + len(title) + 2) > w:
-        title = title[:w - x - 2 - 3] + '...'
+    borders = len(THEME.title[0]) + len(THEME.title[1])
+    if (x + len(title) + borders) > w:
+        title = title[:w - x - borders - len(THEME.ellipsis)] + THEME.ellipsis
     #
     color = get_color(UI_BORDER)
-    scr.addstr(y, x, "[", color)
-    scr.addstr(y, x + 1 + len(title), "]", color)
+    if THEME.title[0]:
+        scr.addstr(y, x, THEME.title[0], color)
+    if THEME.title[1]:
+        scr.addstr(y, x + len(THEME.title[0]) + len(title), THEME.title[1], color)
     color = get_color(UI_TITLES)
-    scr.addstr(y, x + 1, title, color)
+    scr.addstr(y, x + len(THEME.title[0]), title, color)
 
 
 def draw_message_box(smsg, wait):
@@ -305,7 +312,8 @@ class SelectWindow:
         self.resized = False
 
     def init_win(self, items, title, win=None):
-        test_width = items + [LABEL_ESC + "[]", title + "[]"]
+        test_width = items + [LABEL_ESC + THEME.title[0] + THEME.title[1],
+                              title + THEME.title[0] + THEME.title[1]]
         w = 0 if not items else max(map(lambda it: len(it), test_width))
         h = min(HEIGHT - 2, len(items))
         w = min(WIDTH - 2, w)
@@ -321,10 +329,10 @@ class SelectWindow:
         lbl_esc = LABEL_ESC[0:min(w - 2, len(LABEL_ESC))]
         win.attrset(color)
         win.border()
-        win.addstr(0, 1, "[", color)
-        win.addstr(0, 2 + len(lbl_title), "]", color)
-        win.addstr(h + 1, 1, "[", color)
-        win.addstr(h + 1, 2 + len(lbl_esc), "]", color)
+        win.addstr(0, 1, THEME.title[0], color)
+        win.addstr(0, 2 + len(lbl_title), THEME.title[1], color)
+        win.addstr(h + 1, 1, THEME.title[0], color)
+        win.addstr(h + 1, 2 + len(lbl_esc), THEME.title[1], color)
 
         color = get_color(UI_TITLES)
         win.addstr(0, 2, lbl_title, color)
@@ -1393,3 +1401,7 @@ class QuickSearch(InputRegexWidget):
                 scroll.pos = cursor - scroll.view
             scroll.ensure_visible(cursor)
         return cursor
+
+
+class ReaderWidget(Widget):
+    pass

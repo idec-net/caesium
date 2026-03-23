@@ -756,8 +756,6 @@ class EchoReader:
             self.qs.draw(ui.stdscr)
         #
         ks, key, _ = ui.get_keystroke()
-        if ks and any(("Shift+" in ks, "Alt+" in ks, "Ctrl+" in ks)):
-            key = -1  # beware Android backspace "Ctrl+?" (127)
         #
         if key == curses.KEY_RESIZE:
             ui.set_term_size()
@@ -944,7 +942,7 @@ class EchoReader:
             outgoing.quote_msg(self.msgid(), self.msg, cfg.oldquote)
             call_editor(self.cur_node)
         elif ks in Reader.INFO:
-            subj = textwrap.fill(self.msg[6], ui.WIDTH * 0.75,
+            subj = textwrap.fill(self.msg[6], int(ui.WIDTH * 0.75) - 8,
                                  subsequent_indent="      ")
             ui.show_message_box("id:   %s\naddr: %s\nsubj: %s"
                                 % (self.msgid(), self.msg[4], subj))
@@ -988,9 +986,12 @@ class EchoReader:
             self.prerender_msg_or_quit()
         elif ks in Reader.LIST and not self.out and not self.drafts:
             mode = self.msgs.mode
+            msgid = self.msgs.curMsg().msgid
             win = ui.MsgListScreen(self.echo.name, self.msgs)
             selected_msgn = win.show()
             self.msgs = win.msgs
+            if selected_msgn == -1:
+                self.msgs.msgn = self.msgs.findMsgidIdx(msgid)
             if mode != self.msgs.mode or selected_msgn > -1:
                 self.stack.clear()
                 self.read_cur_msg()
