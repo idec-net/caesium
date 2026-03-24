@@ -236,9 +236,7 @@ class EchoSelectorScreen:
     echo_cursor: int = 0
     archive_cursor: int = 0
     next_echo: bool = False
-    archive: bool = False
-    cursor: int = 0
-    echoareas: List[config.Echo] = None
+    echos: ui.EchoModeStack = None
     scroll: ui.ScrollCalc = None
     qs: Optional[ui.QuickSearch] = None
     go: bool = True
@@ -248,30 +246,30 @@ class EchoSelectorScreen:
         self.reload_echoareas()
 
     def reload_echoareas(self):
-        self.archive = False
-        self.echoareas = cfg.nodes[node].echoareas
+        self.echo_cursor = 0
+        self.archive_cursor = 0
+        self.echos = ui.EchoModeStack(ui.SelectorMode.ECHO,
+                                      cfg.nodes[node].echoareas)
         ui.draw_message_box("Подождите", False)
         self.counts.get_counts(cfg.nodes[node], False)
-        self.counts.rescan_counts(self.echoareas)
+        self.counts.rescan_counts(self.echos.data)
         ui.stdscr.clear()
-        self.cursor = 0
-        self.scroll = ui.ScrollCalc(len(self.echoareas), ui.HEIGHT - 2)
-        self.scroll.ensure_visible(self.cursor, center=True)
+        self.scroll = ui.ScrollCalc(len(self.echos.data), ui.HEIGHT - 2)
+        self.scroll.ensure_visible(self.echos.idx, center=True)
 
     def toggle_archive(self):
-        self.archive = not self.archive
-        if self.archive:
-            self.echo_cursor = self.cursor
-            self.cursor = self.archive_cursor
-            self.echoareas = cfg.nodes[node].archive
-        else:
-            self.archive_cursor = self.cursor
-            self.cursor = self.echo_cursor
-            self.echoareas = cfg.nodes[node].echoareas
+        if not self.echos.isArch() and cfg.nodes[node].archive:
+            self.echo_cursor = self.echos.idx
+            self.echos.modeArchOn(cfg.nodes[node].archive)
+            self.echos.idx = self.archive_cursor
+        elif self.echos.isArch():
+            self.archive_cursor = self.echos.idx
+            self.echos.modeArchOff()
+            self.echos.idx = self.echo_cursor
         ui.stdscr.clear()
-        self.scroll = ui.ScrollCalc(len(self.echoareas), ui.HEIGHT - 2)
-        self.scroll.ensure_visible(self.cursor, center=True)
-        self.counts.rescan_counts(self.echoareas)
+        self.scroll = ui.ScrollCalc(len(self.echos.data), ui.HEIGHT - 2)
+        self.scroll.ensure_visible(self.echos.idx, center=True)
+        self.counts.rescan_counts(self.echos.data)
 
     # noinspection PyUnusedLocal
     @staticmethod
@@ -287,14 +285,15 @@ class EchoSelectorScreen:
 
     def show(self):
         while self.go:
-            self.scroll.ensure_visible(self.cursor)
-            self.draw(ui.stdscr, self.cursor, self.scroll, self.qs)
+            self.scroll.ensure_visible(self.echos.idx)
+            self.draw(ui.stdscr, self.echos.idx, self.scroll, self.qs)
             #
             ks, key, _ = ui.get_keystroke()
             #
             if key == curses.KEY_RESIZE:
                 ui.set_term_size()
-                self.scroll = ui.ScrollCalc(len(self.echoareas), ui.HEIGHT - 2, self.cursor)
+                self.scroll = ui.ScrollCalc(len(self.echos.data), ui.HEIGHT - 2,
+                                            self.echos.idx)
                 ui.stdscr.clear()
                 if self.qs:
                     self.qs.y = ui.HEIGHT - 1
@@ -305,10 +304,10 @@ class EchoSelectorScreen:
                     curses.curs_set(0)
                 else:
                     self.qs.on_key_pressed_search(key, ks, self.scroll)
-                    self.cursor = self.qs.ensure_cursor_visible(
-                        key, self.cursor, self.scroll)
+                    self.echos.idx = self.qs.ensure_cursor_visible(
+                        key, self.echos.idx, self.scroll)
             elif ks in Qs.OPEN:
-                self.qs = ui.newQuickSearch(self.echoareas, self.on_search_item)
+                self.qs = ui.newQuickSearch(self.echos.data, self.on_search_item)
             elif ks in Common.QUIT:
                 self.go = False
             else:
@@ -316,22 +315,20 @@ class EchoSelectorScreen:
 
     def draw(self, win, cursor, scroll, qs):
         h, w = win.getmaxyx()
-        self.draw_echo_selector(win, scroll.pos, cursor, self.archive, qs,
-                                self.counts.counts)
+        self.draw_echo_selector(win, scroll.pos, cursor, qs, self.counts.counts)
         if scroll.is_scrollable:
             ui.draw_scrollbarV(win, 1, w - 1, scroll)
         if qs:
             qs.draw(win)
         win.refresh()
 
-    @staticmethod
-    def draw_echo_selector(win, start, cursor, archive, qs, counts):
-        # type: (curses.window, int, int, bool, ui.QuickSearch, List[List[str]]) -> None
+    def draw_echo_selector(self, win, start, cursor, qs, counts):
+        # type: (curses.window, int, int, ui.QuickSearch, List[List[str]]) -> None
         h, w = win.getmaxyx()
         color = get_color(UI_BORDER)
         win.addstr(0, 0, "─" * w, color)
         cur_node = cfg.nodes[node]
-        if archive:
+        if self.echos.isArch():
             echoareas = cur_node.archive
             ui.draw_title(win, 0, 0, "Архив")
         else:
@@ -379,29 +376,29 @@ class EchoSelectorScreen:
                                echo.name[match.start():match.end()],
                                color | curses.A_REVERSE)
 
-        ui.draw_status_bar(win, text=cur_node.nodename)
+        ui.draw_status_bar(win, mode=self.echos.mode, text=cur_node.nodename)
 
     def on_key_pressed(self, ks):
         global node
         if ks in Selector.UP:
-            self.cursor = max(0, self.cursor - 1)
+            self.echos.idx = max(0, self.echos.idx - 1)
         elif ks in Selector.DOWN:
-            self.cursor = min(self.scroll.content - 1, self.cursor + 1)
+            self.echos.idx = min(self.scroll.content - 1, self.echos.idx + 1)
         elif ks in Selector.PPAGE:
-            if self.cursor > self.scroll.pos:
-                self.cursor = self.scroll.pos
+            if self.echos.idx > self.scroll.pos:
+                self.echos.idx = self.scroll.pos
             else:
-                self.cursor = max(0, self.cursor - self.scroll.view)
+                self.echos.idx = max(0, self.echos.idx - self.scroll.view)
         elif ks in Selector.NPAGE:
             page_bottom = self.scroll.pos_bottom()
-            if self.cursor < page_bottom:
-                self.cursor = page_bottom
+            if self.echos.idx < page_bottom:
+                self.echos.idx = page_bottom
             else:
-                self.cursor = min(self.scroll.content - 1, page_bottom + self.scroll.view)
+                self.echos.idx = min(self.scroll.content - 1, page_bottom + self.scroll.view)
         elif ks in Selector.HOME:
-            self.cursor = 0
+            self.echos.idx = 0
         elif ks in Selector.END:
-            self.cursor = self.scroll.content - 1
+            self.echos.idx = self.scroll.content - 1
         elif ks in Selector.GET or ks in Selector.FGET:
             self.fetch_mail(force_full_idx=(ks in Selector.FGET))
         elif ks in Selector.ARCHIVE and len(cfg.nodes[node].archive) > 0:
@@ -443,46 +440,46 @@ class EchoSelectorScreen:
         ui.initialize_curses()
         ui.draw_message_box("Подождите", False)
         self.counts.get_counts(cfg.nodes[node], True)
-        self.counts.rescan_counts(self.echoareas)
+        self.counts.rescan_counts(self.echos.data)
         ui.stdscr.clear()
-        self.cursor = self.counts.find_new(0)
+        self.echos.idx = self.counts.find_new(0)
 
     def read_echo(self):
         ui.draw_message_box("Подождите", False)
         last = 0
-        cur_echo = self.echoareas[self.cursor]
+        cur_echo = self.echos.curItem()
         if cur_echo.name in self.counts.lasts:
             last = self.counts.lasts[cur_echo.name]
         last = min(self.counts.total[cur_echo.name], last + 1)
         self.go, self.next_echo = EchoReader(
-            cur_echo, last, self.archive, self.counts).show()
-        self.counts.rescan_counts(self.echoareas)
+            cur_echo, last, self.echos.isArch(), self.counts).show()
+        self.counts.rescan_counts(self.echos.data)
         if self.next_echo and isinstance(self.next_echo, bool):
-            self.cursor = self.counts.find_new(self.cursor)
+            self.echos.idx = self.counts.find_new(self.echos.idx)
             self.next_echo = False
         elif self.next_echo and isinstance(self.next_echo, str):
             cur_node = cfg.nodes[node]
-            if ((not self.archive and self.next_echo in cur_node.archive)
-                    or (self.archive and (self.next_echo in cur_node.echoareas
-                                          or self.next_echo in cur_node.stat))):
+            if ((not self.echos.isArch() and self.next_echo in cur_node.archive)
+                    or (self.echos.isArch() and (self.next_echo in cur_node.echoareas
+                                                 or self.next_echo in cur_node.stat))):
                 self.toggle_archive()
             # noinspection PyTypeChecker
-            self.cursor = (self.echoareas.index(self.next_echo)
-                           if self.next_echo in self.echoareas else
-                           0)
+            self.echos.idx = self.echos.findItemIdx(self.next_echo)
+            if self.echos.idx == -1:
+                self.echos.idx = 0
             self.next_echo = False
 
     def read_outgoing(self):
         out_length = outgoing.get_out_length(cfg.nodes[node], drafts=False)
         if out_length:
             self.go, self.next_echo = EchoReader(
-                config.ECHO_OUT, out_length, self.archive, self.counts).show()
+                config.ECHO_OUT, out_length, self.echos.isArch(), self.counts).show()
 
     def read_drafts(self):
         out_length = outgoing.get_out_length(cfg.nodes[node], drafts=True)
         if out_length:
             self.go, self.next_echo = EchoReader(
-                config.ECHO_DRAFTS, 0, self.archive, self.counts).show()
+                config.ECHO_DRAFTS, 0, self.echos.isArch(), self.counts).show()
 
 
 def call_editor(node_, out=''):
@@ -606,15 +603,15 @@ class EchoReader:
         self.reader = ui.ReaderWidget()
         self.reader.setRect(x=0, y=5, w=ui.WIDTH, h=ui.HEIGHT - 5 - 1)
         #
-        self.msgs.msgn = min(msgn, len(self.msgs.data) - 1)
+        self.msgs.idx = min(msgn, len(self.msgs.data) - 1)
         if self.msgs.data:
             self.read_msg_skip_twit(-1)
-            if self.msgs.msgn < 0:
+            if self.msgs.idx < 0:
                 self.next_echo = True
         self.reader.prerender()
 
     def msgid(self):
-        return self._msgid or self.msgs.curMsg().msgid
+        return self._msgid or self.msgs.curItem().msgid
 
     def get_msgs_metadata(self):
         if self.out:
@@ -629,21 +626,21 @@ class EchoReader:
         if self.out:
             self.reader.setMsg(*outgoing.read_out_msg(self.msgid(), self.cur_node))
         else:
-            m = self.msgs.curMsg()
+            m = self.msgs.curItem()
             self.reader.setMsg(*api.read_msg(self._msgid or m.msgid, m.echo))
 
     def read_msg_skip_twit(self, increment):
         self.read_cur_msg()
         while self.reader.msg[3] in cfg.twit or self.reader.msg[5] in cfg.twit:
-            self.msgs.msgn += increment
-            if self.msgs.msgn < 0 or len(self.msgs.data) <= self.msgs.msgn:
+            self.msgs.idx += increment
+            if self.msgs.idx < 0 or len(self.msgs.data) <= self.msgs.idx:
                 break
             self.read_cur_msg()
 
     def prerender_msg_or_quit(self):
         self.msgs.data = self.get_msgs_metadata()
         if self.msgs.data:
-            self.msgs.msgn = min(self.msgs.msgn, len(self.msgs.data) - 1)
+            self.msgs.idx = min(self.msgs.idx, len(self.msgs.data) - 1)
             self.read_cur_msg()
             self.reader.prerender()
         else:
@@ -689,15 +686,15 @@ class EchoReader:
             msgid = link[5:]
             idx = self.msgs.findMsgidIdx(msgid)
             if idx > -1:  # msgid in same echoarea
-                if not self.stack or self.stack[-1] != self.msgs.msgn:
-                    self.stack.append(self.msgs.msgn)
-                self.msgs.msgn = idx
+                if not self.stack or self.stack[-1] != self.msgs.idx:
+                    self.stack.append(self.msgs.idx)
+                self.msgs.idx = idx
                 self.read_cur_msg()
             else:
                 self.reader.setMsg(*api.find_msg(link[5:]))
                 self._msgid = link[5:]
-                if not self.stack or self.stack[-1] != self.msgs.msgn:
-                    self.stack.append(self.msgs.msgn)
+                if not self.stack or self.stack[-1] != self.msgs.idx:
+                    self.stack.append(self.msgs.idx)
             self.reader.prerender()
 
     @staticmethod
@@ -728,7 +725,7 @@ class EchoReader:
             self.done = True
 
         if self.msgs.mode == ui.ReaderMode.ECHO:
-            self.counts.lasts[self.echo.name] = self.msgs.msgn
+            self.counts.lasts[self.echo.name] = self.msgs.idx
             with open("lasts.lst", "wb") as f:
                 pickle.dump(self.counts.lasts, f)
         ui.stdscr.clear()
@@ -739,7 +736,7 @@ class EchoReader:
         status = None
         if self.msgs.data:
             self.draw(ui.stdscr)
-            status = utils.msgn_status(len(self.msgs.data), self.msgs.msgn, ui.WIDTH)
+            status = utils.msgn_status(len(self.msgs.data), self.msgs.idx, ui.WIDTH)
         else:
             ui.draw_reader(ui.stdscr, self.echo.name, "", self.out)
         ui.draw_status_bar(ui.stdscr, mode=self.msgs.mode, text=status)
@@ -822,9 +819,9 @@ class EchoReader:
             self.reader.ensureVisibleOnQsKey(ks, tidx, off)
 
     def mode_restore(self):
-        msgid = self.msgs.curMsg().msgid
+        msgid = self.msgs.curItem().msgid
         self.msgs.pop()
-        if msgid != self.msgs.curMsg().msgid:
+        if msgid != self.msgs.curItem().msgid:
             self.stack.clear()
             self.read_cur_msg()
             self.reader.prerender()
@@ -840,24 +837,24 @@ class EchoReader:
             self.stack.clear()
             self.read_cur_msg()
             self.reader.prerender()
-        elif ks in Reader.PREV and self.msgs.msgn > 0 and self.msgs.data:
-            self.msgs.msgn -= 1
+        elif ks in Reader.PREV and self.msgs.idx > 0 and self.msgs.data:
+            self.msgs.idx -= 1
             self.stack.clear()
-            tmp = self.msgs.msgn
+            tmp = self.msgs.idx
             self.read_msg_skip_twit(-1)
-            if self.msgs.msgn < 0:
-                self.msgs.msgn = tmp + 1
+            if self.msgs.idx < 0:
+                self.msgs.idx = tmp + 1
             self.reader.prerender()
         elif ks in Reader.NEXT and self.msgs.hasNext():
-            self.msgs.msgn += 1
+            self.msgs.idx += 1
             self.stack.clear()
             self.read_msg_skip_twit(+1)
-            if self.msgs.msgn >= len(self.msgs.data):
+            if self.msgs.idx >= len(self.msgs.data):
                 if self.msgs.mode == ui.ReaderMode.ECHO:
                     self.go = False
                     self.next_echo = True
                 else:
-                    self.msgs.msgn = len(self.msgs.data) - 1
+                    self.msgs.idx = len(self.msgs.data) - 1
             self.reader.prerender()
         elif ks in Reader.NEXT and not self.msgs.hasNext():
             if self.msgs.mode == ui.ReaderMode.ECHO:
@@ -866,12 +863,12 @@ class EchoReader:
         elif ks in Reader.PREP and not any((self.favorites, self.carbonarea, self.out)) and self.repto:
             idx = self.msgs.findMsgidIdx(self.repto)
             if idx > -1:
-                self.stack.append(self.msgs.msgn)
-                self.msgs.msgn = idx
+                self.stack.append(self.msgs.idx)
+                self.msgs.idx = idx
                 self.read_cur_msg()
                 self.reader.prerender()
         elif ks in Reader.NREP and len(self.stack) > 0:
-            self.msgs.msgn = self.stack.pop()
+            self.msgs.idx = self.stack.pop()
             self.read_cur_msg()
             self.reader.prerender()
         elif ks in Reader.UKEYS:
@@ -881,19 +878,19 @@ class EchoReader:
                         self.next_echo = True
                         self.go = False
                 else:
-                    self.msgs.msgn += 1
+                    self.msgs.idx += 1
                     self.stack.clear()
                     self.read_cur_msg()
                     self.reader.prerender()
             else:
                 self.reader.scroll.pos += self.reader.scroll.view
         elif ks in Reader.BEGIN and self.msgs.data:
-            self.msgs.msgn = 0
+            self.msgs.idx = 0
             self.stack.clear()
             self.read_cur_msg()
             self.reader.prerender()
         elif ks in Reader.END and self.msgs.data:
-            self.msgs.msgn = len(self.msgs.data) - 1
+            self.msgs.idx = len(self.msgs.data) - 1
             self.stack.clear()
             self.read_cur_msg()
             self.reader.prerender()
@@ -956,12 +953,12 @@ class EchoReader:
             self.prerender_msg_or_quit()
         elif ks in Reader.LIST and not self.out and not self.drafts:
             mode = self.msgs.mode
-            msgid = self.msgs.curMsg().msgid
+            msgid = self.msgs.curItem().msgid
             win = ui.MsgListScreen(self.echo.name, self.msgs)
             selected_msgn = win.show()
             self.msgs = win.msgs
             if selected_msgn == -1:
-                self.msgs.msgn = self.msgs.findMsgidIdx(msgid)
+                self.msgs.idx = self.msgs.findMsgidIdx(msgid)
             if mode != self.msgs.mode or selected_msgn > -1:
                 self.stack.clear()
                 self.read_cur_msg()

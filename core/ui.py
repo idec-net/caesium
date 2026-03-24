@@ -3,10 +3,11 @@ import re
 import textwrap
 import time
 import sys
+from abc import ABC
 from datetime import datetime
 from enum import Enum
 from itertools import cycle
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, TypeVar, Generic, Union
 
 import api.ait as api
 from api import MsgMetadata, FindQuery
@@ -14,7 +15,7 @@ from core import __version__, parser, utils, keystroke
 from core.cmd import Common, Reader, Selector, Qs
 from core.config import (
     get_color, load_colors, Config, TOKEN2UI, ECHO_FIND,
-    UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT
+    UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT, Echo
 )
 from core.layout import GridLayout, CC
 
@@ -85,6 +86,12 @@ class ReaderMode(Enum):
     SUBJ = 'S'  # Specified subject and answers (Re: )
     SEARCH = 'Q'  # Quick Search results on MsgListScreen
     FIND = 'F'  # Find results
+
+
+class SelectorMode(Enum):
+    ECHO = 'E'  # Regular mode w Node echoareas
+    ARCH = 'A'  # Archives mode w Node archived echoareas
+    SEARCH = 'Q'  # Quick Search results
 
 
 def set_term_size():
@@ -202,7 +209,7 @@ def draw_scrollbarV(scr, y, x, scroll):
 
 
 def draw_status_bar(scr, mode=None, text=None):
-    # type: (curses.window, ReaderMode, str) -> None
+    # type: (curses.window, Union[ReaderMode, SelectorMode], str) -> None
     h, w = scr.getmaxyx()
     color = get_color(UI_STATUS)
     scr.insstr(h - 1, 0, " " * w, color)
@@ -404,19 +411,50 @@ class SelectWindow:
                 self.cursor = min(scroll.content - 1, page_bottom + scroll.view)
 
 
-class MsgModeStack:
-    stack: List[Tuple[ReaderMode, List[MsgMetadata], int]] = None
+T = TypeVar('T')
+V = TypeVar('V')
 
-    mode: ReaderMode = None
-    data: List[MsgMetadata] = None
-    msgn: int = None
 
-    def __init__(self, mode, data, msgn):
-        self.stack = []
+class ModeStackABC(ABC, Generic[T, V]):
+    def __init__(self, mode: T, data: List[V], idx: int = 0):
+        self.stack = []  # type: List[Tuple[T, List[V], int]]
+        self.mode = mode  # type: T
+        self.data = data  # type: List[V]
+        self.idx = idx
+
+    def curItem(self):
+        if self.idx > -1:
+            return self.data[self.idx]
+        return None
+
+    def push(self, mode: T, data: List[V]):
+        m = self.curItem()
+        #
+        if self.mode != mode:
+            self.stack.append((self.mode, self.data, self.idx))
         self.mode = mode
         self.data = data
-        self.msgn = msgn
+        #
+        if m:
+            self.idx = self.findItemIdx(m)
 
+    def pop(self):
+        m = self.curItem()
+        #
+        if self.stack:
+            self.mode, self.data, self.idx = self.stack.pop()
+        #
+        if m:
+            idx = self.findItemIdx(m)
+            if idx > -1:
+                self.idx = idx
+        return self.mode, self.data, self.idx
+
+    def findItemIdx(self, it: V, data: List[V] = None) -> int:
+        ...
+
+
+class MsgModeStack(ModeStackABC[ReaderMode, MsgMetadata]):
     def modeSubjOn(self, data):
         self.push(ReaderMode.SUBJ, data)
 
@@ -429,40 +467,38 @@ class MsgModeStack:
         data = [self.data[idx] for idx in indexes]
         self.push(ReaderMode.SEARCH, data)
 
-    def push(self, mode, data):
-        m = self.curMsg()
-        #
-        if self.mode != mode:
-            self.stack.append((self.mode, self.data, self.msgn))
-        self.mode = mode
-        self.data = data
-        #
-        if m:
-            self.msgn = self.findMsgidIdx(m.msgid)
-
-    def pop(self):
-        m = self.curMsg()
-        #
-        if self.stack:
-            self.mode, self.data, self.msgn = self.stack.pop()
-        #
-        if m:
-            msgn = self.findMsgidIdx(m.msgid)
-            if msgn > -1:
-                self.msgn = msgn
-        return self.mode, self.data, self.msgn
-
-    def curMsg(self):
-        if self.msgn > -1:
-            return self.data[self.msgn]
-        return None
-
     def hasNext(self):
-        return self.msgn < len(self.data) - 1 and self.data
+        return self.idx < len(self.data) - 1 and self.data
+
+    def findItemIdx(self, it, data=None) -> int:
+        return self.findMsgidIdx(it.msgid, data)
 
     def findMsgidIdx(self, msgid, data=None):
         for i, d in enumerate(data or self.data):
             if d.msgid == msgid:
+                return i
+        return -1
+
+
+class EchoModeStack(ModeStackABC[SelectorMode, Echo]):
+    def isArch(self):
+        return self.mode == SelectorMode.ARCH
+
+    def modeArchOn(self, data: List[Echo]):
+        self.push(SelectorMode.ARCH, data)
+
+    def modeArchOff(self):
+        if not self.isArch():
+            return
+        self.pop()
+
+    def modeQsOn(self, indexes: List[int]):
+        data = [self.data[idx] for idx in indexes]
+        self.push(SelectorMode.SEARCH, data)
+
+    def findItemIdx(self, it: Echo, data: List[Echo] = None) -> int:
+        for i, d in enumerate(data or self.data):
+            if d == it:
                 return i
         return -1
 
@@ -475,7 +511,7 @@ class MsgListScreen:
         self.echo = echo
         self.msgs = msgs
         self.scroll = ScrollCalc(len(msgs.data), HEIGHT - 2)
-        self.scroll.ensure_visible(msgs.msgn, center=True)
+        self.scroll.ensure_visible(msgs.idx, center=True)
         self.resized = False
         self.qs = None  # type: Optional[QuickSearch]
 
@@ -483,8 +519,8 @@ class MsgListScreen:
         stdscr.clear()
         self.draw_title(stdscr, self.echo)
         while True:
-            self.scroll.ensure_visible(self.msgs.msgn)
-            self.draw(stdscr, self.msgs.data, self.msgs.msgn, self.scroll)
+            self.scroll.ensure_visible(self.msgs.idx)
+            self.draw(stdscr, self.msgs.data, self.msgs.idx, self.scroll)
             if self.qs:
                 self.qs.draw(stdscr)
             #
@@ -509,12 +545,12 @@ class MsgListScreen:
                     curses.curs_set(0)
                 else:
                     self.qs.on_key_pressed_search(key, ks, self.scroll)
-                    self.msgs.msgn = self.qs.ensure_cursor_visible(
-                        ks, self.msgs.msgn, self.scroll)
+                    self.msgs.idx = self.qs.ensure_cursor_visible(
+                        ks, self.msgs.idx, self.scroll)
             elif ks in Qs.OPEN:
                 self.qs = newQuickSearch(self.msgs.data, self.on_search_item)
             elif ks in Selector.ENTER:
-                return self.msgs.msgn  #
+                return self.msgs.idx  #
             elif ks in Reader.QUIT:
                 if not self.msgs.stack:
                     return -1  #
@@ -576,36 +612,36 @@ class MsgListScreen:
 
     def updateScroll(self):
         self.scroll = ScrollCalc(len(self.msgs.data), HEIGHT - 2)
-        self.scroll.ensure_visible(self.msgs.msgn, center=True)
+        self.scroll.ensure_visible(self.msgs.idx, center=True)
 
     def on_key_pressed(self, ks, scroll):
         if ks in Reader.MSUBJ:
             if self.msgs.mode != ReaderMode.SUBJ:
-                m = self.msgs.curMsg()
+                m = self.msgs.curItem()
                 data = api.find_subj_msgids(m.echo, m.subj)
                 self.msgs.modeSubjOn(data)
             else:
                 self.msgs.modeSubjOff()
             self.updateScroll()
         elif ks in Selector.UP:
-            self.msgs.msgn = max(0, self.msgs.msgn - 1)
+            self.msgs.idx = max(0, self.msgs.idx - 1)
         elif ks in Selector.DOWN:
-            self.msgs.msgn = min(scroll.content - 1, self.msgs.msgn + 1)
+            self.msgs.idx = min(scroll.content - 1, self.msgs.idx + 1)
         elif ks in Selector.PPAGE:
-            if self.msgs.msgn > scroll.pos:
-                self.msgs.msgn = scroll.pos
+            if self.msgs.idx > scroll.pos:
+                self.msgs.idx = scroll.pos
             else:
-                self.msgs.msgn = max(0, self.msgs.msgn - scroll.view)
+                self.msgs.idx = max(0, self.msgs.idx - scroll.view)
         elif ks in Selector.NPAGE:
             page_bottom = scroll.pos_bottom()
-            if self.msgs.msgn < page_bottom:
-                self.msgs.msgn = page_bottom
+            if self.msgs.idx < page_bottom:
+                self.msgs.idx = page_bottom
             else:
-                self.msgs.msgn = min(scroll.content - 1, page_bottom + scroll.view)
+                self.msgs.idx = min(scroll.content - 1, page_bottom + scroll.view)
         elif ks in Selector.HOME:
-            self.msgs.msgn = 0
+            self.msgs.idx = 0
         elif ks in Selector.END:
-            self.msgs.msgn = scroll.content - 1
+            self.msgs.idx = scroll.content - 1
 
     # noinspection PyUnusedLocal
     @staticmethod
