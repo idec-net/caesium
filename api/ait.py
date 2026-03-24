@@ -3,7 +3,7 @@ import codecs
 import os
 from typing import Optional, List, Callable
 
-from . import MsgMetadata, FindQuery, build_find_matcher
+from . import MsgMetadata, FindQuery, build_find_matcher, filterEchoarea
 
 storage = "ait/"
 
@@ -213,9 +213,8 @@ def find_query_msgids(fq: FindQuery,
         lambda e: e.endswith(".mat") and e not in ("favorites.mat",
                                                    "carbonarea.mat"),
         os.listdir(storage))))
-    if fq.echo and fq.echo_query:
-        echoareas = list(filter(lambda e: fq.echo_query in e[0:-4], echoareas))
-
+    echoareas = filterEchoarea(fq, echoareas, len(".mat"))
+    #
     find_result = []
     total_msg_progress = 0
     echo_progress = 0

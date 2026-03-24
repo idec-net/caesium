@@ -484,3 +484,11 @@ class GridLayout(Layout):
     def _put_cell(self, cell: _Cell):
         self.rows[cell.row].cells[cell.col] = cell
         self.cols[cell.col].cells[cell.row] = cell
+
+    def collect_widgets(self):
+        for w, _ in self.widgets:
+            if isinstance(w, GridLayout):
+                for w2 in list(w.collect_widgets()):
+                    yield w2
+                continue
+            yield w

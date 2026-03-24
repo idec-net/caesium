@@ -290,27 +290,27 @@ def test_find_query_msgids(api):
     api.save_message([("1" * 20, msg1), ("2" * 20, msg2)], "node", ["user"])
 
     # msgid exact
-    data = api.find_query_msgids(FindQuery("1" * 20, True, False, False, True, False, False))
+    data = api.find_query_msgids(FindQuery("1" * 20, "", True, False, False, True, False, False))
     assert data == [MsgMetadata.from_list("1" * 20, msg1)]
-    data = api.find_query_msgids(FindQuery("1" * 19, True, False, False, True, False, False))
+    data = api.find_query_msgids(FindQuery("1" * 19, "", True, False, False, True, False, False))
     assert data == []
     # unicode body
-    data = api.find_query_msgids(FindQuery("Мсг2", True, True, True, True, True, False))
+    data = api.find_query_msgids(FindQuery("Мсг2", "", True, True, True, True, True, False))
     assert data == [MsgMetadata.from_list("2" * 20, msg2)]
     # unicode subj
-    data = api.find_query_msgids(FindQuery("Сабж", True, True, True, True, True, False))
+    data = api.find_query_msgids(FindQuery("Сабж", "", True, True, True, True, True, False))
     assert data == [MsgMetadata.from_list("1" * 20, msg1)]
     # unicode from
-    data = api.find_query_msgids(FindQuery("юзер", False, False, False, True, False, False))
+    data = api.find_query_msgids(FindQuery("юзер", "", False, False, False, True, False, False))
     assert data == [MsgMetadata.from_list("1" * 20, msg1)]
     # unicode to
-    data = api.find_query_msgids(FindQuery("юзер", False, False, False, False, True, False))
+    data = api.find_query_msgids(FindQuery("юзер", "", False, False, False, False, True, False))
     assert data == [MsgMetadata.from_list("2" * 20, msg2)]
     # unicode echo only
-    data = api.find_query_msgids(FindQuery("Row2", True, True, True, True, True, True, "test2.local"))
+    data = api.find_query_msgids(FindQuery("Row2", "", True, True, True, True, True, True, "test2.local"))
     assert data == [MsgMetadata.from_list("2" * 20, msg2)]
     # empty results
-    data = api.find_query_msgids(FindQuery("Unknown", True, True, True, True, True, False))
+    data = api.find_query_msgids(FindQuery("Unknown", "", True, True, True, True, True, False))
     assert data == []
 
 
@@ -351,6 +351,34 @@ def test_find_query_matcher(api):
 
     data = api.find_query_msgids(query("юникод+", case=True, orig=True))
     assert data == [MsgMetadata.from_list("5" * 20, msg5)]
+
+
+# noinspection PyTestParametrized
+@pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
+def test_find_query_echo_multi(api):
+    msg1 = ["ii/ok", "test.local", "0", "u", "n,1", "t", "S", "", "", "qwe", "qwe"]
+    msg2 = ["ii/ok", "test2.local", "1", "u", "n,1", "t", "S", "", "", "qwe", "qwe"]
+    msg3 = ["ii/ok", "test3.local", "1", "u", "n,1", "t", "S", "", "", " qwe", "qwe"]
+    api.save_message([("1" * 20, msg1),
+                      ("2" * 20, msg2),
+                      ("3" * 20, msg3)],
+                     "node", None)
+
+    data = api.find_query_msgids(
+        FindQuery("qwe", echoQuery="test.local test3.local"))
+    assert data == [MsgMetadata.from_list("1" * 20, msg1),
+                    MsgMetadata.from_list("3" * 20, msg3)]
+
+    data = api.find_query_msgids(
+        FindQuery("qwe", echoQueryNot="test.local test3.local"))
+    assert data == [MsgMetadata.from_list("2" * 20, msg2)]
+
+
+# noinspection PyTestParametrized
+@pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
+def test_find_query_empty(api):
+    data = api.find_query_msgids(FindQuery())
+    assert len(data) >= 4
 
 
 def test_find_matcher_regex():
@@ -452,3 +480,20 @@ def test_find_matcher_word():
     assert not matcher("\n zxcQWE+\n")  # word
     assert matcher("\n qwe+\n")
     assert matcher("qwe+")
+
+
+def test_find_matcher_not():
+    matcher = build_find_matcher(
+        FindQuery("qwe+", "zxc", regex=False, case=False, word=False, orig=True))
+    assert not matcher("\n +++ qwe+ zxc+")
+    assert not matcher("\n qwe+ zxc+")
+    assert matcher("\n +++ qwe+ ")
+    assert matcher("\n qwe+ ")
+
+    matcher = build_find_matcher(
+        FindQuery("qwe+", "zxc", regex=False, case=False, word=False, orig=False))
+    assert not matcher("\n +++ qwe+ zxc+")
+    assert not matcher("\n qwe+ zxc+")
+    assert not matcher("\n +++ qwe+ ")
+    assert matcher("\n qwe+ \n+++ zxc ")  # skip orig
+    assert matcher("\n qwe+ ")

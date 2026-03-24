@@ -242,9 +242,6 @@ FIND_OK = 0
 
 def find_query_msgids(fq: FindQuery,
                       progress_handler: Callable = None) -> List[MsgMetadata]:
-    if not fq.query or not any((fq.msgid, fq.body, fq.subj, fq.fr, fq.to)):
-        return []  #
-
     match = build_find_matcher(fq)
     con.create_function("MATCH", 1, match)
 
@@ -252,23 +249,33 @@ def find_query_msgids(fq: FindQuery,
         con.set_progress_handler(progress_handler, 100)
     #
     args = []
-    where = "TRUE AND (FALSE"
+    where = []
     if fq.msgid:
-        where += " OR msgid = ?"
+        where.append("msgid = ?")
         args.append(fq.query)
     if fq.body:
-        where += " OR MATCH(body)"
+        where.append("MATCH(body)")
     if fq.subj:
-        where += " OR MATCH(subject)"
+        where.append("MATCH(subject)")
     if fq.fr:
-        where += " OR MATCH(fr)"
+        where.append("MATCH(fr)")
     if fq.to:
-        where += " OR MATCH(t)"
-    where += ")"
-    if fq.echo and fq.echo_query:
-        where += " AND echoarea LIKE ?"
-        args.append(fq.echo_query)
+        where.append("MATCH(t)")
+    if where:
+        where = "(" + " OR ".join(where) + ")"
+    else:
+        where = "TRUE"
 
+    if fq.echo and fq.echoQuery:
+        echos = fq.echoQuery.split(" ")
+        where += " AND (" + " OR ".join([" echoarea LIKE ? "] * len(echos)) + ")"
+        for e in echos:
+            args.append("%" + e + "%")
+    if fq.echo and fq.echoQueryNot:
+        echos = fq.echoQueryNot.split(" ")
+        where += " AND " + " AND ".join(["echoarea NOT LIKE ?"] * len(echos))
+        for e in echos:
+            args.append("%" + e + "%")
     try:
         rows = c.execute(
             "SELECT DISTINCT msgid, tags, echoarea, time, fr, addr, t, subject"

@@ -4,6 +4,7 @@ import textwrap
 import time
 import sys
 from abc import ABC
+from collections import deque
 from datetime import datetime
 from enum import Enum
 from itertools import cycle
@@ -22,7 +23,7 @@ from core.layout import GridLayout, CC
 LABEL_SEARCH = "<введите regex для поиска>"
 LABEL_ANY_KEY = "Нажмите любую клавишу"
 LABEL_ESC = "Esc - отмена"
-LABEL_FIND = "Поиск"
+LABEL_FIND = "Поиск "  # extra space for wide unicode icon (use wcwidth)
 HEIGHT = 0
 WIDTH = 0
 
@@ -40,6 +41,7 @@ class ThemeAscii:
     error = ["(!)", curses.A_BOLD]
     title = ["[", "]"]
     ellipsis = "..."
+    findIcon = " "
 
 
 class ThemeUtf8:
@@ -54,6 +56,7 @@ class ThemeUtf8:
     error = ["⛔", curses.A_BOLD]
     title = ["┤", "├"]
     ellipsis = "…"
+    findIcon = "🔍"
 
 
 THEME = ThemeAscii
@@ -152,13 +155,13 @@ def draw_title(scr, y, x, title):
     if (x + len(title) + borders) > w:
         title = title[:w - x - borders - len(THEME.ellipsis)] + THEME.ellipsis
     #
-    color = get_color(UI_BORDER)
+    border = get_color(UI_BORDER)
     if THEME.title[0]:
-        scr.addstr(y, x, THEME.title[0], color)
-    if THEME.title[1]:
-        scr.addstr(y, x + len(THEME.title[0]) + len(title), THEME.title[1], color)
+        scr.addstr(y, x, THEME.title[0], border)
     color = get_color(UI_TITLES)
     scr.addstr(y, x + len(THEME.title[0]), title, color)
+    if THEME.title[1]:
+        scr.addstr(y, x + len(THEME.title[0]) + len(title), THEME.title[1], border)
 
 
 def draw_message_box(smsg, wait):
@@ -571,9 +574,9 @@ class MsgListScreen:
         if echo == ECHO_FIND:
             if w >= 80:
                 draw_title(win, 0, 0, f"Найденные сообщения"
-                                      f" '{FindQueryWindow.query.query}'")
+                                      f" '{FindQueryWindow.query}'")
             else:
-                draw_title(win, 0, 0, f"'{FindQueryWindow.query.query}'")
+                draw_title(win, 0, 0, f"'{FindQueryWindow.query}'")
         else:
             if w >= 80:
                 draw_title(win, 0, 0, "Список сообщений в конференции " + echo)
@@ -674,6 +677,7 @@ class Widget:
     focused: bool = False
     enabled: bool = True
     focusable: bool = True
+    focusOrder: int = 0
     x: int = 0
     y: int = 0
     w: int = 0
@@ -690,6 +694,20 @@ class Widget:
 
     def draw(self, win):  # type: (curses.window) -> None
         pass
+
+
+class SeparatorHWidget(Widget):
+    focusable: bool = False
+    h: int = 1
+
+    def __init__(self, y=0, x=0, color: str = UI_COMMENT):
+        self.x = x
+        self.y = y
+        if color:
+            self.color = get_color(color)
+
+    def draw(self, win):  # type: (curses.window) -> None
+        win.addstr(self.y, self.x, "─" * self.w, self.color)
 
 
 class LabelWidget(Widget):
@@ -735,7 +753,8 @@ class LabelWidget(Widget):
 class CheckBoxWidget(Widget):
     h: int = 1
 
-    def __init__(self, lbl="", y=0, x=0, checked=False, enabled=True):
+    def __init__(self, lbl="", fOrder=0, y=0, x=0, checked=False, enabled=True):
+        self.focusOrder = fOrder
         self.x = x
         self.y = y
         self.lbl = lbl
@@ -787,7 +806,8 @@ class InputWidget(Widget):
     offset: int = 0
     h: int = 1
 
-    def __init__(self, txt="", y=0, x=0, w=0, *, placeholder="", mask=None):
+    def __init__(self, txt="", fOrder=0, y=0, x=0, w=0, *, placeholder="", mask=None):
+        self.focusOrder = fOrder
         self.x = x
         self.y = y
         self.w = w
@@ -891,8 +911,10 @@ class InputRegexWidget(InputWidget):
     regexOn: bool = True
     err: bool = False
 
-    def __init__(self, txt="", y=0, x=0, w=0, *, placeholder="", regexOn=False):
-        super().__init__(txt=txt, y=y, x=x, w=w, placeholder=placeholder)
+    def __init__(self, txt="", fOrder=0, y=0, x=0, w=0,
+                 *, placeholder="", regexOn=False):
+        super().__init__(txt=txt, fOrder=fOrder, y=y, x=x, w=w,
+                         placeholder=placeholder)
         self.x = x
         self.y = y
         self.w = w
@@ -948,79 +970,81 @@ class FindQueryWindow:
         h, w = self.win.getmaxyx()
         #
         self.inp_query = InputRegexWidget(
-            self.query.query, placeholder="<введите текст для поиска>",
+            self.query.query, 1,
+            placeholder="<введите текст для поиска>",
             regexOn=self.query.regex)
-        self.lbl_search_in = LabelWidget("Искать в:")
+        self.inp_query_not = InputRegexWidget(
+            self.query.queryNot, 2,
+            placeholder="<введите текст для исключения>",
+            regexOn=self.query.regex)
 
-        self.chk_msgid = CheckBoxWidget("Id", checked=self.query.msgid)
-        self.chk_body = CheckBoxWidget("Тело", checked=self.query.body)
-        self.chk_subj = CheckBoxWidget("Тема", checked=self.query.subj)
-        self.chk_from = CheckBoxWidget("От", checked=self.query.fr)
-        self.chk_to = CheckBoxWidget("Кому", checked=self.query.to)
+        self.chk_msgid = CheckBoxWidget("Id", 3, checked=self.query.msgid)
+        self.chk_body = CheckBoxWidget("Тело", 4, checked=self.query.body)
+        self.chk_subj = CheckBoxWidget("Тема", 5, checked=self.query.subj)
+        self.chk_from = CheckBoxWidget("От", 6, checked=self.query.fr)
+        self.chk_to = CheckBoxWidget("Кому", 7, checked=self.query.to)
 
-        self.chk_echo = CheckBoxWidget("Конференция:", checked=self.query.echo)
-        self.inp_echo = InputWidget(self.query.echo_query,
+        self.chk_echo = CheckBoxWidget("Конференция:", 12,
+                                       checked=self.query.echo)
+        self.inp_echo = InputWidget(self.query.echoQuery, 13,
                                     placeholder="<введите эхоконференцию>")
-        self.lbl_limit = LabelWidget("Лимит:")
-        self.inp_limit = InputWidget(str(self.query.limit),
+        self.inp_echo_not = InputWidget(self.query.echoQueryNot, 14,
+                                        placeholder="<введите эхоконференцию>")
+
+        self.inp_limit = InputWidget(str(self.query.limit), 15,
                                      mask=re.compile(r"^[0-9]{0,7}$"),
                                      placeholder=str(FindQuery.DEFAULT_LIMIT))
 
-        self.chk_regex = CheckBoxWidget("Regex",
+        self.chk_regex = CheckBoxWidget("Regex", 8,
                                         checked=self.query.regex)
-        self.chk_case = CheckBoxWidget("Учитывать регистр",
+        self.chk_case = CheckBoxWidget("Учитывать регистр", 9,
                                        checked=self.query.case)
-        self.chk_word = CheckBoxWidget("Слово целиком",
+        self.chk_word = CheckBoxWidget("Слово целиком", 10,
                                        checked=self.query.word)
-        self.chk_orig = CheckBoxWidget("Пропускать подписи",
+        self.chk_orig = CheckBoxWidget("Пропускать подписи", 11,
                                        checked=not self.query.orig)
         self.lbl_progress = LabelWidget("")
 
-        self.widgets = [  # in focus order
-            self.inp_query,
-            self.lbl_search_in,
-            #
-            self.chk_msgid,
-            self.chk_body,
-            self.chk_subj,
-            self.chk_from,
-            self.chk_to,
-            #
-            self.chk_echo, self.inp_echo,
-            self.lbl_limit, self.inp_limit,
-            self.lbl_progress,
-            #
-            self.chk_regex,
-            self.chk_case,
-            self.chk_word,
-            self.chk_orig,
-        ]  # type: List[Widget]
-
         self.layout = GridLayout(
-            (self.inp_query, "w 100% fillX wrap"),
-            (self.lbl_search_in, "wrap"),
+            (GridLayout(
+                (LabelWidget("Искать: "), ""),
+                (self.inp_query, "fillX growX wrap"),
+
+                (LabelWidget("И НЕ: "), "hAlign right"),
+                (self.inp_query_not, "fillX growX wrap"),
+
+                (LabelWidget("В:"), "wrap"),
+            ), "w 100% h 3 fillX growX wrap"),
             #
             (GridLayout(
-                (self.chk_msgid, "w 50%"), (self.chk_regex, "wrap"),
-                (self.chk_body, "w 50%"), (self.chk_case, "wrap"),
-                (self.chk_subj, "w 50%"), (self.chk_word, "wrap"),
-                (self.chk_from, "w 50%"), (self.chk_orig, "wrap"),
-                (self.chk_to, "wrap"),
-            ), "pad 1 0 w 100% h 5 fillX wrap"),
+                (self.chk_msgid, "w 50% wrap"),
+                (SeparatorHWidget(), "colSpan 2 fillX wrap"),
+                (self.chk_body, "w 50%"), (self.chk_regex, "wrap"),
+                (self.chk_subj, "w 50%"), (self.chk_case, "wrap"),
+                (self.chk_from, "w 50%"), (self.chk_word, "wrap"),
+                (self.chk_to, "growY"), (self.chk_orig, "wrap"),
+                (SeparatorHWidget(), "colSpan 2 fillX wrap"),
+            ), "pad 1 0 w 100% h 7 fillX wrap"),
             #
             (GridLayout((self.chk_echo, CC(w=self.chk_echo.w + 2, pad="1 0")),
-                        (self.inp_echo, "fillX")),
-             "w 100% h 1 fillX wrap"),
+                        (self.inp_echo, "fillX wrap"),
+
+                        (LabelWidget("И НЕ: "), "hAlign right"),
+                        (self.inp_echo_not, "fillX wrap")),
+             "w 100% h 2 fillX wrap"),
             #
-            (GridLayout((self.lbl_limit, CC(w=self.lbl_limit.w + 1)),
+            (GridLayout((LabelWidget("Лимит: "), ""),
                         (self.inp_limit, CC(w=(7 + len(THEME.input[0])
                                                + len(THEME.input[1])),
-                                            hAlign="left"))),
-             "h 1 fillX wrap"),
+                                            hAlign="left",
+                                            growX=True))),
+             "h 1 fillX growX wrap"),
             #
             (self.lbl_progress, "w 100% growY wrap"),
         )
         self.layout.pack(offset_x=2, offset_y=1, width=w - 4, height=h - 2)
+        self.widgets = deque(sorted(list(self.layout.collect_widgets()),
+                                    key=lambda _: _.focusOrder))
         #
         self.set_focused(self.inp_query)
         self.update_state()
@@ -1037,7 +1061,7 @@ class FindQueryWindow:
     @staticmethod
     def init_win(win=None):
         w = max(len(LABEL_FIND) + 2, min(80, int(WIDTH * 0.75)))
-        h = min(HEIGHT, 12)
+        h = min(HEIGHT, 16)
         w = min(WIDTH, w)
         y = max(0, int((HEIGHT - h) / 2))
         x = max(0, int((WIDTH - w) / 2))
@@ -1075,8 +1099,8 @@ class FindQueryWindow:
         win.attrset(border)
         win.border()
 
-        x = (w - len(LABEL_FIND)) // 2 - 1
-        draw_title(win, 0, x, LABEL_FIND)
+        x = (w - len(THEME.findIcon) - len(LABEL_FIND)) // 2 - 1
+        draw_title(win, 0, x, THEME.findIcon + LABEL_FIND)
 
     def draw_content(self, win):  # type: (curses.window) -> None
         h, w = win.getmaxyx()
@@ -1140,19 +1164,17 @@ class FindQueryWindow:
         if not wid:
             return self.widgets[0]
         elif self.widgets:
-            idx = self.widgets.index(wid) + 1
-            if idx >= len(self.widgets):
-                idx = 0
+            idx = self.widgets.index(wid)
+            self.widgets.rotate(-1)
             return self.widgets[idx]
         return None
 
     def prev_focus(self, wid):
         if not wid:
-            return self.widgets[len(self.widgets) - 1]
+            return self.widgets[0]
         elif self.widgets:
-            idx = self.widgets.index(wid) - 1
-            if idx < 0:
-                idx = len(self.widgets) - 1
+            idx = self.widgets.index(wid)
+            self.widgets.rotate(1)
             return self.widgets[idx]
         return None
 
@@ -1160,17 +1182,21 @@ class FindQueryWindow:
         if self.find_in_progress:
             return  #
         self.inp_echo.set_enabled(self.chk_echo.checked)
+        self.inp_echo_not.set_enabled(self.chk_echo.checked)
         self.chk_word.set_enabled(not self.chk_regex.checked)
         self.inp_query.set_regexOn(self.chk_regex.checked)
+        self.inp_query_not.set_regexOn(self.chk_regex.checked)
 
         self.query.query = self.inp_query.txt
+        self.query.queryNot = self.inp_query_not.txt
         self.query.msgid = self.chk_msgid.checked
         self.query.body = self.chk_body.checked
         self.query.subj = self.chk_subj.checked
         self.query.fr = self.chk_from.checked
         self.query.to = self.chk_to.checked
         self.query.echo = self.chk_echo.checked
-        self.query.echo_query = self.inp_echo.txt
+        self.query.echoQuery = self.inp_echo.txt
+        self.query.echoQueryNot = self.inp_echo_not.txt
         self.query.limit = int(self.inp_limit.txt or "0") or FindQuery.DEFAULT_LIMIT
         self.query.regex = self.chk_regex.checked
         self.query.case = self.chk_case.checked

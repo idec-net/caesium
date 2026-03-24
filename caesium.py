@@ -784,7 +784,7 @@ class EchoReader:
         h, w = scr.getmaxyx()
         ui.draw_reader(scr, self.reader.msg[1], self.msgid(), self.out)
         if w >= 80 and self.echo == config.ECHO_FIND:
-            title = f"Найденные сообщения '{ui.FindQueryWindow.query.query}'"
+            title = f"Найденные сообщения '{ui.FindQueryWindow.query}'"
             ui.draw_title(scr, 0, w - 2 - len(title), title)
         elif w >= 80 and self.echo.desc:
             ui.draw_title(scr, 0, w - 2 - len(self.echo.desc), self.echo.desc)

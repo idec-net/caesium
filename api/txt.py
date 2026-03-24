@@ -4,7 +4,7 @@ import os
 from collections import defaultdict
 from typing import Optional, List, Callable
 
-from . import MsgMetadata, FindQuery, build_find_matcher
+from . import MsgMetadata, FindQuery, build_find_matcher, filterEchoarea
 
 storage = "txt"
 
@@ -229,9 +229,8 @@ def find_query_msgids(fq: FindQuery,
     echoareas = sorted(list(filter(
         lambda e: e not in ("favorites", "carbonarea"),
         os.listdir(storage + "echo/"))))
-    if fq.echo and fq.echo_query:
-        echoareas = list(filter(lambda e: fq.echo_query in e, echoareas))
-
+    echoareas = filterEchoarea(fq, echoareas, 0)
+    #
     find_result = []
     total_msg_progress = 0
     echo_progress = 0
