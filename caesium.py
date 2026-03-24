@@ -252,10 +252,13 @@ class EchoSelectorScreen:
                                       cfg.nodes[node].echoareas)
         ui.draw_message_box("Подождите", False)
         self.counts.get_counts(cfg.nodes[node], False)
-        self.counts.rescan_counts(self.echos.data)
         ui.stdscr.clear()
+        self.updateScroll()
+
+    def updateScroll(self):
         self.scroll = ui.ScrollCalc(len(self.echos.data), ui.HEIGHT - 2)
         self.scroll.ensure_visible(self.echos.idx, center=True)
+        self.counts.rescan_counts(self.echos.data)
 
     def toggle_archive(self):
         if not self.echos.isArch() and cfg.nodes[node].archive:
@@ -267,9 +270,7 @@ class EchoSelectorScreen:
             self.echos.modeArchOff()
             self.echos.idx = self.echo_cursor
         ui.stdscr.clear()
-        self.scroll = ui.ScrollCalc(len(self.echos.data), ui.HEIGHT - 2)
-        self.scroll.ensure_visible(self.echos.idx, center=True)
-        self.counts.rescan_counts(self.echos.data)
+        self.updateScroll()
 
     # noinspection PyUnusedLocal
     @staticmethod
@@ -300,6 +301,9 @@ class EchoSelectorScreen:
                     self.qs.width = ui.WIDTH - len(ui.version) - 13
             elif self.qs:
                 if ks in Qs.CLOSE or ks in Qs.APPLY:
+                    if ks in Qs.APPLY and self.qs.result:
+                        self.echos.modeQsOn(self.qs.result)
+                        self.updateScroll()
                     self.qs = None
                     curses.curs_set(0)
                 else:
@@ -308,6 +312,9 @@ class EchoSelectorScreen:
                         key, self.echos.idx, self.scroll)
             elif ks in Qs.OPEN:
                 self.qs = ui.newQuickSearch(self.echos.data, self.on_search_item)
+            elif ks in Reader.QUIT and self.echos.stack:
+                self.echos.pop()
+                self.updateScroll()
             elif ks in Common.QUIT:
                 self.go = False
             else:
@@ -327,15 +334,12 @@ class EchoSelectorScreen:
         h, w = win.getmaxyx()
         color = get_color(UI_BORDER)
         win.addstr(0, 0, "─" * w, color)
-        cur_node = cfg.nodes[node]
         if self.echos.isArch():
-            echoareas = cur_node.archive
             ui.draw_title(win, 0, 0, "Архив")
         else:
-            echoareas = cur_node.echoareas
             ui.draw_title(win, 0, 0, "Конференция")
         #
-        m = min(w - 38, max(map(lambda e: len(e.desc), echoareas)))
+        m = min(w - 38, max(map(lambda e: len(e.desc), self.echos.data)))
         count = "Сообщений"
         unread = "Не прочитано"
         description = "Описание"
@@ -354,11 +358,11 @@ class EchoSelectorScreen:
             else:
                 color = get_color(UI_TEXT)
             win.addstr(y, 0, " " * w, color)
-            if echoN >= len(echoareas):
+            if echoN >= len(self.echos.data):
                 continue  #
             #
             win.attrset(color)
-            echo = echoareas[echoN]
+            echo = self.echos.data[echoN]
             total, unread = counts[echoN]
             if int(unread) > 0:
                 win.addstr(y, 0, "+")
@@ -376,7 +380,7 @@ class EchoSelectorScreen:
                                echo.name[match.start():match.end()],
                                color | curses.A_REVERSE)
 
-        ui.draw_status_bar(win, mode=self.echos.mode, text=cur_node.nodename)
+        ui.draw_status_bar(win, mode=self.echos.mode, text=cfg.nodes[node].nodename)
 
     def on_key_pressed(self, ks):
         global node
@@ -394,7 +398,8 @@ class EchoSelectorScreen:
             if self.echos.idx < page_bottom:
                 self.echos.idx = page_bottom
             else:
-                self.echos.idx = min(self.scroll.content - 1, page_bottom + self.scroll.view)
+                self.echos.idx = min(self.scroll.content - 1,
+                                     page_bottom + self.scroll.view)
         elif ks in Selector.HOME:
             self.echos.idx = 0
         elif ks in Selector.END:

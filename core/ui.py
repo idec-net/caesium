@@ -482,7 +482,9 @@ class MsgModeStack(ModeStackABC[ReaderMode, MsgMetadata]):
 
 class EchoModeStack(ModeStackABC[SelectorMode, Echo]):
     def isArch(self):
-        return self.mode == SelectorMode.ARCH
+        return (self.mode == SelectorMode.ARCH
+                or (self.mode == SelectorMode.SEARCH
+                    and self.stack[-1][0] == SelectorMode.ARCH))
 
     def modeArchOn(self, data: List[Echo]):
         self.push(SelectorMode.ARCH, data)
@@ -491,6 +493,8 @@ class EchoModeStack(ModeStackABC[SelectorMode, Echo]):
         if not self.isArch():
             return
         self.pop()
+        if self.isArch():  # quick search in Archive mode is Archive mode too
+            self.pop()
 
     def modeQsOn(self, indexes: List[int]):
         data = [self.data[idx] for idx in indexes]
