@@ -434,6 +434,7 @@ class EchoSelectorScreen:
             win = ui.FindQueryWindow()
             find_result = win.show()
             if find_result:
+                find_result = sorted(find_result, key=lambda m: m.time)
                 self.go, _ = EchoReader(
                     config.ECHO_FIND, 0, True, self.counts,
                     mode=ui.ReaderMode.FIND, msgids=find_result).show()
@@ -632,6 +633,9 @@ class EchoReader:
             self.reader.setMsg(*outgoing.read_out_msg(self.msgid(), self.cur_node))
         else:
             m = self.msgs.curItem()
+            if not m:
+                self.msgs.idx = 0
+                m = self.msgs.curItem()
             self.reader.setMsg(*api.read_msg(self._msgid or m.msgid, m.echo))
 
     def read_msg_skip_twit(self, increment):

@@ -458,6 +458,7 @@ class ModeStackABC(ABC, Generic[T, V]):
 
 class MsgModeStack(ModeStackABC[ReaderMode, MsgMetadata]):
     def modeSubjOn(self, data):
+        data = sorted(data, key=lambda m: m.time)
         self.push(ReaderMode.SUBJ, data)
 
     def modeSubjOff(self):
@@ -466,7 +467,8 @@ class MsgModeStack(ModeStackABC[ReaderMode, MsgMetadata]):
         self.pop()
 
     def modeQsOn(self, indexes):
-        data = [self.data[idx] for idx in indexes]
+        data = sorted([self.data[idx] for idx in indexes],
+                      key=lambda m: m.time)
         self.push(ReaderMode.SEARCH, data)
 
     def hasNext(self):
