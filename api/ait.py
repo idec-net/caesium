@@ -123,27 +123,6 @@ def remove_echoarea(echoarea):
         os.remove(storage + "%s.mat" % echoarea)
 
 
-def get_msg_list_data(echoarea, msgids=None):
-    # type: (Optional[str], List[str]) -> List[MsgMetadata]
-    if echoarea:
-        echoareas = [echoarea + ".mat"]
-    else:
-        echoareas = sorted(list(filter(
-            lambda e: e.endswith(".mat") and e not in ("favorites.mat",
-                                                       "carbonarea.mat"),
-            os.listdir(storage))))
-    lst = []
-    for echo in echoareas:
-        with codecs.open(storage + echo, "r", "utf-8") as f:
-            for msg in filter(None, f.read().split("\n")):
-                rawmsg = msg.split(chr(15))
-                msgid, rawmsg[0] = rawmsg[0].split(":")
-                if msgids and msgid not in msgids:
-                    continue  # msg
-                lst.append(MsgMetadata.from_list(msgid, rawmsg))
-    return lst
-
-
 def read_msg(msgid, echoarea):
     if not os.path.exists(storage + echoarea + ".mat") or not msgid:
         return ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"], 0

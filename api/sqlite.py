@@ -158,43 +158,6 @@ def remove_echoarea(echoarea):
     con.commit()
 
 
-def get_msg_list_data(echoarea, msgids=None):
-    # type: (Optional[str], List[str]) -> List[MsgMetadata]
-    if not msgids:
-        if echoarea == "favorites":
-            rows = c.execute(
-                "SELECT msgid, tags, echoarea, time, fr, addr, t, subject"
-                " FROM msg WHERE favorites = 1 ORDER BY id;")
-        elif echoarea == "carbonarea":
-            rows = c.execute(
-                "SELECT msgid, tags, echoarea, time, fr, addr, t, subject"
-                " FROM msg WHERE carbonarea = 1 ORDER BY id;")
-        else:
-            rows = c.execute(
-                "SELECT msgid, tags, echoarea, time, fr, addr, t, subject"
-                " FROM msg WHERE echoarea = ? ORDER BY id;",
-                (echoarea,))
-    else:
-        args = list(msgids)
-        echo_clause = ""
-        if echoarea == "favorites":
-            echo_clause = " AND favorites = 1 "
-        elif echoarea == "carbonarea":
-            echo_clause = " AND carbonarea = 1 "
-        elif echoarea:
-            echo_clause = " AND echoarea = ? "
-            args.append(echoarea)
-        echo_order = ""
-        if not echoarea:
-            echo_order = "echoarea, "
-        rows = c.execute(
-            "SELECT msgid, tags, echoarea, time, fr, addr, t, subject"
-            " FROM msg WHERE msgid IN (%s) %s ORDER BY %s id;"
-            % (",".join("?" * len(msgids)), echo_clause, echo_order),
-            args)
-    return list(map(lambda r: MsgMetadata.from_list(r[0], r[1:]), rows))
-
-
 # noinspection PyUnusedLocal
 def read_msg(msgid, echoarea):
     row = c.execute("SELECT tags, echoarea, time, fr, addr, t, subject, body"

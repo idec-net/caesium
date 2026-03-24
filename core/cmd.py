@@ -94,8 +94,7 @@ class Qs(metaclass=Group):
 
     OPEN = Cmd("открыть текстовое поле быстрого поиска")
     CLOSE = Cmd("прервать ввод текста")
-    # TODO: Apply quick search results in Selector/Reader?
-    APPLY = Cmd("закрыть поиск оставив найденное (экран списка сообщений)")
+    APPLY = Cmd("закрыть поиск оставив найденное (список сообщений, селектор эх)")
 
     LEFT = Cmd("курсор на символ влево")
     RIGHT = Cmd("курсор на символ вправо")

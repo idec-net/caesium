@@ -112,28 +112,6 @@ def remove_echoarea(echoarea):
         os.remove(storage + "%s.aio" % echoarea)
 
 
-def get_msg_list_data(echoarea, msgids=None):
-    # type: (Optional[str], List[str]) -> List[MsgMetadata]
-    if echoarea:
-        with codecs.open(storage + "%s.aio" % echoarea, "r", "utf-8") as f:
-            lines = filter(None, f.read().split("\n"))
-    else:
-        lines = []
-        for echo in sorted(os.listdir(storage)):
-            if not echo.endswith(".aio") or echo in ("favorites.aio", "carbonarea.aio"):
-                continue  #
-            with codecs.open(storage + echo, "r", "utf-8") as f:
-                lines += filter(None, f.read().split("\n"))
-    lst = []
-    for msg in filter(None, lines):
-        rawmsg = msg.split(chr(15))
-        msgid, rawmsg[0] = rawmsg[0].split(":")
-        if msgids and msgid not in msgids:
-            continue
-        lst.append(MsgMetadata.from_list(msgid, rawmsg))
-    return lst
-
-
 def read_msg(msgid, echoarea):
     if not os.path.exists(storage + echoarea + ".aio") or not msgid:
         return ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"], 0

@@ -153,21 +153,6 @@ def remove_echoarea(echoarea):
         os.remove(f_echo)
 
 
-def get_msg_list_data(echoarea, msgids=None):
-    # type: (Optional[str], List[str]) -> List[MsgMetadata]
-    msgids = msgids or get_echo_msgids(echoarea)
-    echo_msgs = defaultdict(list)
-    for msgid in msgids:
-        header = _read_header(msgid)
-        if (header[1] == echoarea
-                or echoarea in (None, "carbonarea", "favorites")):
-            echo_msgs[header[1]].append(MsgMetadata.from_list(msgid, header))
-    lst = []
-    for k in sorted(echo_msgs.keys()):
-        lst += echo_msgs[k]
-    return lst
-
-
 # noinspection PyUnusedLocal
 def read_msg(msgid, echoarea):
     if not os.path.exists(storage + "msg/" + msgid) or not msgid:

@@ -102,10 +102,6 @@ def test_save_messages(api):
     assert api.get_echo_msgs_metadata("test.local") == [MsgMetadata.from_list("11", msg1),
                                                         MsgMetadata.from_list("22", msg2)]
 
-    data = api.get_msg_list_data("test.local")
-    assert data == [MsgMetadata.from_list("11", msg1),
-                    MsgMetadata.from_list("22", msg2)]
-
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
@@ -125,7 +121,7 @@ def test_add_to_carbonarea(api):
     msg, size = api.read_msg("2" * 20, "carbonarea")
     assert msg == msg2
 
-    data = api.get_msg_list_data("carbonarea")
+    data = api.get_echo_msgs_metadata("carbonarea")
     assert data == [MsgMetadata.from_list("2" * 20, msg2)]
 
 
@@ -144,13 +140,13 @@ def test_save_favorites(api):
     msg, size = api.read_msg("2" * 20, "favorites")
     assert msg == msg2
 
-    data = api.get_msg_list_data("favorites")
+    data = api.get_echo_msgs_metadata("favorites")
     assert data == [MsgMetadata.from_list("2" * 20, msg2)]
 
     api.remove_from_favorites("2" * 20)
     assert not api.get_favorites_list()
 
-    data = api.get_msg_list_data("favorites")
+    data = api.get_echo_msgs_metadata("favorites")
     assert data == []
 
 
@@ -193,7 +189,7 @@ def test_non_printable(api):
     msg, _ = api.read_msg(msgid, "favorites")
     assert msg == msgbody
 
-    data = api.get_msg_list_data("idec.talks")
+    data = api.get_echo_msgs_metadata("idec.talks")
     assert data == [MsgMetadata.from_list(msgid, msgbody)]
 
 
@@ -254,32 +250,6 @@ def test_find_subj_msgids(api):
     data = api.find_subj_msgids(None, "Re: Subj")
     assert data == [MsgMetadata.from_list("1" * 20, msg1),
                     MsgMetadata.from_list("2" * 20, msg2)]
-
-
-# noinspection PyTestParametrized
-@pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_get_msg_list_data_by_ids_n_echo(api):
-    msg1 = ["ii/ok", "test.local", "0", "admin", "node,1", "All", "Subj", "", "Msg1", "Row2"]
-    msg2 = ["ii/ok", "test.local", "1", "admin", "node,1", "user", "Re: Subj", "", "Msg2", "Row2"]
-    msg3 = ["ii/ok", "test.local", "0", "admin", "node,1", "user", "Subj2", "", "Msg2", "Row2"]
-    api.save_message([("1" * 20, msg1), ("2" * 20, msg2), ("3" * 20, msg3)], "node", ["user"])
-
-    data = api.get_msg_list_data("test.local", ["2" * 20, "3" * 20])
-    assert data == [MsgMetadata.from_list("2" * 20, msg2),
-                    MsgMetadata.from_list("3" * 20, msg3)]
-
-
-# noinspection PyTestParametrized
-@pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_get_msg_list_data_by_ids_only(api):
-    msg1 = ["ii/ok", "test2.local", "0", "admin", "node,1", "All", "Subj", "", "Msg1", "Row2"]
-    msg2 = ["ii/ok", "test3.local", "1", "admin", "node,1", "user", "Re: Subj", "", "Msg2", "Row2"]
-    msg3 = ["ii/ok", "test.local", "0", "admin", "node,1", "user", "Subj2", "", "Msg2", "Row2"]
-    api.save_message([("1" * 20, msg1), ("2" * 20, msg2), ("3" * 20, msg3)], "node", ["user"])
-
-    data = api.get_msg_list_data(None, ["1" * 20, "3" * 20])
-    assert data == [MsgMetadata.from_list("3" * 20, msg3),  # echo test.local
-                    MsgMetadata.from_list("1" * 20, msg1)]  # echo test2.local
 
 
 # noinspection PyTestParametrized
