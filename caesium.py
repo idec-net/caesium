@@ -875,7 +875,12 @@ class EchoReader:
                 self.stack.append(self.msgs.idx)
                 self.msgs.idx = idx
                 self.read_cur_msg()
-                self.reader.prerender()
+            else:
+                self.reader.setMsg(*api.find_msg(self.repto))
+                self._msgid = self.repto
+                if not self.stack or self.stack[-1] != self.msgs.idx:
+                    self.stack.append(self.msgs.idx)
+            self.reader.prerender()
         elif ks in Reader.NREP and len(self.stack) > 0:
             self.msgs.idx = self.stack.pop()
             self.read_cur_msg()
