@@ -260,10 +260,11 @@ class _DimContainer:  # Row/Column Dimension Container
 def _adjust_size(diff: int, items: Collection[_DimContainer]):
     if not items:
         return diff
+    nonMinMax = []
     while diff != 0:
         prevDiff = diff
         if diff > 0:
-            itDiff = max(1, diff // len(items))  # TODO: Skip min/max sized items
+            itDiff = max(1, diff // len(items))
         else:
             itDiff = min(-1, diff // len(items))
         for it in items:
@@ -275,8 +276,12 @@ def _adjust_size(diff: int, items: Collection[_DimContainer]):
             elif it.minSz and it.sz < it.minSz:
                 diff += it.sz - it.minSz
                 it.sz = it.minSz
+            else:
+                nonMinMax.append(it)
             if diff == 0:
                 break  # no more shrink/grow
+        items = nonMinMax
+        nonMinMax = []
         if prevDiff == diff:
             break  # no shrink/grow preferred width, min/max width exceeded
     return diff
