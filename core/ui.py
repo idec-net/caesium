@@ -852,7 +852,7 @@ class InputWidget(Widget):
         #
         win.addstr(self.y, self.x, " " * self.w, attr)
         if left:
-            win.addnstr(self.y, self.x, THEME.input[0], self.w, self.color)
+            win.addnstr(self.y, self.x, left, self.w, self.color)
         win.addnstr(self.y, self.x + len(left), txt[self.offset:],
                     self.w - len(left), attr)
         if right:
@@ -957,111 +957,114 @@ class FindQueryWindow:
     layout: GridLayout = None
     query = FindQuery()
     resized: bool = False
-    focused_wid: Widget = None
+    focusedWid: Widget = None
     go: bool = True
     #
-    find_in_progress: bool = None
-    find_progress_bar = None
-    find_cancel: bool = False
-    find_result: List[MsgMetadata] = None
-    find_tick: float = 0
+    findInProgress: bool = None
+    findProgressBar = None
+    findCancel: bool = False
+    findResult: List[MsgMetadata] = None
+    findTick: float = 0
 
-    def __init__(self):
-        self.find_progress_bar = cycle(THEME.spinner)
-        self.win = self.init_win()
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+        self.findProgressBar = cycle(THEME.spinner)
+        self.win = self.initWin()
         h, w = self.win.getmaxyx()
         #
-        self.inp_query = InputRegexWidget(
+        self.inpQuery = InputRegexWidget(
             self.query.query, 1,
             placeholder="<введите текст для поиска>",
             regexOn=self.query.regex)
-        self.inp_query_not = InputRegexWidget(
+        self.inpQueryNot = InputRegexWidget(
             self.query.queryNot, 2,
             placeholder="<введите текст для исключения>",
             regexOn=self.query.regex)
 
-        self.chk_msgid = CheckBoxWidget("Id", 3, checked=self.query.msgid)
-        self.chk_body = CheckBoxWidget("Тело", 4, checked=self.query.body)
-        self.chk_subj = CheckBoxWidget("Тема", 5, checked=self.query.subj)
-        self.chk_from = CheckBoxWidget("От", 6, checked=self.query.fr)
-        self.chk_to = CheckBoxWidget("Кому", 7, checked=self.query.to)
+        self.chkMsgid = CheckBoxWidget("Id", 3, checked=self.query.msgid)
+        self.chkBody = CheckBoxWidget("Тело", 4, checked=self.query.body)
+        self.chkSubj = CheckBoxWidget("Тема", 5, checked=self.query.subj)
+        self.chkFrom = CheckBoxWidget("От", 6, checked=self.query.fr)
+        self.chkTo = CheckBoxWidget("Кому", 7, checked=self.query.to)
 
-        self.chk_echo = CheckBoxWidget("Конференция:", 12,
-                                       checked=self.query.echo)
-        self.inp_echo = InputWidget(self.query.echoQuery, 13,
-                                    placeholder="<введите эхоконференцию>")
-        self.inp_echo_not = InputWidget(self.query.echoQueryNot, 14,
-                                        placeholder="<введите эхоконференцию>")
+        self.chkEcho = CheckBoxWidget("Конференция:", 12,
+                                      checked=self.query.echo)
+        self.inpEcho = InputWidget(self.query.echoQuery, 13,
+                                   placeholder="<введите эхоконференцию>")
+        self.inpEchoNot = InputWidget(self.query.echoQueryNot, 14,
+                                      placeholder="<введите эхоконференцию>")
+        self.chkSkipArch = CheckBoxWidget("Пропускать архивные", 15,
+                                          checked=bool(self.query.echoSkipArch))
 
-        self.inp_limit = InputWidget(str(self.query.limit), 15,
-                                     mask=re.compile(r"^[0-9]{0,7}$"),
-                                     placeholder=str(FindQuery.DEFAULT_LIMIT))
+        self.inpLimit = InputWidget(str(self.query.limit), 16,
+                                    mask=re.compile(r"^[0-9]{0,7}$"),
+                                    placeholder=str(FindQuery.DEFAULT_LIMIT))
 
-        self.chk_regex = CheckBoxWidget("Regex", 8,
-                                        checked=self.query.regex)
-        self.chk_case = CheckBoxWidget("Учитывать регистр", 9,
-                                       checked=self.query.case)
-        self.chk_word = CheckBoxWidget("Слово целиком", 10,
-                                       checked=self.query.word)
-        self.chk_orig = CheckBoxWidget("Пропускать подписи", 11,
-                                       checked=not self.query.orig)
-        self.lbl_progress = LabelWidget("")
+        self.chkRegex = CheckBoxWidget("Regex", 8,
+                                       checked=self.query.regex)
+        self.chkCase = CheckBoxWidget("Учитывать регистр", 9,
+                                      checked=self.query.case)
+        self.chkWord = CheckBoxWidget("Слово целиком", 10,
+                                      checked=self.query.word)
+        self.chkOrig = CheckBoxWidget("Пропускать подписи", 11,
+                                      checked=not self.query.orig)
+        self.lblProgress = LabelWidget("")
 
         self.layout = GridLayout(
             (GridLayout(
                 (LabelWidget("Искать: "), ""),
-                (self.inp_query, "fillX growX wrap"),
+                (self.inpQuery, "fillX growX wrap"),
 
                 (LabelWidget("И НЕ: "), "hAlign right"),
-                (self.inp_query_not, "fillX growX wrap"),
-
-                (LabelWidget("В:"), "wrap"),
-            ), "w 100% h 3 fillX growX wrap"),
+                (self.inpQueryNot, "fillX growX wrap"),
+            ), "w 100% h 2 fillX growX wrap"),
+            (LabelWidget("В:"), "wrap"),
             #
             (GridLayout(
-                (self.chk_msgid, "w 50% wrap"),
+                (self.chkMsgid, "w 50% wrap"),
                 (SeparatorHWidget(), "colSpan 2 fillX wrap"),
-                (self.chk_body, "w 50%"), (self.chk_regex, "wrap"),
-                (self.chk_subj, "w 50%"), (self.chk_case, "wrap"),
-                (self.chk_from, "w 50%"), (self.chk_word, "wrap"),
-                (self.chk_to, "growY"), (self.chk_orig, "wrap"),
+                (self.chkBody, "w 50%"), (self.chkRegex, "wrap"),
+                (self.chkSubj, "w 50%"), (self.chkCase, "wrap"),
+                (self.chkFrom, "w 50%"), (self.chkWord, "wrap"),
+                (self.chkTo, "growY"), (self.chkOrig, "wrap"),
                 (SeparatorHWidget(), "colSpan 2 fillX wrap"),
             ), "pad 1 0 w 100% h 7 fillX wrap"),
             #
-            (GridLayout((self.chk_echo, CC(w=self.chk_echo.w + 2, pad="1 0")),
-                        (self.inp_echo, "fillX wrap"),
+            (GridLayout((self.chkEcho, CC(w=self.chkEcho.w + 2, pad="1 0")),
+                        (self.inpEcho, "fillX wrap"),
 
                         (LabelWidget("И НЕ: "), "hAlign right"),
-                        (self.inp_echo_not, "fillX wrap")),
+                        (self.inpEchoNot, "fillX wrap")),
              "w 100% h 2 fillX wrap"),
+            (GridLayout(
+                (self.chkSkipArch, "pad 1 0 w 50%"),
+                (LabelWidget("Лимит: "), ""),
+                (self.inpLimit, CC(wPref=(7 + len(THEME.input[0])
+                                          + len(THEME.input[1])),
+                                   hAlign="left",
+                                   growX=True))
+            ), "h 1 w 100% fillX wrap"),
             #
-            (GridLayout((LabelWidget("Лимит: "), ""),
-                        (self.inp_limit, CC(w=(7 + len(THEME.input[0])
-                                               + len(THEME.input[1])),
-                                            hAlign="left",
-                                            growX=True))),
-             "h 1 fillX growX wrap"),
-            #
-            (self.lbl_progress, "w 100% growY wrap"),
+            (self.lblProgress, "w 100% fill growY wrap"),
         )
         self.layout.pack(offset_x=2, offset_y=1, width=w - 4, height=h - 2)
         self.widgets = deque(sorted(list(self.layout.collect_widgets()),
                                     key=lambda _: _.focusOrder))
         #
-        self.set_focused(self.inp_query)
-        self.update_state()
+        self.setFocused(self.inpQuery)
+        self.updateState()
 
-    def set_focused(self, focus_wid):  # type: (Optional[Widget]) -> None
-        if self.focused_wid == focus_wid:
+    def setFocused(self, focusWid):  # type: (Optional[Widget]) -> None
+        if self.focusedWid == focusWid:
             return
-        if self.focused_wid:
-            self.focused_wid.set_focused(False)
-        self.focused_wid = focus_wid
-        if self.focused_wid:
-            self.focused_wid.set_focused(True)
+        if self.focusedWid:
+            self.focusedWid.set_focused(False)
+        self.focusedWid = focusWid
+        if self.focusedWid:
+            self.focusedWid.set_focused(True)
 
     @staticmethod
-    def init_win(win=None):
+    def initWin(win=None):
         w = max(len(LABEL_FIND) + 2, min(80, int(WIDTH * 0.75)))
         h = min(HEIGHT, 16)
         w = min(WIDTH, w)
@@ -1075,25 +1078,25 @@ class FindQueryWindow:
         return win
 
     def show(self):
-        self.draw_title(self.win)
+        self.drawTitle(self.win)
         while self.go:
             self._show()
             self._keys()
-        return self.find_result
+        return self.findResult
 
     def _show(self):
-        self.draw_content(self.win)
+        self.drawContent(self.win)
         self.win.refresh()
 
     def _keys(self):
-        if self.find_in_progress:
+        if self.findInProgress:
             ks, key, _ = get_keystroke(0)
         else:
             ks, key, _ = get_keystroke()
-        self.go = self.on_key_pressed(ks, key)
+        self.go = self.onKeyPressed(ks, key)
 
     @staticmethod
-    def draw_title(win):  # type: (curses.window) -> None
+    def drawTitle(win):  # type: (curses.window) -> None
         h, w = win.getmaxyx()
         win.bkgd(" ", get_color(UI_TEXT))
         #
@@ -1104,9 +1107,9 @@ class FindQueryWindow:
         x = (w - len(THEME.findIcon) - len(LABEL_FIND)) // 2 - 1
         draw_title(win, 0, x, THEME.findIcon + LABEL_FIND)
 
-    def draw_content(self, win):  # type: (curses.window) -> None
+    def drawContent(self, win):  # type: (curses.window) -> None
         h, w = win.getmaxyx()
-        win.addstr(self.lbl_progress.y, 1, " " * (w - 2))  # lbl_progress
+        win.addstr(self.lblProgress.y, 1, " " * (w - 2))  # lbl_progress
         if w > 20 and h > 10:
             for w in self.widgets:
                 w.draw(win)
@@ -1115,54 +1118,54 @@ class FindQueryWindow:
             for y, line in enumerate(lines):
                 win.addstr(1 + y, 1, line + (" " * (w - 2 - len(line))))
 
-    def on_key_pressed(self, ks, key):
+    def onKeyPressed(self, ks, key):
         if key == curses.KEY_RESIZE:
             set_term_size()
             stdscr.clear()
             stdscr.refresh()
-            self.win = self.init_win(self.win)
+            self.win = self.initWin(self.win)
             self.win.clear()
             h, w = self.win.getmaxyx()
             self.layout.pack(offset_x=2, offset_y=1, width=w - 4, height=h - 2)
             #
-            self.draw_title(self.win)
+            self.drawTitle(self.win)
             self.resized = True
         elif ks in Qs.CLOSE:
             curses.curs_set(0)
-            if self.find_in_progress:
-                self.find_cancel = True
+            if self.findInProgress:
+                self.findCancel = True
             else:
                 return False  # close win
-        elif ks in Qs.APPLY and not self.find_in_progress:
-            if self.inp_query.regexOn and self.inp_query.err:
+        elif ks in Qs.APPLY and not self.findInProgress:
+            if self.inpQuery.regexOn and self.inpQuery.err:
                 self.refreshCursor()
                 return True  #
             curses.curs_set(0)
-            self.find_tick = 0
+            self.findTick = 0
             self.find()
-            self.find_cancel = False
-            if self.find_result:
+            self.findCancel = False
+            if self.findResult:
                 return False  # close win
-            self.update_state()
+            self.updateState()
         elif key != -1:
             if ks == "Tab" or key == curses.KEY_DOWN:
-                wid = self.next_focus(self.focused_wid)
+                wid = self.nextFocus(self.focusedWid)
                 while wid and not (wid.enabled and wid.focusable):
-                    wid = self.next_focus(wid)
-                self.set_focused(wid)
+                    wid = self.nextFocus(wid)
+                self.setFocused(wid)
 
             elif ks == "S-Tab" or key == curses.KEY_UP:
-                wid = self.prev_focus(self.focused_wid)
+                wid = self.prevFocus(self.focusedWid)
                 while wid and not (wid.enabled and wid.focusable):
-                    wid = self.prev_focus(wid)
-                self.set_focused(wid)
+                    wid = self.prevFocus(wid)
+                self.setFocused(wid)
 
-            elif self.focused_wid:
-                self.focused_wid.on_key_pressed(ks, key)
-            self.update_state()
+            elif self.focusedWid:
+                self.focusedWid.on_key_pressed(ks, key)
+            self.updateState()
         return True  #
 
-    def next_focus(self, wid):
+    def nextFocus(self, wid):
         if not wid:
             return self.widgets[0]
         elif self.widgets:
@@ -1171,7 +1174,7 @@ class FindQueryWindow:
             return self.widgets[idx]
         return None
 
-    def prev_focus(self, wid):
+    def prevFocus(self, wid):
         if not wid:
             return self.widgets[0]
         elif self.widgets:
@@ -1180,68 +1183,75 @@ class FindQueryWindow:
             return self.widgets[idx]
         return None
 
-    def update_state(self):
-        if self.find_in_progress:
+    def updateState(self):
+        if self.findInProgress:
             return  #
-        self.inp_echo.set_enabled(self.chk_echo.checked)
-        self.inp_echo_not.set_enabled(self.chk_echo.checked)
-        self.chk_word.set_enabled(not self.chk_regex.checked)
-        self.inp_query.set_regexOn(self.chk_regex.checked)
-        self.inp_query_not.set_regexOn(self.chk_regex.checked)
+        self.inpEcho.set_enabled(self.chkEcho.checked)
+        self.inpEchoNot.set_enabled(self.chkEcho.checked)
+        self.chkWord.set_enabled(not self.chkRegex.checked)
+        self.inpQuery.set_regexOn(self.chkRegex.checked)
+        self.inpQueryNot.set_regexOn(self.chkRegex.checked)
 
-        self.query.query = self.inp_query.txt
-        self.query.queryNot = self.inp_query_not.txt
-        self.query.msgid = self.chk_msgid.checked
-        self.query.body = self.chk_body.checked
-        self.query.subj = self.chk_subj.checked
-        self.query.fr = self.chk_from.checked
-        self.query.to = self.chk_to.checked
-        self.query.echo = self.chk_echo.checked
-        self.query.echoQuery = self.inp_echo.txt
-        self.query.echoQueryNot = self.inp_echo_not.txt
-        self.query.limit = int(self.inp_limit.txt or "0") or FindQuery.DEFAULT_LIMIT
-        self.query.regex = self.chk_regex.checked
-        self.query.case = self.chk_case.checked
-        self.query.word = self.chk_word.checked
-        self.query.orig = not self.chk_orig.checked
+        self.query.query = self.inpQuery.txt
+        self.query.queryNot = self.inpQueryNot.txt
+        self.query.msgid = self.chkMsgid.checked
+        self.query.body = self.chkBody.checked
+        self.query.subj = self.chkSubj.checked
+        self.query.fr = self.chkFrom.checked
+        self.query.to = self.chkTo.checked
+        self.query.echo = self.chkEcho.checked
+        self.query.echoQuery = self.inpEcho.txt
+        self.query.echoQueryNot = self.inpEchoNot.txt
+        self.query.echoSkipArch = self.chkSkipArch.checked
+        self.query.limit = int(self.inpLimit.txt or "0") or FindQuery.DEFAULT_LIMIT
+        self.query.regex = self.chkRegex.checked
+        self.query.case = self.chkCase.checked
+        self.query.word = self.chkWord.checked
+        self.query.orig = not self.chkOrig.checked
 
-        if self.find_in_progress is None:
-            self.lbl_progress.set_txt("")
+        if self.findInProgress is None:
+            self.lblProgress.set_txt("")
         else:
-            self.lbl_progress.set_txt("Ничего не найдено")
+            self.lblProgress.set_txt("Ничего не найдено")
         self.refreshCursor()
 
     def refreshCursor(self):
-        if isinstance(self.focused_wid, InputWidget):
+        if isinstance(self.focusedWid, InputWidget):
             y, x = self.win.getbegyx()
-            inp_cursor_x = self.focused_wid.get_win_cursor_pos()
-            stdscr.move(y + self.focused_wid.y,
-                        x + self.focused_wid.x + inp_cursor_x)
+            inp_cursor_x = self.focusedWid.get_win_cursor_pos()
+            stdscr.move(y + self.focusedWid.y,
+                        x + self.focusedWid.x + inp_cursor_x)
             curses.curs_set(1)
         else:
             curses.curs_set(0)
 
     def find(self):
-        self.find_in_progress = True
-        self.find_result = api.find_query_msgids(
-            self.query, progress_handler=self.find_progress_handler)
-        self.find_in_progress = False
+        self.findInProgress = True
+        if self.query.echoSkipArch:
+            arch = []
+            for node in self.cfg.nodes:
+                arch += list(map(lambda e: e.name, node.archive + node.stat))
+            self.query.echoArch = " ".join(arch)
 
-    def find_progress_handler(self, param=None):
+        self.findResult = api.find_query_msgids(
+            self.query, progress_handler=self.findProgressHandler)
+        self.findInProgress = False
+
+    def findProgressHandler(self, param=None):
         now = time.time()
         self._keys()
-        if self.find_cancel:
+        if self.findCancel:
             return api.FIND_CANCEL
-        if (now - self.find_tick) < 0.250:  # ms
+        if (now - self.findTick) < 0.250:  # ms
             return api.FIND_OK
-        self.find_tick = now
-        progress = " Поиск... " + next(self.find_progress_bar)
+        self.findTick = now
+        progress = " Поиск... " + next(self.findProgressBar)
         if param:
             progress += (f" Found: {param[5]}"
                          f" TMsg: {param[4]}"
                          f" E: {param[0]}/{param[1]}"
                          f" EMsg: {param[2]}/{param[3]}")
-        self.lbl_progress.set_txt(progress)
+        self.lblProgress.set_txt(progress)
         self._show()
         return api.FIND_OK
 

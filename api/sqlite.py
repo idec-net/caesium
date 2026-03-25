@@ -249,15 +249,19 @@ def find_query_msgids(fq: FindQuery,
         con.set_progress_handler(progress_handler, 100)
 
     if fq.echo and fq.echoQuery:
-        echos = fq.echoQuery.split(" ")
+        echos = list(filter(None, fq.echoQuery.split(" ")))
         where += " AND (" + " OR ".join([" echoarea LIKE ? "] * len(echos)) + ")"
         for e in echos:
             args.append("%" + e + "%")
     if fq.echo and fq.echoQueryNot:
-        echos = fq.echoQueryNot.split(" ")
+        echos = list(filter(None, fq.echoQueryNot.split(" ")))
         where += " AND " + " AND ".join(["echoarea NOT LIKE ?"] * len(echos))
         for e in echos:
             args.append("%" + e + "%")
+    if fq.echoSkipArch and fq.echoArch:
+        echos = list(filter(None, fq.echoArch.split(" ")))
+        where += " AND " + " AND ".join(["echoarea <> ?"] * len(echos))
+        args.extend(echos)
     try:
         rows = c.execute(
             "SELECT DISTINCT msgid, tags, echoarea, time, fr, addr, t, subject"

@@ -359,6 +359,14 @@ def test_find_query_not_to(api):
         FindQuery("qwe", "bot", regex=True))
     assert data == [MsgMetadata.from_list("3" * 20, msg3)]
 
+    data = api.find_query_msgids(
+        FindQuery("qwe", echoQueryNot="test. test2."))
+    assert data == [MsgMetadata.from_list("3" * 20, msg3)]
+
+    data = api.find_query_msgids(
+        FindQuery("qwe", echoSkipArch=True, echoArch="test.local test2.local"))
+    assert data == [MsgMetadata.from_list("3" * 20, msg3)]
+
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])

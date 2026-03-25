@@ -431,7 +431,7 @@ class EchoSelectorScreen:
             node = 0
             self.reload_echoareas()
         elif ks in Selector.FIND:
-            win = ui.FindQueryWindow()
+            win = ui.FindQueryWindow(cfg=cfg)
             find_result = win.show()
             if find_result:
                 find_result = sorted(find_result, key=lambda m: m.time)

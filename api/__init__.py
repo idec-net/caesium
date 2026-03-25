@@ -47,6 +47,8 @@ class FindQuery:
     echo: bool = True
     echoQuery: str = ""
     echoQueryNot: str = ""
+    echoArch: str = ""  # archive or stat echoareas
+    echoSkipArch: bool = True
     limit: int = DEFAULT_LIMIT
     regex: bool = False
     case: bool = False
@@ -63,16 +65,22 @@ class FindQuery:
 
 def filterEchoarea(fq: FindQuery, echoareas, extLen):
     if fq.echo and fq.echoQuery:
-        echoQuery = fq.echoQuery.split(" ")
+        echoQuery = list(filter(None, fq.echoQuery.split(" ")))
         echoareas = list(filter(
             lambda e: any(map(lambda q: q in (e[0:-extLen] if extLen else e),
                               echoQuery)),
             echoareas))
     if fq.echo and fq.echoQueryNot:
-        echoQuery = fq.echoQueryNot.split(" ")
+        echoQuery = list(filter(None, fq.echoQueryNot.split(" ")))
         echoareas = list(filter(
             lambda e: all(map(lambda q: q not in (e[0:-extLen] if extLen else e),
                               echoQuery)),
+            echoareas))
+    if fq.echoSkipArch and fq.echoArch:
+        echoArch = list(filter(None, fq.echoArch.split(" ")))
+        echoareas = list(filter(
+            lambda e: all(map(lambda q: q != (e[0:-extLen] if extLen else e),
+                              echoArch)),
             echoareas))
     return echoareas
 
