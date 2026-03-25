@@ -677,6 +677,7 @@ class EchoReader:
                 links)))
             i = win.show()
             if win.resized:
+                self.reader.setRect(x=0, y=5, w=ui.WIDTH, h=ui.HEIGHT - 5 - 1)
                 self.reader.prerender(self.reader.scroll.pos)
             if i:
                 self.open_link(links[i - 1])
@@ -1000,6 +1001,7 @@ class EchoReader:
                 self.read_cur_msg()
                 self.reader.prerender()
             elif win.resized:
+                self.reader.setRect(x=0, y=5, w=ui.WIDTH, h=ui.HEIGHT - 5 - 1)
                 self.reader.prerender(self.reader.scroll.pos)
         elif ks in Reader.INLINES:
             parser.INLINE_STYLE_ENABLED = not parser.INLINE_STYLE_ENABLED
