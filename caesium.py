@@ -681,30 +681,34 @@ class EchoReader:
         elif not link.startswith("ii://"):
             if not cfg.browser.open(link):
                 ui.show_message_box("Не удалось запустить Интернет-браузер")
-        elif parser.echo_template.match(link[5:]):  # echoarea
-            if self.echo.name == link[5:]:
-                ui.show_message_box("Конференция уже открыта")
-            elif (link[5:] in self.cur_node.echoareas
-                  or link[5:] in self.cur_node.archive
-                  or link[5:] in self.cur_node.stat):
-                self.next_echo = link[5:]
-                self.go = False
-            else:
-                ui.show_message_box("Конференция отсутствует в БД ноды")
-        else:
-            msgid = link[5:]
-            idx = self.msgs.findMsgidIdx(msgid)
-            if idx > -1:  # msgid in same echoarea
-                if not self.stack or self.stack[-1] != self.msgs.idx:
-                    self.stack.append(self.msgs.idx)
-                self.msgs.idx = idx
-                self.read_cur_msg()
-            else:
-                self.reader.setMsg(*api.find_msg(link[5:]))
-                self._msgid = link[5:]
-                if not self.stack or self.stack[-1] != self.msgs.idx:
-                    self.stack.append(self.msgs.idx)
-            self.reader.prerender()
+        else:  # ii://
+            link = link[5:]
+            link = link.rstrip("/")
+            if "/" in link:  # support ii://echo.area/msgid123
+                link = link[link.rindex("/"):]
+            if parser.echo_template.match(link):  # echoarea
+                if self.echo.name == link:
+                    ui.show_message_box("Конференция уже открыта")
+                elif (link in self.cur_node.echoareas
+                      or link in self.cur_node.archive
+                      or link in self.cur_node.stat):
+                    self.next_echo = link
+                    self.go = False
+                else:
+                    ui.show_message_box("Конференция отсутствует в БД ноды")
+            elif link:
+                idx = self.msgs.findMsgidIdx(link)
+                if idx > -1:  # msgid in same echoarea
+                    if not self.stack or self.stack[-1] != self.msgs.idx:
+                        self.stack.append(self.msgs.idx)
+                    self.msgs.idx = idx
+                    self.read_cur_msg()
+                else:
+                    self.reader.setMsg(*api.find_msg(link))
+                    self._msgid = link
+                    if not self.stack or self.stack[-1] != self.msgs.idx:
+                        self.stack.append(self.msgs.idx)
+                self.reader.prerender()
 
     @staticmethod
     def on_search_item(sidx, p, token):
