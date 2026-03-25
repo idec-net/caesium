@@ -31,11 +31,11 @@ def get_bundle(url, msgids):
     return list(filter(None, data))
 
 
-def get_msg_list(url, echoareas, offset=None, count=None):
+def get_msg_list(url, echoareas, offset=None, count=65535):
     # type: (str, List[str], int, int) -> List[str]
     if not echoareas:
         return []
-    x_filter = "/%s:%s" % (str(offset), str(count or "")) if offset else ""
+    x_filter = "/%s:%s" % (str(offset), str(count)) if offset else ""
 
     echoareas = "/".join(echoareas) + x_filter
     req = urllib.request.Request(url + "u/e/" + echoareas, method="GET")

@@ -97,14 +97,19 @@ def send_mail(node_):  # type: (config.Node) -> None
         print("\nОшибка: не удаётся связаться с нодой. " + str(ex))
 
 
-def debundle(bundle):
+def debundle(bundle, get_list=None):
     messages = []
     for msg in filter(None, bundle):
         m = msg.split(":")
         msgid = m[0]
         if len(msgid) == 20 and m[1]:
             msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8").split("\n")
-            messages.append([msgid, msgbody])
+            if get_list and msgid not in get_list:
+                print(f"\nWARNING:"
+                      f" msgid: {msgid} received but not requested: [{', '.join(get_list)}]."
+                      f" Skipped. Please report to node sysop.")
+            else:
+                messages.append([msgid, msgbody])
     if messages:
         api.save_message(messages, node, cfg.nodes[node].to)
 
@@ -155,7 +160,7 @@ def get_mail(node_, force_full_idx=False):  # type: (config.Node, bool) -> None
         for get_list in utils.separate(fetch_msg_list):
             count += len(get_list)
             print("\rПолучение сообщений: " + str(count) + "/" + total, end="")
-            debundle(client.get_bundle(node_.url, "/".join(get_list)))
+            debundle(client.get_bundle(node_.url, "/".join(get_list)), get_list)
     else:
         print("Новых сообщений не обнаружено.", end="")
     if is_node_smart:
@@ -236,9 +241,7 @@ class EchoSelectorScreen:
     echo_cursor: int = 0
     archive_cursor: int = 0
     next_echo: bool = False
-    archive: bool = False
-    cursor: int = 0
-    echoareas: List[config.Echo] = None
+    echos: ui.EchoModeStack = None
     scroll: ui.ScrollCalc = None
     qs: Optional[ui.QuickSearch] = None
     go: bool = True
@@ -248,30 +251,31 @@ class EchoSelectorScreen:
         self.reload_echoareas()
 
     def reload_echoareas(self):
-        self.archive = False
-        self.echoareas = cfg.nodes[node].echoareas
+        self.echo_cursor = 0
+        self.archive_cursor = 0
+        self.echos = ui.EchoModeStack(ui.SelectorMode.ECHO,
+                                      cfg.nodes[node].echoareas)
         ui.draw_message_box("Подождите", False)
         self.counts.get_counts(cfg.nodes[node], False)
-        self.counts.rescan_counts(self.echoareas)
         ui.stdscr.clear()
-        self.cursor = 0
-        self.scroll = ui.ScrollCalc(len(self.echoareas), ui.HEIGHT - 2)
-        self.scroll.ensure_visible(self.cursor, center=True)
+        self.updateScroll()
+
+    def updateScroll(self):
+        self.scroll = ui.ScrollCalc(len(self.echos.data), ui.HEIGHT - 2)
+        self.scroll.ensure_visible(self.echos.idx, center=True)
+        self.counts.rescan_counts(self.echos.data)
 
     def toggle_archive(self):
-        self.archive = not self.archive
-        if self.archive:
-            self.echo_cursor = self.cursor
-            self.cursor = self.archive_cursor
-            self.echoareas = cfg.nodes[node].archive
-        else:
-            self.archive_cursor = self.cursor
-            self.cursor = self.echo_cursor
-            self.echoareas = cfg.nodes[node].echoareas
+        if not self.echos.isArch() and cfg.nodes[node].archive:
+            self.echo_cursor = self.echos.idx
+            self.echos.modeArchOn(cfg.nodes[node].archive)
+            self.echos.idx = self.archive_cursor
+        elif self.echos.isArch():
+            self.archive_cursor = self.echos.idx
+            self.echos.modeArchOff()
+            self.echos.idx = self.echo_cursor
         ui.stdscr.clear()
-        self.scroll = ui.ScrollCalc(len(self.echoareas), ui.HEIGHT - 2)
-        self.scroll.ensure_visible(self.cursor, center=True)
-        self.counts.rescan_counts(self.echoareas)
+        self.updateScroll()
 
     # noinspection PyUnusedLocal
     @staticmethod
@@ -287,28 +291,35 @@ class EchoSelectorScreen:
 
     def show(self):
         while self.go:
-            self.scroll.ensure_visible(self.cursor)
-            self.draw(ui.stdscr, self.cursor, self.scroll, self.qs)
+            self.scroll.ensure_visible(self.echos.idx)
+            self.draw(ui.stdscr, self.echos.idx, self.scroll, self.qs)
             #
             ks, key, _ = ui.get_keystroke()
             #
             if key == curses.KEY_RESIZE:
                 ui.set_term_size()
-                self.scroll = ui.ScrollCalc(len(self.echoareas), ui.HEIGHT - 2, self.cursor)
+                self.scroll = ui.ScrollCalc(len(self.echos.data), ui.HEIGHT - 2,
+                                            self.echos.idx)
                 ui.stdscr.clear()
                 if self.qs:
                     self.qs.y = ui.HEIGHT - 1
                     self.qs.width = ui.WIDTH - len(ui.version) - 13
             elif self.qs:
                 if ks in Qs.CLOSE or ks in Qs.APPLY:
+                    if ks in Qs.APPLY and self.qs.result:
+                        self.echos.modeQsOn(self.qs.result)
+                        self.updateScroll()
                     self.qs = None
                     curses.curs_set(0)
                 else:
                     self.qs.on_key_pressed_search(key, ks, self.scroll)
-                    self.cursor = self.qs.ensure_cursor_visible(
-                        key, self.cursor, self.scroll)
+                    self.echos.idx = self.qs.ensure_cursor_visible(
+                        key, self.echos.idx, self.scroll)
             elif ks in Qs.OPEN:
-                self.qs = ui.newQuickSearch(self.echoareas, self.on_search_item)
+                self.qs = ui.newQuickSearch(self.echos.data, self.on_search_item)
+            elif ks in Reader.QUIT and self.echos.stack:
+                self.echos.pop()
+                self.updateScroll()
             elif ks in Common.QUIT:
                 self.go = False
             else:
@@ -316,29 +327,24 @@ class EchoSelectorScreen:
 
     def draw(self, win, cursor, scroll, qs):
         h, w = win.getmaxyx()
-        self.draw_echo_selector(win, scroll.pos, cursor, self.archive, qs,
-                                self.counts.counts)
+        self.draw_echo_selector(win, scroll.pos, cursor, qs, self.counts.counts)
         if scroll.is_scrollable:
             ui.draw_scrollbarV(win, 1, w - 1, scroll)
         if qs:
             qs.draw(win)
         win.refresh()
 
-    @staticmethod
-    def draw_echo_selector(win, start, cursor, archive, qs, counts):
-        # type: (curses.window, int, int, bool, ui.QuickSearch, List[List[str]]) -> None
+    def draw_echo_selector(self, win, start, cursor, qs, counts):
+        # type: (curses.window, int, int, ui.QuickSearch, List[List[str]]) -> None
         h, w = win.getmaxyx()
         color = get_color(UI_BORDER)
         win.addstr(0, 0, "─" * w, color)
-        cur_node = cfg.nodes[node]
-        if archive:
-            echoareas = cur_node.archive
+        if self.echos.isArch():
             ui.draw_title(win, 0, 0, "Архив")
         else:
-            echoareas = cur_node.echoareas
             ui.draw_title(win, 0, 0, "Конференция")
         #
-        m = min(w - 38, max(map(lambda e: len(e.desc), echoareas)))
+        m = min(w - 38, max(map(lambda e: len(e.desc), self.echos.data)))
         count = "Сообщений"
         unread = "Не прочитано"
         description = "Описание"
@@ -357,11 +363,11 @@ class EchoSelectorScreen:
             else:
                 color = get_color(UI_TEXT)
             win.addstr(y, 0, " " * w, color)
-            if echoN >= len(echoareas):
+            if echoN >= len(self.echos.data):
                 continue  #
             #
             win.attrset(color)
-            echo = echoareas[echoN]
+            echo = self.echos.data[echoN]
             total, unread = counts[echoN]
             if int(unread) > 0:
                 win.addstr(y, 0, "+")
@@ -379,29 +385,30 @@ class EchoSelectorScreen:
                                echo.name[match.start():match.end()],
                                color | curses.A_REVERSE)
 
-        ui.draw_status_bar(win, text=cur_node.nodename)
+        ui.draw_status_bar(win, mode=self.echos.mode, text=cfg.nodes[node].nodename)
 
     def on_key_pressed(self, ks):
         global node
         if ks in Selector.UP:
-            self.cursor = max(0, self.cursor - 1)
+            self.echos.idx = max(0, self.echos.idx - 1)
         elif ks in Selector.DOWN:
-            self.cursor = min(self.scroll.content - 1, self.cursor + 1)
+            self.echos.idx = min(self.scroll.content - 1, self.echos.idx + 1)
         elif ks in Selector.PPAGE:
-            if self.cursor > self.scroll.pos:
-                self.cursor = self.scroll.pos
+            if self.echos.idx > self.scroll.pos:
+                self.echos.idx = self.scroll.pos
             else:
-                self.cursor = max(0, self.cursor - self.scroll.view)
+                self.echos.idx = max(0, self.echos.idx - self.scroll.view)
         elif ks in Selector.NPAGE:
             page_bottom = self.scroll.pos_bottom()
-            if self.cursor < page_bottom:
-                self.cursor = page_bottom
+            if self.echos.idx < page_bottom:
+                self.echos.idx = page_bottom
             else:
-                self.cursor = min(self.scroll.content - 1, page_bottom + self.scroll.view)
+                self.echos.idx = min(self.scroll.content - 1,
+                                     page_bottom + self.scroll.view)
         elif ks in Selector.HOME:
-            self.cursor = 0
+            self.echos.idx = 0
         elif ks in Selector.END:
-            self.cursor = self.scroll.content - 1
+            self.echos.idx = self.scroll.content - 1
         elif ks in Selector.GET or ks in Selector.FGET:
             self.fetch_mail(force_full_idx=(ks in Selector.FGET))
         elif ks in Selector.ARCHIVE and len(cfg.nodes[node].archive) > 0:
@@ -429,9 +436,10 @@ class EchoSelectorScreen:
             node = 0
             self.reload_echoareas()
         elif ks in Selector.FIND:
-            win = ui.FindQueryWindow()
+            win = ui.FindQueryWindow(cfg=cfg)
             find_result = win.show()
             if find_result:
+                find_result = sorted(find_result, key=lambda m: m.time)
                 self.go, _ = EchoReader(
                     config.ECHO_FIND, 0, True, self.counts,
                     mode=ui.ReaderMode.FIND, msgids=find_result).show()
@@ -443,46 +451,46 @@ class EchoSelectorScreen:
         ui.initialize_curses()
         ui.draw_message_box("Подождите", False)
         self.counts.get_counts(cfg.nodes[node], True)
-        self.counts.rescan_counts(self.echoareas)
+        self.counts.rescan_counts(self.echos.data)
         ui.stdscr.clear()
-        self.cursor = self.counts.find_new(0)
+        self.echos.idx = self.counts.find_new(0)
 
     def read_echo(self):
         ui.draw_message_box("Подождите", False)
         last = 0
-        cur_echo = self.echoareas[self.cursor]
+        cur_echo = self.echos.curItem()
         if cur_echo.name in self.counts.lasts:
             last = self.counts.lasts[cur_echo.name]
         last = min(self.counts.total[cur_echo.name], last + 1)
         self.go, self.next_echo = EchoReader(
-            cur_echo, last, self.archive, self.counts).show()
-        self.counts.rescan_counts(self.echoareas)
+            cur_echo, last, self.echos.isArch(), self.counts).show()
+        self.counts.rescan_counts(self.echos.data)
         if self.next_echo and isinstance(self.next_echo, bool):
-            self.cursor = self.counts.find_new(self.cursor)
+            self.echos.idx = self.counts.find_new(self.echos.idx)
             self.next_echo = False
         elif self.next_echo and isinstance(self.next_echo, str):
             cur_node = cfg.nodes[node]
-            if ((not self.archive and self.next_echo in cur_node.archive)
-                    or (self.archive and (self.next_echo in cur_node.echoareas
-                                          or self.next_echo in cur_node.stat))):
+            if ((not self.echos.isArch() and self.next_echo in cur_node.archive)
+                    or (self.echos.isArch() and (self.next_echo in cur_node.echoareas
+                                                 or self.next_echo in cur_node.stat))):
                 self.toggle_archive()
             # noinspection PyTypeChecker
-            self.cursor = (self.echoareas.index(self.next_echo)
-                           if self.next_echo in self.echoareas else
-                           0)
+            self.echos.idx = self.echos.findItemIdx(self.next_echo)
+            if self.echos.idx == -1:
+                self.echos.idx = 0
             self.next_echo = False
 
     def read_outgoing(self):
         out_length = outgoing.get_out_length(cfg.nodes[node], drafts=False)
         if out_length:
             self.go, self.next_echo = EchoReader(
-                config.ECHO_OUT, out_length, self.archive, self.counts).show()
+                config.ECHO_OUT, out_length, self.echos.isArch(), self.counts).show()
 
     def read_drafts(self):
         out_length = outgoing.get_out_length(cfg.nodes[node], drafts=True)
         if out_length:
             self.go, self.next_echo = EchoReader(
-                config.ECHO_DRAFTS, 0, self.archive, self.counts).show()
+                config.ECHO_DRAFTS, 0, self.echos.isArch(), self.counts).show()
 
 
 def call_editor(node_, out=''):
@@ -558,7 +566,7 @@ def save_attachment(token):  # type: (parser.Token) -> None
     ui.stdscr.getch()
     if token.pgp_key and parser.gpg:
         option = ui.SelectWindow("PGP Ключ '%s'" % token.filename,
-                                 ["Закрыть окно",
+                                 ["Отмена",
                                   "Открыть файл",
                                   "Добавить в хранилище"]).show()
         if option == 2:
@@ -575,11 +583,9 @@ def save_attachment(token):  # type: (parser.Token) -> None
 
 
 class EchoReader:
-    tokens: List[parser.Token]  # message bode tokens
-    scroll: ui.ScrollCalc  # message body scroll calculator
-    t2l: List[parser.RangeLines]  # tokens rendered lines range
     _msgid: Optional[str] = None  # non-current-echo message id, navigated by ii-link
     qs: Optional[ui.QuickSearch] = None  # quick search helper
+    reader: ui.ReaderWidget = None
     #
     go: bool = True  # show reader
     done: bool = False  # close app
@@ -598,24 +604,25 @@ class EchoReader:
         self.carbonarea = (echo == config.ECHO_CARBON)
         #
         self.cur_node = cfg.nodes[node]  # type: config.Node
-        self.msg = ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"]
-        self.size = 0
         self.repto = ""
         self.stack = []
         if not msgids:
             self.msgs.data = self.get_msgs_metadata()
         else:
             self.msgs.data = msgids
-
-        self.msgs.msgn = min(msgn, len(self.msgs.data) - 1)
+        #
+        self.reader = ui.ReaderWidget()
+        self.reader.setRect(x=0, y=5, w=ui.WIDTH, h=ui.HEIGHT - 5 - 1)
+        #
+        self.msgs.idx = min(msgn, len(self.msgs.data) - 1)
         if self.msgs.data:
             self.read_msg_skip_twit(-1)
-            if self.msgs.msgn < 0:
+            if self.msgs.idx < 0:
                 self.next_echo = True
-        self.prerender()
+        self.reader.prerender()
 
     def msgid(self):
-        return self._msgid or self.msgs.curMsg().msgid
+        return self._msgid or self.msgs.curItem().msgid
 
     def get_msgs_metadata(self):
         if self.out:
@@ -628,32 +635,28 @@ class EchoReader:
     def read_cur_msg(self):  # type: () -> (List[str], int)
         self._msgid = None
         if self.out:
-            self.msg, self.size = outgoing.read_out_msg(self.msgid(), self.cur_node)
+            self.reader.setMsg(*outgoing.read_out_msg(self.msgid(), self.cur_node))
         else:
-            m = self.msgs.curMsg()
-            self.msg, self.size = api.read_msg(self._msgid or m.msgid, m.echo)
+            m = self.msgs.curItem()
+            if not m:
+                self.msgs.idx = 0
+                m = self.msgs.curItem()
+            self.reader.setMsg(*api.read_msg(self._msgid or m.msgid, m.echo))
 
     def read_msg_skip_twit(self, increment):
         self.read_cur_msg()
-        while self.msg[3] in cfg.twit or self.msg[5] in cfg.twit:
-            self.msgs.msgn += increment
-            if self.msgs.msgn < 0 or len(self.msgs.data) <= self.msgs.msgn:
+        while self.reader.msg[3] in cfg.twit or self.reader.msg[5] in cfg.twit:
+            self.msgs.idx += increment
+            if self.msgs.idx < 0 or len(self.msgs.data) <= self.msgs.idx:
                 break
             self.read_cur_msg()
-
-    def prerender(self, pos=0):
-        self.tokens = parser.tokenize(self.msg[8:])
-        view = ui.HEIGHT - 5 - 1  # screen ui.HEIGHT - header - status line
-        height = parser.prerender(self.tokens, ui.WIDTH, view)
-        self.t2l = parser.token_line_map(self.tokens)
-        self.scroll = ui.ScrollCalc(height, view, pos)
 
     def prerender_msg_or_quit(self):
         self.msgs.data = self.get_msgs_metadata()
         if self.msgs.data:
-            self.msgs.msgn = min(self.msgs.msgn, len(self.msgs.data) - 1)
+            self.msgs.idx = min(self.msgs.idx, len(self.msgs.data) - 1)
             self.read_cur_msg()
-            self.prerender()
+            self.reader.prerender()
         else:
             self.go = False
 
@@ -667,7 +670,7 @@ class EchoReader:
                 links)))
             i = win.show()
             if win.resized:
-                self.prerender(self.scroll.pos)
+                self.reader.prerender(self.reader.scroll.pos)
             if i:
                 self.open_link(links[i - 1])
 
@@ -677,37 +680,40 @@ class EchoReader:
             if token.filedata:
                 save_attachment(token)
         elif link.startswith("#"):  # markdown anchor?
-            pos = parser.find_pos_by_anchor(self.tokens, token)
+            pos = parser.find_pos_by_anchor(self.reader.tokens, token)
             if pos != -1:
-                self.scroll.pos = pos
+                self.reader.scroll.pos = pos
         elif not link.startswith("ii://"):
             if not cfg.browser.open(link):
                 ui.show_message_box("Не удалось запустить Интернет-браузер")
-        elif parser.echo_template.match(link[5:]):  # echoarea
-            if self.echo.name == link[5:]:
-                ui.show_message_box("Конференция уже открыта")
-            elif (link[5:] in self.cur_node.echoareas
-                  or link[5:] in self.cur_node.archive
-                  or link[5:] in self.cur_node.stat):
-                self.next_echo = link[5:]
-                self.go = False
-            else:
-                ui.show_message_box("Конференция отсутствует в БД ноды")
-        else:
-            msgid = link[5:]
-            idx = self.msgs.findMsgidIdx(msgid)
-            if idx > -1:  # msgid in same echoarea
-                if not self.stack or self.stack[-1] != self.msgs.msgn:
-                    self.stack.append(self.msgs.msgn)
-                self.msgs.msgn = idx
-                self.read_cur_msg()
-                self.prerender()
-            else:
-                self.msg, self.size = api.find_msg(link[5:])
-                self._msgid = link[5:]
-                self.prerender()
-                if not self.stack or self.stack[-1] != self.msgs.msgn:
-                    self.stack.append(self.msgs.msgn)
+        else:  # ii://
+            link = link[5:]
+            link = link.rstrip("/")
+            if "/" in link:  # support ii://echo.area/msgid123
+                link = link[link.rindex("/"):]
+            if parser.echo_template.match(link):  # echoarea
+                if self.echo.name == link:
+                    ui.show_message_box("Конференция уже открыта")
+                elif (link in self.cur_node.echoareas
+                      or link in self.cur_node.archive
+                      or link in self.cur_node.stat):
+                    self.next_echo = link
+                    self.go = False
+                else:
+                    ui.show_message_box("Конференция отсутствует в БД ноды")
+            elif link:
+                idx = self.msgs.findMsgidIdx(link)
+                if idx > -1:  # msgid in same echoarea
+                    if not self.stack or self.stack[-1] != self.msgs.idx:
+                        self.stack.append(self.msgs.idx)
+                    self.msgs.idx = idx
+                    self.read_cur_msg()
+                else:
+                    self.reader.setMsg(*api.find_msg(link))
+                    self._msgid = link
+                    if not self.stack or self.stack[-1] != self.msgs.idx:
+                        self.stack.append(self.msgs.idx)
+                self.reader.prerender()
 
     @staticmethod
     def on_search_item(sidx, p, token):
@@ -737,7 +743,7 @@ class EchoReader:
             self.done = True
 
         if self.msgs.mode == ui.ReaderMode.ECHO:
-            self.counts.lasts[self.echo.name] = self.msgs.msgn
+            self.counts.lasts[self.echo.name] = self.msgs.idx
             with open("lasts.lst", "wb") as f:
                 pickle.dump(self.counts.lasts, f)
         ui.stdscr.clear()
@@ -748,7 +754,7 @@ class EchoReader:
         status = None
         if self.msgs.data:
             self.draw(ui.stdscr)
-            status = utils.msgn_status(len(self.msgs.data), self.msgs.msgn, ui.WIDTH)
+            status = utils.msgn_status(len(self.msgs.data), self.msgs.idx, ui.WIDTH)
         else:
             ui.draw_reader(ui.stdscr, self.echo.name, "", self.out)
         ui.draw_status_bar(ui.stdscr, mode=self.msgs.mode, text=status)
@@ -759,18 +765,20 @@ class EchoReader:
         #
         if key == curses.KEY_RESIZE:
             ui.set_term_size()
-            self.prerender(self.scroll.pos)
+            self.reader.setRect(x=0, y=5, w=ui.WIDTH, h=ui.HEIGHT - 5 - 1)
+            self.reader.prerender(self.reader.scroll.pos)
             ui.stdscr.clear()
             if self.qs:
-                self.qs.items = self.tokens
+                self.qs.items = self.reader.tokens
                 self.qs.y = ui.HEIGHT - 1
                 self.qs.width = ui.WIDTH - len(ui.version) - 13
-                tnum, _ = parser.find_visible_token(self.tokens, self.scroll.pos)
+                tnum, _ = parser.find_visible_token(self.reader.tokens,
+                                                    self.reader.scroll.pos)
                 self.qs.search(self.qs.txt, tnum)
         elif self.qs:
             self.on_key_pressed_qs(ks, key)
         elif ks in Qs.OPEN:
-            self.qs = ui.newQuickSearch(self.tokens, self.on_search_item)
+            self.qs = ui.newQuickSearch(self.reader.tokens, self.on_search_item)
         elif ks in Reader.QUIT:
             if self.msgs.stack:
                 self.mode_restore()
@@ -780,14 +788,16 @@ class EchoReader:
         elif ks in Common.QUIT:
             self.go = False
             self.done = True
+        elif self.reader.on_key_pressed(ks, key):
+            return  #
         else:
             self.on_key_pressed(ks, key)
 
     def draw(self, scr):
         h, w = scr.getmaxyx()
-        ui.draw_reader(scr, self.msg[1], self.msgid(), self.out)
+        ui.draw_reader(scr, self.reader.msg[1], self.msgid(), self.out)
         if w >= 80 and self.echo == config.ECHO_FIND:
-            title = f"Найденные сообщения '{ui.FindQueryWindow.query.query}'"
+            title = f"Найденные сообщения '{ui.FindQueryWindow.query}'"
             ui.draw_title(scr, 0, w - 2 - len(title), title)
         elif w >= 80 and self.echo.desc:
             ui.draw_title(scr, 0, w - 2 - len(self.echo.desc), self.echo.desc)
@@ -795,26 +805,24 @@ class EchoReader:
         color = get_color(UI_TEXT)
         if not self.out:
             if w >= 80:
-                scr.addstr(1, 7, self.msg[3] + " (" + self.msg[4] + ")", color)
+                scr.addstr(1, 7, self.reader.msg[3] + " (" + self.reader.msg[4] + ")", color)
             else:
-                scr.addstr(1, 7, self.msg[3], color)
-            msgtime = utils.msg_strftime(self.msg[2], w)
+                scr.addstr(1, 7, self.reader.msg[3], color)
+            msgtime = utils.msg_strftime(self.reader.msg[2], w)
             scr.addstr(1, w - len(msgtime) - 1, msgtime, color)
         elif self.cur_node.to:
             scr.addstr(1, 7, self.cur_node.to[0], color)
-        scr.addstr(2, 7, self.msg[5], color)
-        scr.addstr(3, 7, self.msg[6][:w - 8], color)
-        s_size = utils.msg_strfsize(self.size)
+        scr.addstr(2, 7, self.reader.msg[5], color)
+        scr.addstr(3, 7, self.reader.msg[6][:w - 8], color)
+        s_size = utils.msg_strfsize(self.reader.size)
         ui.draw_title(scr, 4, 0, s_size)
-        tags = self.msg[0].split("/")
+        tags = self.reader.msg[0].split("/")
         if "repto" in tags and 36 + len(s_size) < w:
             self.repto = tags[tags.index("repto") + 1].strip()
             ui.draw_title(scr, 4, len(s_size) + 3, "Ответ на " + self.repto)
         else:
             self.repto = ""
-        ui.render_body(scr, self.tokens, self.scroll.pos, self.qs)
-        if self.scroll.is_scrollable:
-            ui.draw_scrollbarV(scr, 5, w - 1, self.scroll)
+        self.reader.draw(scr, self.qs)
 
     def on_key_pressed_qs(self, ks, key):
         if ks in Qs.CLOSE or ks in Qs.APPLY:
@@ -822,61 +830,50 @@ class EchoReader:
             curses.curs_set(0)
             return
         #
-        pager = ui.Pager(
-            parser.find_visible_token(self.tokens, self.scroll.pos)[0],
-            lambda: parser.find_visible_token(self.tokens, self.scroll.pos + self.scroll.view)[0],
-            lambda: parser.find_visible_token(self.tokens, self.scroll.pos)[0] - 1)
-        self.qs.on_key_pressed_search(key, ks, pager)
+        self.qs.on_key_pressed_search(key, ks, self.reader.qsPager())
         if self.qs.result:
             tidx = self.qs.result[self.qs.idx]
             off, _ = self.qs.matches[self.qs.idx]
-            if ks in Selector.HOME or ks in Selector.END:
-                self.scroll.ensure_visible(self.t2l[tidx].start + off, center=True)
-            elif ks in Qs.NPAGE:
-                self.scroll.ensure_visible(self.t2l[tidx].start + off + self.scroll.view - 1)
-            elif ks in Qs.PPAGE:
-                self.scroll.ensure_visible(self.t2l[tidx].start + off - self.scroll.view + 1)
-            else:
-                self.scroll.ensure_visible(self.t2l[tidx].start + off)
+            self.reader.ensureVisibleOnQsKey(ks, tidx, off)
 
     def mode_restore(self):
-        msgid = self.msgs.curMsg().msgid
+        msgid = self.msgs.curItem().msgid
         self.msgs.pop()
-        if msgid != self.msgs.curMsg().msgid:
+        if msgid != self.msgs.curItem().msgid:
             self.stack.clear()
             self.read_cur_msg()
-            self.prerender()
+            self.reader.prerender()
 
     # noinspection PyUnusedLocal
     def on_key_pressed(self, ks, key):
         if ks in Reader.MSUBJ:
             if self.msgs.mode != ui.ReaderMode.SUBJ:
-                data = api.find_subj_msgids(self.msg[1], self.msg[6])
+                data = api.find_subj_msgids(self.reader.msg[1], self.reader.msg[6])
                 self.msgs.modeSubjOn(data)
             else:
                 self.msgs.modeSubjOff()
             self.stack.clear()
             self.read_cur_msg()
-            self.prerender()
-        elif ks in Reader.PREV and self.msgs.msgn > 0 and self.msgs.data:
-            self.msgs.msgn -= 1
+            self.reader.prerender()
+        elif ks in Reader.PREV and self.msgs.idx > 0 and self.msgs.data:
+            self.msgs.idx -= 1
             self.stack.clear()
-            tmp = self.msgs.msgn
+            tmp = self.msgs.idx
             self.read_msg_skip_twit(-1)
-            if self.msgs.msgn < 0:
-                self.msgs.msgn = tmp + 1
-            self.prerender()
+            if self.msgs.idx < 0:
+                self.msgs.idx = tmp + 1
+            self.reader.prerender()
         elif ks in Reader.NEXT and self.msgs.hasNext():
-            self.msgs.msgn += 1
+            self.msgs.idx += 1
             self.stack.clear()
             self.read_msg_skip_twit(+1)
-            if self.msgs.msgn >= len(self.msgs.data):
+            if self.msgs.idx >= len(self.msgs.data):
                 if self.msgs.mode == ui.ReaderMode.ECHO:
                     self.go = False
                     self.next_echo = True
                 else:
-                    self.msgs.msgn = len(self.msgs.data) - 1
-            self.prerender()
+                    self.msgs.idx = len(self.msgs.data) - 1
+            self.reader.prerender()
         elif ks in Reader.NEXT and not self.msgs.hasNext():
             if self.msgs.mode == ui.ReaderMode.ECHO:
                 self.go = False
@@ -884,68 +881,61 @@ class EchoReader:
         elif ks in Reader.PREP and not any((self.favorites, self.carbonarea, self.out)) and self.repto:
             idx = self.msgs.findMsgidIdx(self.repto)
             if idx > -1:
-                self.stack.append(self.msgs.msgn)
-                self.msgs.msgn = idx
+                self.stack.append(self.msgs.idx)
+                self.msgs.idx = idx
                 self.read_cur_msg()
-                self.prerender()
+            else:
+                self.reader.setMsg(*api.find_msg(self.repto))
+                self._msgid = self.repto
+                if not self.stack or self.stack[-1] != self.msgs.idx:
+                    self.stack.append(self.msgs.idx)
+            self.reader.prerender()
         elif ks in Reader.NREP and len(self.stack) > 0:
-            self.msgs.msgn = self.stack.pop()
+            self.msgs.idx = self.stack.pop()
             self.read_cur_msg()
-            self.prerender()
-        elif ks in Reader.UP:
-            self.scroll.pos -= 1
-        elif ks in Reader.PPAGE:
-            self.scroll.pos -= self.scroll.view
-        elif ks in Reader.NPAGE:
-            self.scroll.pos += self.scroll.view
-        elif ks in Reader.HOME:
-            self.scroll.pos = 0
-        elif ks in Reader.MEND:
-            self.scroll.pos = self.scroll.content - self.scroll.view
+            self.reader.prerender()
         elif ks in Reader.UKEYS:
-            if not self.msgs.data or self.scroll.pos >= self.scroll.content - self.scroll.view:
+            if not self.msgs.data or self.reader.scroll.pos >= self.reader.scroll.content - self.reader.scroll.view:
                 if not self.msgs.hasNext():
                     if self.msgs.mode == ui.ReaderMode.ECHO:
                         self.next_echo = True
                         self.go = False
                 else:
-                    self.msgs.msgn += 1
+                    self.msgs.idx += 1
                     self.stack.clear()
                     self.read_cur_msg()
-                    self.prerender()
+                    self.reader.prerender()
             else:
-                self.scroll.pos += self.scroll.view
-        elif ks in Reader.DOWN:
-            self.scroll.pos += 1
+                self.reader.scroll.pos += self.reader.scroll.view
         elif ks in Reader.BEGIN and self.msgs.data:
-            self.msgs.msgn = 0
+            self.msgs.idx = 0
             self.stack.clear()
             self.read_cur_msg()
-            self.prerender()
+            self.reader.prerender()
         elif ks in Reader.END and self.msgs.data:
-            self.msgs.msgn = len(self.msgs.data) - 1
+            self.msgs.idx = len(self.msgs.data) - 1
             self.stack.clear()
             self.read_cur_msg()
-            self.prerender()
+            self.reader.prerender()
         elif ks in Reader.INS and not any((self.archive, self.out, self.favorites, self.carbonarea)):
             outgoing.new_msg(self.echo.name)
             call_editor(self.cur_node)
         elif ks in Reader.SAVE and not self.out:
-            save_message_to_file(self.msgid(), self.msg[1])
+            save_message_to_file(self.msgid(), self.reader.msg[1])
         elif ks in Reader.FAVORITES and not self.out:
-            saved = api.save_to_favorites(self.msgid(), self.msg)
+            saved = api.save_to_favorites(self.msgid(), self.reader.msg)
             ui.draw_message_box("Подождите", False)
             self.counts.get_counts(self.cur_node, False)
             ui.show_message_box("Сообщение добавлено в избранные" if saved else
                                 "Сообщение уже есть в избранных")
         elif ks in Reader.QUOTE and not any((self.archive, self.out)) and self.msgs.data:
-            outgoing.quote_msg(self.msgid(), self.msg, cfg.oldquote)
+            outgoing.quote_msg(self.msgid(), self.reader.msg, cfg.oldquote)
             call_editor(self.cur_node)
         elif ks in Reader.INFO:
-            subj = textwrap.fill(self.msg[6], int(ui.WIDTH * 0.75) - 8,
+            subj = textwrap.fill(self.reader.msg[6], int(ui.WIDTH * 0.75) - 8,
                                  subsequent_indent="      ")
             ui.show_message_box("id:   %s\naddr: %s\nsubj: %s"
-                                % (self.msgid(), self.msg[4], subj))
+                                % (self.msgid(), self.reader.msg[4], subj))
         elif ks in Out.EDIT and self.out:
             if self.msgid().endswith(".out") or self.msgid().endswith(".draft"):
                 copyfile(outgoing.directory(self.cur_node) + self.msgid(), "temp")
@@ -965,17 +955,17 @@ class EchoReader:
                                ["Нет", "Да"]).show() == 2:
                 os.remove(outgoing.directory(self.cur_node) + self.msgid())
                 self.prerender_msg_or_quit()
-        elif ks in Reader.GETMSG and self.size == 0 and self._msgid:
+        elif ks in Reader.GETMSG and self.reader.size == 0 and self._msgid:
             try:
                 ui.draw_message_box("Подождите", False)
                 get_msg(self._msgid)
                 self.counts.get_counts(self.cur_node, True)
-                self.msg, self.size = api.find_msg(self._msgid)
-                self.prerender()
+                self.reader.setMsg(*api.find_msg(self._msgid))
+                self.reader.prerender()
             except Exception as ex:
                 ui.show_message_box("Не удалось определить msgid.\n" + str(ex))
         elif ks in Reader.LINKS:
-            self.show_open_link_dialog(self.tokens)
+            self.show_open_link_dialog(self.reader.tokens)
         elif ks in Reader.TO_OUT and self.drafts:
             draft_msg = outgoing.directory(self.cur_node) + self.msgid()
             os.rename(draft_msg, draft_msg.replace(".draft", ".out"))
@@ -986,21 +976,21 @@ class EchoReader:
             self.prerender_msg_or_quit()
         elif ks in Reader.LIST and not self.out and not self.drafts:
             mode = self.msgs.mode
-            msgid = self.msgs.curMsg().msgid
+            msgid = self.msgs.curItem().msgid
             win = ui.MsgListScreen(self.echo.name, self.msgs)
             selected_msgn = win.show()
             self.msgs = win.msgs
             if selected_msgn == -1:
-                self.msgs.msgn = self.msgs.findMsgidIdx(msgid)
+                self.msgs.idx = self.msgs.findMsgidIdx(msgid)
             if mode != self.msgs.mode or selected_msgn > -1:
                 self.stack.clear()
                 self.read_cur_msg()
-                self.prerender()
+                self.reader.prerender()
             elif win.resized:
-                self.prerender(self.scroll.pos)
+                self.reader.prerender(self.reader.scroll.pos)
         elif ks in Reader.INLINES:
             parser.INLINE_STYLE_ENABLED = not parser.INLINE_STYLE_ENABLED
-            self.prerender(self.scroll.pos)
+            self.reader.prerender(self.reader.scroll.pos)
 
     def sign_msg(self):
         if (not self.msgid().endswith(".out")
@@ -1019,7 +1009,7 @@ class EchoReader:
             if selected > 0:
                 sign_msg(self.cur_node, self.msgid(), items[selected - 1][0])
                 self.read_cur_msg()
-                self.prerender()
+                self.reader.prerender()
         else:
             ui.show_message_box("Не удалось подписать сообщение.\n"
                                 "Нет приватных ключей в хранилище:\n%s"

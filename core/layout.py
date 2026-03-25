@@ -260,10 +260,11 @@ class _DimContainer:  # Row/Column Dimension Container
 def _adjust_size(diff: int, items: Collection[_DimContainer]):
     if not items:
         return diff
+    nonMinMax = []
     while diff != 0:
         prevDiff = diff
         if diff > 0:
-            itDiff = max(1, diff // len(items))  # TODO: Skip min/max sized items
+            itDiff = max(1, diff // len(items))
         else:
             itDiff = min(-1, diff // len(items))
         for it in items:
@@ -275,8 +276,12 @@ def _adjust_size(diff: int, items: Collection[_DimContainer]):
             elif it.minSz and it.sz < it.minSz:
                 diff += it.sz - it.minSz
                 it.sz = it.minSz
+            else:
+                nonMinMax.append(it)
             if diff == 0:
                 break  # no more shrink/grow
+        items = nonMinMax
+        nonMinMax = []
         if prevDiff == diff:
             break  # no shrink/grow preferred width, min/max width exceeded
     return diff
@@ -484,3 +489,11 @@ class GridLayout(Layout):
     def _put_cell(self, cell: _Cell):
         self.rows[cell.row].cells[cell.col] = cell
         self.cols[cell.col].cells[cell.row] = cell
+
+    def collect_widgets(self):
+        for w, _ in self.widgets:
+            if isinstance(w, GridLayout):
+                for w2 in list(w.collect_widgets()):
+                    yield w2
+                continue
+            yield w

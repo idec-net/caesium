@@ -3,7 +3,7 @@ import codecs
 import os
 from typing import Optional, List, Callable
 
-from . import MsgMetadata, build_find_matcher, FindQuery
+from . import MsgMetadata, FindQuery, filterEchoarea, buildFindMatchers, txtApiMatch
 
 storage = "aio/"
 
@@ -112,28 +112,6 @@ def remove_echoarea(echoarea):
         os.remove(storage + "%s.aio" % echoarea)
 
 
-def get_msg_list_data(echoarea, msgids=None):
-    # type: (Optional[str], List[str]) -> List[MsgMetadata]
-    if echoarea:
-        with codecs.open(storage + "%s.aio" % echoarea, "r", "utf-8") as f:
-            lines = filter(None, f.read().split("\n"))
-    else:
-        lines = []
-        for echo in sorted(os.listdir(storage)):
-            if not echo.endswith(".aio") or echo in ("favorites.aio", "carbonarea.aio"):
-                continue  #
-            with codecs.open(storage + echo, "r", "utf-8") as f:
-                lines += filter(None, f.read().split("\n"))
-    lst = []
-    for msg in filter(None, lines):
-        rawmsg = msg.split(chr(15))
-        msgid, rawmsg[0] = rawmsg[0].split(":")
-        if msgids and msgid not in msgids:
-            continue
-        lst.append(MsgMetadata.from_list(msgid, rawmsg))
-    return lst
-
-
 def read_msg(msgid, echoarea):
     if not os.path.exists(storage + echoarea + ".aio") or not msgid:
         return ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"], 0
@@ -199,19 +177,18 @@ FIND_OK = 0
 
 def find_query_msgids(fq: FindQuery,
                       progress_handler: Callable = None) -> List[MsgMetadata]:
-    match = build_find_matcher(fq)
 
     echoareas = sorted(list(filter(
         lambda e: e.endswith(".aio") and e not in ("favorites.aio",
                                                    "carbonarea.aio"),
         os.listdir(storage))))
-    if fq.echo and fq.echo_query:
-        echoareas = list(filter(lambda e: fq.echo_query in e[0:-4], echoareas))
-
+    echoareas = filterEchoarea(fq, echoareas, len(".aio"))
+    #
     find_result = []
     total_msg_progress = 0
     echo_progress = 0
     total_echoareas = len(echoareas)
+    match, matchNot = buildFindMatchers(fq)
 
     for echo in echoareas:
         with codecs.open(storage + echo, "r", "utf-8") as f:
@@ -235,21 +212,10 @@ def find_query_msgids(fq: FindQuery,
             #
             msg = msg.split(chr(15))
             msgid_, msg[0] = msg[0].split(":")
-            if fq.msgid and msgid_ == fq.query:
+
+            if txtApiMatch(fq, match, matchNot, msgid_, msg):
                 find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
-            if fq.body and match("\n".join(msg[7:])):
-                find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
-            if fq.subj and match(msg[6]):
-                find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
-            if fq.fr and match(msg[3]):
-                find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
-            if fq.to and match(msg[5]):
-                find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
+
     return find_result
 
 

@@ -1,10 +1,9 @@
 # coding=utf-8
 import codecs
 import os
-from collections import defaultdict
 from typing import Optional, List, Callable
 
-from . import MsgMetadata, FindQuery, build_find_matcher
+from . import MsgMetadata, FindQuery, filterEchoarea, buildFindMatchers, txtApiMatch
 
 storage = "txt"
 
@@ -153,21 +152,6 @@ def remove_echoarea(echoarea):
         os.remove(f_echo)
 
 
-def get_msg_list_data(echoarea, msgids=None):
-    # type: (Optional[str], List[str]) -> List[MsgMetadata]
-    msgids = msgids or get_echo_msgids(echoarea)
-    echo_msgs = defaultdict(list)
-    for msgid in msgids:
-        header = _read_header(msgid)
-        if (header[1] == echoarea
-                or echoarea in (None, "carbonarea", "favorites")):
-            echo_msgs[header[1]].append(MsgMetadata.from_list(msgid, header))
-    lst = []
-    for k in sorted(echo_msgs.keys()):
-        lst += echo_msgs[k]
-    return lst
-
-
 # noinspection PyUnusedLocal
 def read_msg(msgid, echoarea):
     if not os.path.exists(storage + "msg/" + msgid) or not msgid:
@@ -224,18 +208,17 @@ FIND_OK = 0
 
 def find_query_msgids(fq: FindQuery,
                       progress_handler: Callable = None) -> List[MsgMetadata]:
-    match = build_find_matcher(fq)
 
     echoareas = sorted(list(filter(
         lambda e: e not in ("favorites", "carbonarea"),
         os.listdir(storage + "echo/"))))
-    if fq.echo and fq.echo_query:
-        echoareas = list(filter(lambda e: fq.echo_query in e, echoareas))
-
+    echoareas = filterEchoarea(fq, echoareas, 0)
+    #
     find_result = []
     total_msg_progress = 0
     echo_progress = 0
     total_echoareas = len(echoareas)
+    match, matchNot = buildFindMatchers(fq)
 
     for echo in echoareas:
         echo_msgids = get_echo_msgids(echo)
@@ -258,21 +241,8 @@ def find_query_msgids(fq: FindQuery,
             with open(storage + "msg/" + msgid_, "r") as f:
                 msg = f.read().split("\n")
 
-            if fq.msgid and msgid_ == fq.query:
+            if txtApiMatch(fq, match, matchNot, msgid_, msg):
                 find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
-            if fq.body and match("\n".join(msg[7:])):
-                find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
-            if fq.subj and match(msg[6]):
-                find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
-            if fq.fr and match(msg[3]):
-                find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
-            if fq.to and match(msg[5]):
-                find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
 
     return find_result
 

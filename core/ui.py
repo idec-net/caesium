@@ -3,10 +3,12 @@ import re
 import textwrap
 import time
 import sys
+from abc import ABC
+from collections import deque
 from datetime import datetime
 from enum import Enum
 from itertools import cycle
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, TypeVar, Generic, Union
 
 import api.ait as api
 from api import MsgMetadata, FindQuery
@@ -14,14 +16,14 @@ from core import __version__, parser, utils, keystroke
 from core.cmd import Common, Reader, Selector, Qs
 from core.config import (
     get_color, load_colors, Config, TOKEN2UI, ECHO_FIND,
-    UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT
+    UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT, Echo
 )
 from core.layout import GridLayout, CC
 
 LABEL_SEARCH = "<введите regex для поиска>"
 LABEL_ANY_KEY = "Нажмите любую клавишу"
 LABEL_ESC = "Esc - отмена"
-LABEL_FIND = "Поиск"
+LABEL_FIND = "Поиск "  # extra space for wide unicode icon (use wcwidth)
 HEIGHT = 0
 WIDTH = 0
 
@@ -39,6 +41,7 @@ class ThemeAscii:
     error = ["(!)", curses.A_BOLD]
     title = ["[", "]"]
     ellipsis = "..."
+    findIcon = " "
 
 
 class ThemeUtf8:
@@ -49,10 +52,11 @@ class ThemeUtf8:
     # Right side only braille cells (dots ⊆ 4568)
     # incorrect in Noto except Symbols 2, on mobile only #3935
     # https://github.com/google/fonts/issues/3935
-    spinner = r"⣄⡆⠇⠋⠙⠸⢰⣠"
+    spinner = ["⣄⠀", "⡆⠀", "⠇⠀", "⠋⠀", "⠉⠁", "⠈⠃", "⠀⠇", "⠀⡆", "⢀⡄", "⣀⡀"]
     error = ["⛔", curses.A_BOLD]
     title = ["┤", "├"]
     ellipsis = "…"
+    findIcon = "🔍"
 
 
 THEME = ThemeAscii
@@ -85,6 +89,12 @@ class ReaderMode(Enum):
     SUBJ = 'S'  # Specified subject and answers (Re: )
     SEARCH = 'Q'  # Quick Search results on MsgListScreen
     FIND = 'F'  # Find results
+
+
+class SelectorMode(Enum):
+    ECHO = 'E'  # Regular mode w Node echoareas
+    ARCH = 'A'  # Archives mode w Node archived echoareas
+    SEARCH = 'Q'  # Quick Search results
 
 
 def set_term_size():
@@ -145,13 +155,13 @@ def draw_title(scr, y, x, title):
     if (x + len(title) + borders) > w:
         title = title[:w - x - borders - len(THEME.ellipsis)] + THEME.ellipsis
     #
-    color = get_color(UI_BORDER)
+    border = get_color(UI_BORDER)
     if THEME.title[0]:
-        scr.addstr(y, x, THEME.title[0], color)
-    if THEME.title[1]:
-        scr.addstr(y, x + len(THEME.title[0]) + len(title), THEME.title[1], color)
+        scr.addstr(y, x, THEME.title[0], border)
     color = get_color(UI_TITLES)
     scr.addstr(y, x + len(THEME.title[0]), title, color)
+    if THEME.title[1]:
+        scr.addstr(y, x + len(THEME.title[0]) + len(title), THEME.title[1], border)
 
 
 def draw_message_box(smsg, wait):
@@ -202,7 +212,7 @@ def draw_scrollbarV(scr, y, x, scroll):
 
 
 def draw_status_bar(scr, mode=None, text=None):
-    # type: (curses.window, ReaderMode, str) -> None
+    # type: (curses.window, Union[ReaderMode, SelectorMode], str) -> None
     h, w = scr.getmaxyx()
     color = get_color(UI_STATUS)
     scr.insstr(h - 1, 0, " " * w, color)
@@ -404,101 +414,52 @@ class SelectWindow:
                 self.cursor = min(scroll.content - 1, page_bottom + scroll.view)
 
 
-# region Render Body
-def render_body(scr, tokens, scroll, qs=None):
-    # type: (curses.window, List[parser.Token], int, QuickSearch) -> None
-    if not tokens:
-        return
-    h, w = scr.getmaxyx()
-    tnum, offset = parser.find_visible_token(tokens, scroll)
-    line_num = tokens[tnum].line_num
-    for y in range(5, h - 1):
-        scr.addstr(y, 0, " " * w, 1)
-    y, x = (5, 0)
-    text_attr = 0
-    if parser.INLINE_STYLE_ENABLED:
-        # Rewind tokens from the begin of line to apply inline text attributes
-        first_token = tnum
-        while tokens[first_token].line_num == line_num and first_token > 0:
-            first_token -= 1
-        for token in tokens[first_token:tnum]:
-            text_attr = apply_attribute(token, text_attr)
+T = TypeVar('T')
+V = TypeVar('V')
 
-    for token in tokens[tnum:]:
-        if token.line_num > line_num:
-            line_num = token.line_num
-            y, x = (y + 1, 0)
-        if y >= h - 1:
-            break  # tokens
+
+class ModeStackABC(ABC, Generic[T, V]):
+    def __init__(self, mode: T, data: List[V], idx: int = 0):
+        self.stack = []  # type: List[Tuple[T, List[V], int]]
+        self.mode = mode  # type: T
+        self.data = data  # type: List[V]
+        self.idx = idx
+
+    def curItem(self):
+        if self.idx > -1:
+            return self.data[self.idx]
+        return None
+
+    def push(self, mode: T, data: List[V]):
+        m = self.curItem()
         #
-        text_attr = apply_attribute(token, text_attr)
-        #
-        y, x = render_token(scr, token, y, x, h, offset, text_attr, qs)
-        offset = 0  # required in the first partial multiline token only
-
-
-def apply_attribute(token, text_attr):
-    if token.type == parser.TT.URL:
-        text_attr |= curses.A_UNDERLINE
-    else:
-        text_attr &= ~curses.A_UNDERLINE
-
-    if token.type == parser.TT.ITALIC_BEGIN:
-        text_attr |= curses.A_ITALIC
-    elif token.type == parser.TT.ITALIC_END:
-        text_attr &= ~curses.A_ITALIC
-
-    elif token.type == parser.TT.BOLD_BEGIN:
-        text_attr |= curses.A_BOLD
-    elif token.type == parser.TT.BOLD_END:
-        text_attr &= ~curses.A_BOLD
-    return text_attr
-
-
-def render_token(scr, token: parser.Token, y, x, h, offset, text_attr, qs=None):
-    matches = []
-    # noinspection PyUnresolvedReferences
-    if (qs and qs.result
-            and hasattr(token, 'search_idx')
-            and token.search_idx is not None):
-        # noinspection PyUnresolvedReferences
-        matches = token.search_matches
-    #
-    for i, line in enumerate(token.render[offset:]):
-        if y + i >= h - 1:
-            return y + i, x  #
-        attr = get_color(TOKEN2UI.get(token.type, UI_TEXT))
-        if line:
-            scr.addstr(y + i, x, line, attr | text_attr)
-            #
-            for m_idx, (off, match) in enumerate(matches):
-                if off == offset + i:
-                    scr.addstr(y + i, x + match.start(),
-                               line[match.start():match.end()],
-                               attr | text_attr | curses.A_REVERSE)
-
-        if len(token.render) > 1 and i + offset < len(token.render) - 1:
-            x = 0  # new line in multiline token -- carriage return
-        else:
-            x += len(line)  # last/single line -- move caret in line
-    return y + (len(token.render) - 1) - offset, x  #
-# endregion Render Body
-
-
-class MsgModeStack:
-    stack: List[Tuple[ReaderMode, List[MsgMetadata], int]] = None
-
-    mode: ReaderMode = None
-    data: List[MsgMetadata] = None
-    msgn: int = None
-
-    def __init__(self, mode, data, msgn):
-        self.stack = []
+        if self.mode != mode:
+            self.stack.append((self.mode, self.data, self.idx))
         self.mode = mode
         self.data = data
-        self.msgn = msgn
+        #
+        if m:
+            self.idx = self.findItemIdx(m)
 
+    def pop(self):
+        m = self.curItem()
+        #
+        if self.stack:
+            self.mode, self.data, self.idx = self.stack.pop()
+        #
+        if m:
+            idx = self.findItemIdx(m)
+            if idx > -1:
+                self.idx = idx
+        return self.mode, self.data, self.idx
+
+    def findItemIdx(self, it: V, data: List[V] = None) -> int:
+        ...
+
+
+class MsgModeStack(ModeStackABC[ReaderMode, MsgMetadata]):
     def modeSubjOn(self, data):
+        data = sorted(data, key=lambda m: m.time)
         self.push(ReaderMode.SUBJ, data)
 
     def modeSubjOff(self):
@@ -507,43 +468,46 @@ class MsgModeStack:
         self.pop()
 
     def modeQsOn(self, indexes):
-        data = [self.data[idx] for idx in indexes]
+        data = sorted([self.data[idx] for idx in indexes],
+                      key=lambda m: m.time)
         self.push(ReaderMode.SEARCH, data)
 
-    def push(self, mode, data):
-        m = self.curMsg()
-        #
-        if self.mode != mode:
-            self.stack.append((self.mode, self.data, self.msgn))
-        self.mode = mode
-        self.data = data
-        #
-        if m:
-            self.msgn = self.findMsgidIdx(m.msgid)
-
-    def pop(self):
-        m = self.curMsg()
-        #
-        if self.stack:
-            self.mode, self.data, self.msgn = self.stack.pop()
-        #
-        if m:
-            msgn = self.findMsgidIdx(m.msgid)
-            if msgn > -1:
-                self.msgn = msgn
-        return self.mode, self.data, self.msgn
-
-    def curMsg(self):
-        if self.msgn > -1:
-            return self.data[self.msgn]
-        return None
-
     def hasNext(self):
-        return self.msgn < len(self.data) - 1 and self.data
+        return self.idx < len(self.data) - 1 and self.data
+
+    def findItemIdx(self, it, data=None) -> int:
+        return self.findMsgidIdx(it.msgid, data)
 
     def findMsgidIdx(self, msgid, data=None):
         for i, d in enumerate(data or self.data):
             if d.msgid == msgid:
+                return i
+        return -1
+
+
+class EchoModeStack(ModeStackABC[SelectorMode, Echo]):
+    def isArch(self):
+        return (self.mode == SelectorMode.ARCH
+                or (self.mode == SelectorMode.SEARCH
+                    and self.stack[-1][0] == SelectorMode.ARCH))
+
+    def modeArchOn(self, data: List[Echo]):
+        self.push(SelectorMode.ARCH, data)
+
+    def modeArchOff(self):
+        if not self.isArch():
+            return
+        self.pop()
+        if self.isArch():  # quick search in Archive mode is Archive mode too
+            self.pop()
+
+    def modeQsOn(self, indexes: List[int]):
+        data = [self.data[idx] for idx in indexes]
+        self.push(SelectorMode.SEARCH, data)
+
+    def findItemIdx(self, it: Echo, data: List[Echo] = None) -> int:
+        for i, d in enumerate(data or self.data):
+            if d == it:
                 return i
         return -1
 
@@ -556,7 +520,7 @@ class MsgListScreen:
         self.echo = echo
         self.msgs = msgs
         self.scroll = ScrollCalc(len(msgs.data), HEIGHT - 2)
-        self.scroll.ensure_visible(msgs.msgn, center=True)
+        self.scroll.ensure_visible(msgs.idx, center=True)
         self.resized = False
         self.qs = None  # type: Optional[QuickSearch]
 
@@ -564,8 +528,8 @@ class MsgListScreen:
         stdscr.clear()
         self.draw_title(stdscr, self.echo)
         while True:
-            self.scroll.ensure_visible(self.msgs.msgn)
-            self.draw(stdscr, self.msgs.data, self.msgs.msgn, self.scroll)
+            self.scroll.ensure_visible(self.msgs.idx)
+            self.draw(stdscr, self.msgs.data, self.msgs.idx, self.scroll)
             if self.qs:
                 self.qs.draw(stdscr)
             #
@@ -590,12 +554,12 @@ class MsgListScreen:
                     curses.curs_set(0)
                 else:
                     self.qs.on_key_pressed_search(key, ks, self.scroll)
-                    self.msgs.msgn = self.qs.ensure_cursor_visible(
-                        ks, self.msgs.msgn, self.scroll)
+                    self.msgs.idx = self.qs.ensure_cursor_visible(
+                        ks, self.msgs.idx, self.scroll)
             elif ks in Qs.OPEN:
                 self.qs = newQuickSearch(self.msgs.data, self.on_search_item)
             elif ks in Selector.ENTER:
-                return self.msgs.msgn  #
+                return self.msgs.idx  #
             elif ks in Reader.QUIT:
                 if not self.msgs.stack:
                     return -1  #
@@ -612,9 +576,9 @@ class MsgListScreen:
         if echo == ECHO_FIND:
             if w >= 80:
                 draw_title(win, 0, 0, f"Найденные сообщения"
-                                      f" '{FindQueryWindow.query.query}'")
+                                      f" '{FindQueryWindow.query}'")
             else:
-                draw_title(win, 0, 0, f"'{FindQueryWindow.query.query}'")
+                draw_title(win, 0, 0, f"'{FindQueryWindow.query}'")
         else:
             if w >= 80:
                 draw_title(win, 0, 0, "Список сообщений в конференции " + echo)
@@ -657,36 +621,36 @@ class MsgListScreen:
 
     def updateScroll(self):
         self.scroll = ScrollCalc(len(self.msgs.data), HEIGHT - 2)
-        self.scroll.ensure_visible(self.msgs.msgn, center=True)
+        self.scroll.ensure_visible(self.msgs.idx, center=True)
 
     def on_key_pressed(self, ks, scroll):
         if ks in Reader.MSUBJ:
             if self.msgs.mode != ReaderMode.SUBJ:
-                m = self.msgs.curMsg()
+                m = self.msgs.curItem()
                 data = api.find_subj_msgids(m.echo, m.subj)
                 self.msgs.modeSubjOn(data)
             else:
                 self.msgs.modeSubjOff()
             self.updateScroll()
         elif ks in Selector.UP:
-            self.msgs.msgn = max(0, self.msgs.msgn - 1)
+            self.msgs.idx = max(0, self.msgs.idx - 1)
         elif ks in Selector.DOWN:
-            self.msgs.msgn = min(scroll.content - 1, self.msgs.msgn + 1)
+            self.msgs.idx = min(scroll.content - 1, self.msgs.idx + 1)
         elif ks in Selector.PPAGE:
-            if self.msgs.msgn > scroll.pos:
-                self.msgs.msgn = scroll.pos
+            if self.msgs.idx > scroll.pos:
+                self.msgs.idx = scroll.pos
             else:
-                self.msgs.msgn = max(0, self.msgs.msgn - scroll.view)
+                self.msgs.idx = max(0, self.msgs.idx - scroll.view)
         elif ks in Selector.NPAGE:
             page_bottom = scroll.pos_bottom()
-            if self.msgs.msgn < page_bottom:
-                self.msgs.msgn = page_bottom
+            if self.msgs.idx < page_bottom:
+                self.msgs.idx = page_bottom
             else:
-                self.msgs.msgn = min(scroll.content - 1, page_bottom + scroll.view)
+                self.msgs.idx = min(scroll.content - 1, page_bottom + scroll.view)
         elif ks in Selector.HOME:
-            self.msgs.msgn = 0
+            self.msgs.idx = 0
         elif ks in Selector.END:
-            self.msgs.msgn = scroll.content - 1
+            self.msgs.idx = scroll.content - 1
 
     # noinspection PyUnusedLocal
     @staticmethod
@@ -715,6 +679,7 @@ class Widget:
     focused: bool = False
     enabled: bool = True
     focusable: bool = True
+    focusOrder: int = 0
     x: int = 0
     y: int = 0
     w: int = 0
@@ -731,6 +696,20 @@ class Widget:
 
     def draw(self, win):  # type: (curses.window) -> None
         pass
+
+
+class SeparatorHWidget(Widget):
+    focusable: bool = False
+    h: int = 1
+
+    def __init__(self, y=0, x=0, color: str = UI_COMMENT):
+        self.x = x
+        self.y = y
+        if color:
+            self.color = get_color(color)
+
+    def draw(self, win):  # type: (curses.window) -> None
+        win.addstr(self.y, self.x, "─" * self.w, self.color)
 
 
 class LabelWidget(Widget):
@@ -776,7 +755,8 @@ class LabelWidget(Widget):
 class CheckBoxWidget(Widget):
     h: int = 1
 
-    def __init__(self, lbl="", y=0, x=0, checked=False, enabled=True):
+    def __init__(self, lbl="", fOrder=0, y=0, x=0, checked=False, enabled=True):
+        self.focusOrder = fOrder
         self.x = x
         self.y = y
         self.lbl = lbl
@@ -828,7 +808,8 @@ class InputWidget(Widget):
     offset: int = 0
     h: int = 1
 
-    def __init__(self, txt="", y=0, x=0, w=0, *, placeholder="", mask=None):
+    def __init__(self, txt="", fOrder=0, y=0, x=0, w=0, *, placeholder="", mask=None):
+        self.focusOrder = fOrder
         self.x = x
         self.y = y
         self.w = w
@@ -871,7 +852,7 @@ class InputWidget(Widget):
         #
         win.addstr(self.y, self.x, " " * self.w, attr)
         if left:
-            win.addnstr(self.y, self.x, THEME.input[0], self.w, self.color)
+            win.addnstr(self.y, self.x, left, self.w, self.color)
         win.addnstr(self.y, self.x + len(left), txt[self.offset:],
                     self.w - len(left), attr)
         if right:
@@ -932,8 +913,10 @@ class InputRegexWidget(InputWidget):
     regexOn: bool = True
     err: bool = False
 
-    def __init__(self, txt="", y=0, x=0, w=0, *, placeholder="", regexOn=False):
-        super().__init__(txt=txt, y=y, x=x, w=w, placeholder=placeholder)
+    def __init__(self, txt="", fOrder=0, y=0, x=0, w=0,
+                 *, placeholder="", regexOn=False):
+        super().__init__(txt=txt, fOrder=fOrder, y=y, x=x, w=w,
+                         placeholder=placeholder)
         self.x = x
         self.y = y
         self.w = w
@@ -974,111 +957,116 @@ class FindQueryWindow:
     layout: GridLayout = None
     query = FindQuery()
     resized: bool = False
-    focused_wid: Widget = None
+    focusedWid: Widget = None
     go: bool = True
     #
-    find_in_progress: bool = None
-    find_progress_bar = None
-    find_cancel: bool = False
-    find_result: List[MsgMetadata] = None
-    find_tick: float = 0
+    findInProgress: bool = None
+    findProgressBar = None
+    findCancel: bool = False
+    findResult: List[MsgMetadata] = None
+    findTick: float = 0
 
-    def __init__(self):
-        self.find_progress_bar = cycle(THEME.spinner)
-        self.win = self.init_win()
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+        self.findProgressBar = cycle(THEME.spinner)
+        self.win = self.initWin()
         h, w = self.win.getmaxyx()
         #
-        self.inp_query = InputRegexWidget(
-            self.query.query, placeholder="<введите текст для поиска>",
+        self.inpQuery = InputRegexWidget(
+            self.query.query, 1,
+            placeholder="<введите текст для поиска>",
             regexOn=self.query.regex)
-        self.lbl_search_in = LabelWidget("Искать в:")
+        self.inpQueryNot = InputRegexWidget(
+            self.query.queryNot, 2,
+            placeholder="<введите текст для исключения>",
+            regexOn=self.query.regex)
 
-        self.chk_msgid = CheckBoxWidget("Id", checked=self.query.msgid)
-        self.chk_body = CheckBoxWidget("Тело", checked=self.query.body)
-        self.chk_subj = CheckBoxWidget("Тема", checked=self.query.subj)
-        self.chk_from = CheckBoxWidget("От", checked=self.query.fr)
-        self.chk_to = CheckBoxWidget("Кому", checked=self.query.to)
+        self.chkMsgid = CheckBoxWidget("Id", 3, checked=self.query.msgid)
+        self.chkBody = CheckBoxWidget("Тело", 4, checked=self.query.body)
+        self.chkSubj = CheckBoxWidget("Тема", 5, checked=self.query.subj)
+        self.chkFrom = CheckBoxWidget("От", 6, checked=self.query.fr)
+        self.chkTo = CheckBoxWidget("Кому", 7, checked=self.query.to)
 
-        self.chk_echo = CheckBoxWidget("Конференция:", checked=self.query.echo)
-        self.inp_echo = InputWidget(self.query.echo_query,
-                                    placeholder="<введите эхоконференцию>")
-        self.lbl_limit = LabelWidget("Лимит:")
-        self.inp_limit = InputWidget(str(self.query.limit),
-                                     mask=re.compile(r"^[0-9]{0,7}$"),
-                                     placeholder=str(FindQuery.DEFAULT_LIMIT))
+        self.chkEcho = CheckBoxWidget("Конференция:", 12,
+                                      checked=self.query.echo)
+        self.inpEcho = InputWidget(self.query.echoQuery, 13,
+                                   placeholder="<введите эхоконференцию>")
+        self.inpEchoNot = InputWidget(self.query.echoQueryNot, 14,
+                                      placeholder="<введите эхоконференцию>")
+        self.chkSkipArch = CheckBoxWidget("Пропускать архивные", 15,
+                                          checked=bool(self.query.echoSkipArch))
 
-        self.chk_regex = CheckBoxWidget("Regex",
-                                        checked=self.query.regex)
-        self.chk_case = CheckBoxWidget("Учитывать регистр",
-                                       checked=self.query.case)
-        self.chk_word = CheckBoxWidget("Слово целиком",
-                                       checked=self.query.word)
-        self.chk_orig = CheckBoxWidget("Пропускать подписи",
-                                       checked=not self.query.orig)
-        self.lbl_progress = LabelWidget("")
+        self.inpLimit = InputWidget(str(self.query.limit), 16,
+                                    mask=re.compile(r"^[0-9]{0,7}$"),
+                                    placeholder=str(FindQuery.DEFAULT_LIMIT))
 
-        self.widgets = [  # in focus order
-            self.inp_query,
-            self.lbl_search_in,
-            #
-            self.chk_msgid,
-            self.chk_body,
-            self.chk_subj,
-            self.chk_from,
-            self.chk_to,
-            #
-            self.chk_echo, self.inp_echo,
-            self.lbl_limit, self.inp_limit,
-            self.lbl_progress,
-            #
-            self.chk_regex,
-            self.chk_case,
-            self.chk_word,
-            self.chk_orig,
-        ]  # type: List[Widget]
+        self.chkRegex = CheckBoxWidget("Regex", 8,
+                                       checked=self.query.regex)
+        self.chkCase = CheckBoxWidget("Учитывать регистр", 9,
+                                      checked=self.query.case)
+        self.chkWord = CheckBoxWidget("Слово целиком", 10,
+                                      checked=self.query.word)
+        self.chkOrig = CheckBoxWidget("Пропускать подписи", 11,
+                                      checked=not self.query.orig)
+        self.lblProgress = LabelWidget("")
 
         self.layout = GridLayout(
-            (self.inp_query, "w 100% fillX wrap"),
-            (self.lbl_search_in, "wrap"),
+            (GridLayout(
+                (LabelWidget("Искать: "), ""),
+                (self.inpQuery, "fillX growX wrap"),
+
+                (LabelWidget("И НЕ: "), "hAlign right"),
+                (self.inpQueryNot, "fillX growX wrap"),
+            ), "w 100% h 2 fillX growX wrap"),
+            (LabelWidget("В:"), "wrap"),
             #
             (GridLayout(
-                (self.chk_msgid, "w 50%"), (self.chk_regex, "wrap"),
-                (self.chk_body, "w 50%"), (self.chk_case, "wrap"),
-                (self.chk_subj, "w 50%"), (self.chk_word, "wrap"),
-                (self.chk_from, "w 50%"), (self.chk_orig, "wrap"),
-                (self.chk_to, "wrap"),
-            ), "pad 1 0 w 100% h 5 fillX wrap"),
+                (self.chkMsgid, "w 50% wrap"),
+                (SeparatorHWidget(), "colSpan 2 fillX wrap"),
+                (self.chkBody, "w 50%"), (self.chkRegex, "wrap"),
+                (self.chkSubj, "w 50%"), (self.chkCase, "wrap"),
+                (self.chkFrom, "w 50%"), (self.chkWord, "wrap"),
+                (self.chkTo, "growY"), (self.chkOrig, "wrap"),
+                (SeparatorHWidget(), "colSpan 2 fillX wrap"),
+            ), "pad 1 0 w 100% h 7 fillX wrap"),
             #
-            (GridLayout((self.chk_echo, CC(w=self.chk_echo.w + 2, pad="1 0")),
-                        (self.inp_echo, "fillX")),
-             "w 100% h 1 fillX wrap"),
+            (GridLayout((self.chkEcho, CC(w=self.chkEcho.w + 2, pad="1 0")),
+                        (self.inpEcho, "fillX wrap"),
+
+                        (LabelWidget("И НЕ: "), "hAlign right"),
+                        (self.inpEchoNot, "fillX wrap")),
+             "w 100% h 2 fillX wrap"),
+            (GridLayout(
+                (self.chkSkipArch, "pad 1 0 w 50%"),
+                (LabelWidget("Лимит: "), ""),
+                (self.inpLimit, CC(wPref=(7 + len(THEME.input[0])
+                                          + len(THEME.input[1])),
+                                   hAlign="left",
+                                   growX=True))
+            ), "h 1 w 100% fillX wrap"),
             #
-            (GridLayout((self.lbl_limit, CC(w=self.lbl_limit.w + 1)),
-                        (self.inp_limit, CC(w=(7 + len(THEME.input[0])
-                                               + len(THEME.input[1])),
-                                            hAlign="left"))),
-             "h 1 fillX wrap"),
-            #
-            (self.lbl_progress, "w 100% growY wrap"),
+            (self.lblProgress, "w 100% fill growY wrap"),
         )
         self.layout.pack(offset_x=2, offset_y=1, width=w - 4, height=h - 2)
+        self.widgets = deque(sorted(list(self.layout.collect_widgets()),
+                                    key=lambda _: _.focusOrder))
         #
-        self.set_focused(self.inp_query)
-        self.update_state()
+        self.setFocused(self.inpQuery)
+        self.updateState()
 
-    def set_focused(self, focus_wid):  # type: (Optional[Widget]) -> None
-        if self.focused_wid == focus_wid:
+    def setFocused(self, focusWid):  # type: (Optional[Widget]) -> None
+        if self.focusedWid == focusWid:
             return
-        if self.focused_wid:
-            self.focused_wid.set_focused(False)
-        self.focused_wid = focus_wid
-        if self.focused_wid:
-            self.focused_wid.set_focused(True)
+        if self.focusedWid:
+            self.focusedWid.set_focused(False)
+        self.focusedWid = focusWid
+        if self.focusedWid:
+            self.focusedWid.set_focused(True)
 
     @staticmethod
-    def init_win(win=None):
+    def initWin(win=None):
         w = max(len(LABEL_FIND) + 2, min(80, int(WIDTH * 0.75)))
-        h = min(HEIGHT, 12)
+        h = min(HEIGHT, 16)
         w = min(WIDTH, w)
         y = max(0, int((HEIGHT - h) / 2))
         x = max(0, int((WIDTH - w) / 2))
@@ -1090,25 +1078,25 @@ class FindQueryWindow:
         return win
 
     def show(self):
-        self.draw_title(self.win)
+        self.drawTitle(self.win)
         while self.go:
             self._show()
             self._keys()
-        return self.find_result
+        return self.findResult
 
     def _show(self):
-        self.draw_content(self.win)
+        self.drawContent(self.win)
         self.win.refresh()
 
     def _keys(self):
-        if self.find_in_progress:
+        if self.findInProgress:
             ks, key, _ = get_keystroke(0)
         else:
             ks, key, _ = get_keystroke()
-        self.go = self.on_key_pressed(ks, key)
+        self.go = self.onKeyPressed(ks, key)
 
     @staticmethod
-    def draw_title(win):  # type: (curses.window) -> None
+    def drawTitle(win):  # type: (curses.window) -> None
         h, w = win.getmaxyx()
         win.bkgd(" ", get_color(UI_TEXT))
         #
@@ -1116,12 +1104,12 @@ class FindQueryWindow:
         win.attrset(border)
         win.border()
 
-        x = (w - len(LABEL_FIND)) // 2 - 1
-        draw_title(win, 0, x, LABEL_FIND)
+        x = (w - len(THEME.findIcon) - len(LABEL_FIND)) // 2 - 1
+        draw_title(win, 0, x, THEME.findIcon + LABEL_FIND)
 
-    def draw_content(self, win):  # type: (curses.window) -> None
+    def drawContent(self, win):  # type: (curses.window) -> None
         h, w = win.getmaxyx()
-        win.addstr(self.lbl_progress.y, 1, " " * (w - 2))  # lbl_progress
+        win.addstr(self.lblProgress.y, 1, " " * (w - 2))  # lbl_progress
         if w > 20 and h > 10:
             for w in self.widgets:
                 w.draw(win)
@@ -1130,131 +1118,140 @@ class FindQueryWindow:
             for y, line in enumerate(lines):
                 win.addstr(1 + y, 1, line + (" " * (w - 2 - len(line))))
 
-    def on_key_pressed(self, ks, key):
+    def onKeyPressed(self, ks, key):
         if key == curses.KEY_RESIZE:
             set_term_size()
             stdscr.clear()
             stdscr.refresh()
-            self.win = self.init_win(self.win)
+            self.win = self.initWin(self.win)
             self.win.clear()
             h, w = self.win.getmaxyx()
             self.layout.pack(offset_x=2, offset_y=1, width=w - 4, height=h - 2)
             #
-            self.draw_title(self.win)
+            self.drawTitle(self.win)
             self.resized = True
         elif ks in Qs.CLOSE:
             curses.curs_set(0)
-            if self.find_in_progress:
-                self.find_cancel = True
+            if self.findInProgress:
+                self.findCancel = True
             else:
                 return False  # close win
-        elif ks in Qs.APPLY and not self.find_in_progress:
-            if self.inp_query.regexOn and self.inp_query.err:
+        elif ks in Qs.APPLY and not self.findInProgress:
+            if self.inpQuery.regexOn and self.inpQuery.err:
                 self.refreshCursor()
                 return True  #
             curses.curs_set(0)
-            self.find_tick = 0
+            self.findTick = 0
             self.find()
-            self.find_cancel = False
-            if self.find_result:
+            self.findCancel = False
+            if self.findResult:
                 return False  # close win
-            self.update_state()
+            self.updateState()
         elif key != -1:
             if ks == "Tab" or key == curses.KEY_DOWN:
-                wid = self.next_focus(self.focused_wid)
+                wid = self.nextFocus(self.focusedWid)
                 while wid and not (wid.enabled and wid.focusable):
-                    wid = self.next_focus(wid)
-                self.set_focused(wid)
+                    wid = self.nextFocus(wid)
+                self.setFocused(wid)
 
             elif ks == "S-Tab" or key == curses.KEY_UP:
-                wid = self.prev_focus(self.focused_wid)
+                wid = self.prevFocus(self.focusedWid)
                 while wid and not (wid.enabled and wid.focusable):
-                    wid = self.prev_focus(wid)
-                self.set_focused(wid)
+                    wid = self.prevFocus(wid)
+                self.setFocused(wid)
 
-            elif self.focused_wid:
-                self.focused_wid.on_key_pressed(ks, key)
-            self.update_state()
+            elif self.focusedWid:
+                self.focusedWid.on_key_pressed(ks, key)
+            self.updateState()
         return True  #
 
-    def next_focus(self, wid):
+    def nextFocus(self, wid):
         if not wid:
             return self.widgets[0]
         elif self.widgets:
-            idx = self.widgets.index(wid) + 1
-            if idx >= len(self.widgets):
-                idx = 0
+            idx = self.widgets.index(wid)
+            self.widgets.rotate(-1)
             return self.widgets[idx]
         return None
 
-    def prev_focus(self, wid):
+    def prevFocus(self, wid):
         if not wid:
-            return self.widgets[len(self.widgets) - 1]
+            return self.widgets[0]
         elif self.widgets:
-            idx = self.widgets.index(wid) - 1
-            if idx < 0:
-                idx = len(self.widgets) - 1
+            idx = self.widgets.index(wid)
+            self.widgets.rotate(1)
             return self.widgets[idx]
         return None
 
-    def update_state(self):
-        if self.find_in_progress:
+    def updateState(self):
+        if self.findInProgress:
             return  #
-        self.inp_echo.set_enabled(self.chk_echo.checked)
-        self.chk_word.set_enabled(not self.chk_regex.checked)
-        self.inp_query.set_regexOn(self.chk_regex.checked)
+        self.inpEcho.set_enabled(self.chkEcho.checked)
+        self.inpEchoNot.set_enabled(self.chkEcho.checked)
+        self.chkWord.set_enabled(not self.chkRegex.checked)
+        self.inpQuery.set_regexOn(self.chkRegex.checked)
+        self.inpQueryNot.set_regexOn(self.chkRegex.checked)
 
-        self.query.query = self.inp_query.txt
-        self.query.msgid = self.chk_msgid.checked
-        self.query.body = self.chk_body.checked
-        self.query.subj = self.chk_subj.checked
-        self.query.fr = self.chk_from.checked
-        self.query.to = self.chk_to.checked
-        self.query.echo = self.chk_echo.checked
-        self.query.echo_query = self.inp_echo.txt
-        self.query.limit = int(self.inp_limit.txt or "0") or FindQuery.DEFAULT_LIMIT
-        self.query.regex = self.chk_regex.checked
-        self.query.case = self.chk_case.checked
-        self.query.word = self.chk_word.checked
-        self.query.orig = not self.chk_orig.checked
+        self.query.query = self.inpQuery.txt
+        self.query.queryNot = self.inpQueryNot.txt
+        self.query.msgid = self.chkMsgid.checked
+        self.query.body = self.chkBody.checked
+        self.query.subj = self.chkSubj.checked
+        self.query.fr = self.chkFrom.checked
+        self.query.to = self.chkTo.checked
+        self.query.echo = self.chkEcho.checked
+        self.query.echoQuery = self.inpEcho.txt
+        self.query.echoQueryNot = self.inpEchoNot.txt
+        self.query.echoSkipArch = self.chkSkipArch.checked
+        self.query.limit = int(self.inpLimit.txt or "0") or FindQuery.DEFAULT_LIMIT
+        self.query.regex = self.chkRegex.checked
+        self.query.case = self.chkCase.checked
+        self.query.word = self.chkWord.checked
+        self.query.orig = not self.chkOrig.checked
 
-        if self.find_in_progress is None:
-            self.lbl_progress.set_txt("")
+        if self.findInProgress is None:
+            self.lblProgress.set_txt("")
         else:
-            self.lbl_progress.set_txt("Ничего не найдено")
+            self.lblProgress.set_txt("Ничего не найдено")
         self.refreshCursor()
 
     def refreshCursor(self):
-        if isinstance(self.focused_wid, InputWidget):
+        if isinstance(self.focusedWid, InputWidget):
             y, x = self.win.getbegyx()
-            inp_cursor_x = self.focused_wid.get_win_cursor_pos()
-            stdscr.move(y + self.focused_wid.y,
-                        x + self.focused_wid.x + inp_cursor_x)
+            inp_cursor_x = self.focusedWid.get_win_cursor_pos()
+            stdscr.move(y + self.focusedWid.y,
+                        x + self.focusedWid.x + inp_cursor_x)
             curses.curs_set(1)
         else:
             curses.curs_set(0)
 
     def find(self):
-        self.find_in_progress = True
-        self.find_result = api.find_query_msgids(
-            self.query, progress_handler=self.find_progress_handler)
-        self.find_in_progress = False
+        self.findInProgress = True
+        if self.query.echoSkipArch:
+            arch = []
+            for node in self.cfg.nodes:
+                arch += list(map(lambda e: e.name, node.archive + node.stat))
+            self.query.echoArch = " ".join(arch)
 
-    def find_progress_handler(self, param=None):
+        self.findResult = api.find_query_msgids(
+            self.query, progress_handler=self.findProgressHandler)
+        self.findInProgress = False
+
+    def findProgressHandler(self, param=None):
         now = time.time()
         self._keys()
-        if self.find_cancel:
+        if self.findCancel:
             return api.FIND_CANCEL
-        if (now - self.find_tick) < 0.250:  # ms
+        if (now - self.findTick) < 0.250:  # ms
             return api.FIND_OK
-        self.find_tick = now
-        progress = " Поиск... " + next(self.find_progress_bar)
+        self.findTick = now
+        progress = " Поиск... " + next(self.findProgressBar)
         if param:
             progress += (f" Found: {param[5]}"
                          f" TMsg: {param[4]}"
                          f" E: {param[0]}/{param[1]}"
                          f" EMsg: {param[2]}/{param[3]}")
-        self.lbl_progress.set_txt(progress)
+        self.lblProgress.set_txt(progress)
         self._show()
         return api.FIND_OK
 
@@ -1404,4 +1401,147 @@ class QuickSearch(InputRegexWidget):
 
 
 class ReaderWidget(Widget):
-    pass
+    tokens: List[parser.Token]  # message bode tokens
+    scroll: ScrollCalc  # message body scroll calculator
+    t2l: List[parser.RangeLines]  # tokens rendered lines range
+    #
+    msg: List[str] = None
+    size: int = 0
+
+    def __init__(self):
+        self.msg = ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"]
+
+    def setRect(self, x=None, y=None, w=None, h=None):
+        if x is not None:
+            self.x = x
+        if y is not None:
+            self.y = y
+        if w is not None:
+            self.w = w
+        if h is not None:
+            self.h = h
+
+    def setMsg(self, msg, size):
+        self.msg = msg
+        self.size = size
+
+    def prerender(self, pos=0):
+        self.tokens = parser.tokenize(self.msg[8:])
+        height = parser.prerender(self.tokens, self.w, self.h)
+        self.t2l = parser.token_line_map(self.tokens)
+        self.scroll = ScrollCalc(height, self.h, pos)
+
+    def draw(self, scr, qs=None):
+        self.render_body(scr, self.tokens, self.scroll.pos, qs)
+        if self.scroll.is_scrollable:
+            draw_scrollbarV(scr, self.y, self.x + self.w - 1, self.scroll)
+
+    def render_body(self, scr, tokens, scroll, qs=None):
+        # type: (curses.window, List[parser.Token], int, QuickSearch) -> None
+        if not tokens:
+            return
+        tnum, offset = parser.find_visible_token(tokens, scroll)
+        line_num = tokens[tnum].line_num
+        y, x = (self.y, self.x)
+        h, w = (self.y + self.h, self.x + self.w)
+        text_attr = 0
+        if parser.INLINE_STYLE_ENABLED:
+            # Rewind tokens from the begin of line to apply inline text attributes
+            first_token = tnum
+            while tokens[first_token].line_num == line_num and first_token > 0:
+                first_token -= 1
+            for token in tokens[first_token:tnum]:
+                text_attr = ReaderWidget.applyAttr(token, text_attr)
+
+        for token in tokens[tnum:]:
+            if token.line_num > line_num:
+                line_num = token.line_num
+                y, x = (y + 1, self.x)
+            if y >= h:
+                break  # tokens
+            #
+            text_attr = ReaderWidget.applyAttr(token, text_attr)
+            #
+            y, x = self.renderToken(scr, token, y, x, h, offset, text_attr, qs)
+            offset = 0  # required in the first partial multiline token only
+
+    @staticmethod
+    def applyAttr(token, text_attr):
+        if token.type == parser.TT.URL:
+            text_attr |= curses.A_UNDERLINE
+        else:
+            text_attr &= ~curses.A_UNDERLINE
+
+        if token.type == parser.TT.ITALIC_BEGIN:
+            text_attr |= curses.A_ITALIC
+        elif token.type == parser.TT.ITALIC_END:
+            text_attr &= ~curses.A_ITALIC
+
+        elif token.type == parser.TT.BOLD_BEGIN:
+            text_attr |= curses.A_BOLD
+        elif token.type == parser.TT.BOLD_END:
+            text_attr &= ~curses.A_BOLD
+        return text_attr
+
+    def renderToken(self, scr, token: parser.Token, y, x, h, offset, text_attr, qs=None):
+        matches = []
+        # noinspection PyUnresolvedReferences
+        if (qs and qs.result
+                and hasattr(token, 'search_idx')
+                and token.search_idx is not None):
+            # noinspection PyUnresolvedReferences
+            matches = token.search_matches
+        #
+        for i, line in enumerate(token.render[offset:]):
+            if y + i >= h:
+                return y + i, x  #
+            attr = get_color(TOKEN2UI.get(token.type, UI_TEXT))
+            if line:
+                scr.addstr(y + i, x, line, attr | text_attr)
+                #
+                for m_idx, (off, match) in enumerate(matches):
+                    if off == offset + i:
+                        scr.addstr(y + i, x + match.start(),
+                                   line[match.start():match.end()],
+                                   attr | text_attr | curses.A_REVERSE)
+
+            if len(token.render) > 1 and i + offset < len(token.render) - 1:
+                x = self.x  # new line in multiline token -- carriage return
+            else:
+                x += len(line)  # last/single line -- move caret in line
+        return y + (len(token.render) - 1) - offset, x  #
+
+    def on_key_pressed(self, ks, key):
+        if ks in Reader.UP:
+            self.scroll.pos -= 1
+        elif ks in Reader.DOWN:
+            self.scroll.pos += 1
+        elif ks in Reader.PPAGE:
+            self.scroll.pos -= self.scroll.view
+        elif ks in Reader.NPAGE:
+            self.scroll.pos += self.scroll.view
+        elif ks in Reader.HOME:
+            self.scroll.pos = 0
+        elif ks in Reader.MEND:
+            self.scroll.pos = self.scroll.content - self.scroll.view
+        else:
+            return False  # not handled
+        return True  # handled
+
+    # region QuickSearch
+    def qsPager(self):
+        return Pager(
+            parser.find_visible_token(self.tokens, self.scroll.pos)[0],
+            lambda: parser.find_visible_token(self.tokens, self.scroll.pos + self.scroll.view)[0],
+            lambda: parser.find_visible_token(self.tokens, self.scroll.pos)[0] - 1)
+
+    def ensureVisibleOnQsKey(self, ks, tidx, off):
+        if ks in Qs.HOME or ks in Qs.END:
+            self.scroll.ensure_visible(self.t2l[tidx].start + off, center=True)
+        elif ks in Qs.NPAGE:
+            self.scroll.ensure_visible(self.t2l[tidx].start + off + self.scroll.view - 1)
+        elif ks in Qs.PPAGE:
+            self.scroll.ensure_visible(self.t2l[tidx].start + off - self.scroll.view + 1)
+        else:
+            self.scroll.ensure_visible(self.t2l[tidx].start + off)
+    # endregion QuickSearch

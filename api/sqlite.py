@@ -2,7 +2,7 @@
 import sqlite3
 from typing import Optional, List, Callable
 
-from . import MsgMetadata, FindQuery, build_find_matcher
+from . import MsgMetadata, FindQuery, buildFindMatcher
 from core import FEAT_FEATURES, FEAT_X_C
 
 con = None  # type: Optional[sqlite3.Connection]
@@ -158,43 +158,6 @@ def remove_echoarea(echoarea):
     con.commit()
 
 
-def get_msg_list_data(echoarea, msgids=None):
-    # type: (Optional[str], List[str]) -> List[MsgMetadata]
-    if not msgids:
-        if echoarea == "favorites":
-            rows = c.execute(
-                "SELECT msgid, tags, echoarea, time, fr, addr, t, subject"
-                " FROM msg WHERE favorites = 1 ORDER BY id;")
-        elif echoarea == "carbonarea":
-            rows = c.execute(
-                "SELECT msgid, tags, echoarea, time, fr, addr, t, subject"
-                " FROM msg WHERE carbonarea = 1 ORDER BY id;")
-        else:
-            rows = c.execute(
-                "SELECT msgid, tags, echoarea, time, fr, addr, t, subject"
-                " FROM msg WHERE echoarea = ? ORDER BY id;",
-                (echoarea,))
-    else:
-        args = list(msgids)
-        echo_clause = ""
-        if echoarea == "favorites":
-            echo_clause = " AND favorites = 1 "
-        elif echoarea == "carbonarea":
-            echo_clause = " AND carbonarea = 1 "
-        elif echoarea:
-            echo_clause = " AND echoarea = ? "
-            args.append(echoarea)
-        echo_order = ""
-        if not echoarea:
-            echo_order = "echoarea, "
-        rows = c.execute(
-            "SELECT msgid, tags, echoarea, time, fr, addr, t, subject"
-            " FROM msg WHERE msgid IN (%s) %s ORDER BY %s id;"
-            % (",".join("?" * len(msgids)), echo_clause, echo_order),
-            args)
-    return list(map(lambda r: MsgMetadata.from_list(r[0], r[1:]), rows))
-
-
 # noinspection PyUnusedLocal
 def read_msg(msgid, echoarea):
     row = c.execute("SELECT tags, echoarea, time, fr, addr, t, subject, body"
@@ -242,33 +205,63 @@ FIND_OK = 0
 
 def find_query_msgids(fq: FindQuery,
                       progress_handler: Callable = None) -> List[MsgMetadata]:
-    if not fq.query or not any((fq.msgid, fq.body, fq.subj, fq.fr, fq.to)):
-        return []  #
+    args = []
+    where = []
 
-    match = build_find_matcher(fq)
-    con.create_function("MATCH", 1, match)
+    if fq.query:
+        match = buildFindMatcher(fq.query, fq)
+        con.create_function("MATCH", 1, match)
+
+        if fq.msgid:
+            where.append("msgid = ?")
+            args.append(fq.query)
+        if fq.body:
+            where.append("MATCH(body)")
+        if fq.subj:
+            where.append("MATCH(subject)")
+        if fq.fr:
+            where.append("MATCH(fr)")
+        if fq.to:
+            where.append("MATCH(t)")
+
+    if where:
+        where = "(" + " OR ".join(where) + ")"
+    else:
+        where = "TRUE"
+
+    if fq.queryNot:
+        matchNot = buildFindMatcher(fq.queryNot, fq)
+        con.create_function("MATCH_NOT", 1, matchNot)
+
+        where_not = []
+        if fq.body:
+            where_not.append("NOT MATCH_NOT(body)")
+        if fq.subj:
+            where_not.append("NOT MATCH_NOT(subject)")
+        if fq.fr:
+            where_not.append("NOT MATCH_NOT(fr)")
+        if fq.to:
+            where_not.append("NOT MATCH_NOT(t)")
+        if where_not:
+            where += " AND (" + " AND ".join(where_not) + ")"
 
     if progress_handler:
         con.set_progress_handler(progress_handler, 100)
-    #
-    args = []
-    where = "TRUE AND (FALSE"
-    if fq.msgid:
-        where += " OR msgid = ?"
-        args.append(fq.query)
-    if fq.body:
-        where += " OR MATCH(body)"
-    if fq.subj:
-        where += " OR MATCH(subject)"
-    if fq.fr:
-        where += " OR MATCH(fr)"
-    if fq.to:
-        where += " OR MATCH(t)"
-    where += ")"
-    if fq.echo and fq.echo_query:
-        where += " AND echoarea LIKE ?"
-        args.append(fq.echo_query)
 
+    if fq.echo and fq.echoQuery:
+        echos = list(filter(None, fq.echoQuery.split(" ")))
+        where += " AND (" + " OR ".join([" echoarea LIKE ? "] * len(echos)) + ")"
+        for e in echos:
+            args.append("%" + e + "%")
+    if fq.echo and fq.echoQueryNot:
+        echos = list(filter(None, fq.echoQueryNot.split(" ")))
+        where += " AND " + " AND ".join(["echoarea NOT LIKE ?"] * len(echos))
+        for e in echos:
+            args.append("%" + e + "%")
+    if fq.echoSkipArch and fq.echoArch:
+        echos = list(filter(None, fq.echoArch.split(" ")))
+        where += " AND " + " AND ".join(["echoarea <> ?"] * len(echos))
+        args.extend(echos)
     try:
         rows = c.execute(
             "SELECT DISTINCT msgid, tags, echoarea, time, fr, addr, t, subject"
@@ -284,6 +277,7 @@ def find_query_msgids(fq: FindQuery,
         raise ex
     finally:
         con.create_function("MATCH", 1, None)
+        con.create_function("MATCH_NOT", 1, None)
         con.set_progress_handler(None, 1)
 
 
