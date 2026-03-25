@@ -558,7 +558,7 @@ class MsgListScreen:
                         ks, self.msgs.idx, self.scroll)
             elif ks in Qs.OPEN:
                 self.qs = newQuickSearch(self.msgs.data, self.on_search_item)
-            elif ks in Selector.ENTER:
+            elif ks in Selector.ENTER and self.msgs.data:
                 return self.msgs.idx  #
             elif ks in Reader.QUIT:
                 if not self.msgs.stack:

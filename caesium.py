@@ -622,7 +622,8 @@ class EchoReader:
         self.reader.prerender()
 
     def msgid(self):
-        return self._msgid or self.msgs.curItem().msgid
+        m = self.msgs.curItem()
+        return self._msgid or (m.msgid if m else "")
 
     def get_msgs_metadata(self):
         if self.out:
@@ -634,14 +635,17 @@ class EchoReader:
 
     def read_cur_msg(self):  # type: () -> (List[str], int)
         self._msgid = None
-        if self.out:
+        if self.out and "." in self.msgid():  # .out, .outmsg, .draft
             self.reader.setMsg(*outgoing.read_out_msg(self.msgid(), self.cur_node))
         else:
             m = self.msgs.curItem()
-            if not m:
+            if not m and self.msgs.data:
                 self.msgs.idx = 0
                 m = self.msgs.curItem()
-            self.reader.setMsg(*api.read_msg(self._msgid or m.msgid, m.echo))
+            if m:
+                self.reader.setMsg(*api.read_msg(self._msgid or m.msgid, m.echo))
+            else:
+                self.reader.setMsg(*api.read_msg("unknown", "unknown"))
 
     def read_msg_skip_twit(self, increment):
         self.read_cur_msg()
@@ -651,9 +655,12 @@ class EchoReader:
                 break
             self.read_cur_msg()
 
-    def prerender_msg_or_quit(self):
+    def reload_msgs_or_quit(self):
         self.msgs.data = self.get_msgs_metadata()
         if self.msgs.data:
+            if self.msgs.stack:
+                self.msgs.mode = self.msgs.stack[0][0]
+                self.msgs.stack.clear()
             self.msgs.idx = min(self.msgs.idx, len(self.msgs.data) - 1)
             self.read_cur_msg()
             self.reader.prerender()
@@ -837,7 +844,8 @@ class EchoReader:
             self.reader.ensureVisibleOnQsKey(ks, tidx, off)
 
     def mode_restore(self):
-        msgid = self.msgs.curItem().msgid
+        m = self.msgs.curItem()
+        msgid = m.msgid if m else ""
         self.msgs.pop()
         if msgid != self.msgs.curItem().msgid:
             self.stack.clear()
@@ -850,6 +858,8 @@ class EchoReader:
             if self.msgs.mode != ui.ReaderMode.SUBJ:
                 data = api.find_subj_msgids(self.reader.msg[1], self.reader.msg[6])
                 self.msgs.modeSubjOn(data)
+                if self.msgs.data and self.msgs.idx == -1:
+                    self.msgs.idx = 0
             else:
                 self.msgs.modeSubjOff()
             self.stack.clear()
@@ -940,7 +950,7 @@ class EchoReader:
             if self.msgid().endswith(".out") or self.msgid().endswith(".draft"):
                 copyfile(outgoing.directory(self.cur_node) + self.msgid(), "temp")
                 call_editor(self.cur_node, self.msgid())
-                self.prerender_msg_or_quit()
+                self.reload_msgs_or_quit()
             else:
                 ui.show_message_box("Сообщение уже отправлено")
         elif ks in Out.SIGN and self.out:
@@ -949,12 +959,12 @@ class EchoReader:
             ui.draw_message_box("Подождите", False)
             api.remove_from_favorites(self.msgid())
             self.counts.get_counts(self.cur_node, False)
-            self.prerender_msg_or_quit()
+            self.reload_msgs_or_quit()
         elif ks in Out.DEL and self.drafts and self.msgs.data:
             if ui.SelectWindow("Удалить черновик '%s'?" % self.msgid(),
                                ["Нет", "Да"]).show() == 2:
                 os.remove(outgoing.directory(self.cur_node) + self.msgid())
-                self.prerender_msg_or_quit()
+                self.reload_msgs_or_quit()
         elif ks in Reader.GETMSG and self.reader.size == 0 and self._msgid:
             try:
                 ui.draw_message_box("Подождите", False)
@@ -969,12 +979,15 @@ class EchoReader:
         elif ks in Reader.TO_OUT and self.drafts:
             draft_msg = outgoing.directory(self.cur_node) + self.msgid()
             os.rename(draft_msg, draft_msg.replace(".draft", ".out"))
-            self.prerender_msg_or_quit()
-        elif ks in Reader.TO_DRAFTS and self.out and not self.drafts and self.msgid().endswith(".out"):
-            out_msg = outgoing.directory(self.cur_node) + self.msgid()
-            os.rename(out_msg, out_msg.replace(".out", ".draft"))
-            self.prerender_msg_or_quit()
-        elif ks in Reader.LIST and not self.out and not self.drafts:
+            self.reload_msgs_or_quit()
+        elif ks in Reader.TO_DRAFTS and self.out and not self.drafts:
+            if not self.msgid().endswith(".out"):
+                out_msg = outgoing.directory(self.cur_node) + self.msgid()
+                os.rename(out_msg, out_msg.replace(".out", ".draft"))
+                self.reload_msgs_or_quit()
+            else:
+                ui.show_message_box("Сообщение уже отправлено")
+        elif ks in Reader.LIST and self.msgs.data:
             mode = self.msgs.mode
             msgid = self.msgs.curItem().msgid
             win = ui.MsgListScreen(self.echo.name, self.msgs)
