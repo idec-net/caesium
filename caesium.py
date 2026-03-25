@@ -97,14 +97,19 @@ def send_mail(node_):  # type: (config.Node) -> None
         print("\nОшибка: не удаётся связаться с нодой. " + str(ex))
 
 
-def debundle(bundle):
+def debundle(bundle, get_list=None):
     messages = []
     for msg in filter(None, bundle):
         m = msg.split(":")
         msgid = m[0]
         if len(msgid) == 20 and m[1]:
             msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8").split("\n")
-            messages.append([msgid, msgbody])
+            if get_list and msgid not in get_list:
+                print(f"\nWARNING:"
+                      f" msgid: {msgid} received but not requested: [{', '.join(get_list)}]."
+                      f" Skipped. Please report to node sysop.")
+            else:
+                messages.append([msgid, msgbody])
     if messages:
         api.save_message(messages, node, cfg.nodes[node].to)
 
@@ -155,7 +160,7 @@ def get_mail(node_, force_full_idx=False):  # type: (config.Node, bool) -> None
         for get_list in utils.separate(fetch_msg_list):
             count += len(get_list)
             print("\rПолучение сообщений: " + str(count) + "/" + total, end="")
-            debundle(client.get_bundle(node_.url, "/".join(get_list)))
+            debundle(client.get_bundle(node_.url, "/".join(get_list)), get_list)
     else:
         print("Новых сообщений не обнаружено.", end="")
     if is_node_smart:

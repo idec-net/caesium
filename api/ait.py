@@ -3,7 +3,7 @@ import codecs
 import os
 from typing import Optional, List, Callable
 
-from . import MsgMetadata, FindQuery, buildFindMatcher, filterEchoarea, buildFindMatchers, txtApiMatch
+from . import MsgMetadata, FindQuery, filterEchoarea, buildFindMatchers, txtApiMatch
 
 storage = "ait/"
 

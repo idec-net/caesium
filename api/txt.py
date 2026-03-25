@@ -1,10 +1,9 @@
 # coding=utf-8
 import codecs
 import os
-from collections import defaultdict
 from typing import Optional, List, Callable
 
-from . import MsgMetadata, FindQuery, buildFindMatcher, filterEchoarea, buildFindMatchers, txtApiMatch
+from . import MsgMetadata, FindQuery, filterEchoarea, buildFindMatchers, txtApiMatch
 
 storage = "txt"
 
