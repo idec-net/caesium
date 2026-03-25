@@ -48,6 +48,7 @@ class ThemeUtf8:
     NAME = "utf8"
     checkbox = ["□ ", "▣ ", "◪ "]
     input = ["", "", curses.A_UNDERLINE]
+    # TODO: Cool Android-compatible UTF-spinner
     # Right side only braille cells (dots ⊆ 4568)
     # incorrect in Noto except Symbols 2, on mobile only #3935
     # https://github.com/google/fonts/issues/3935

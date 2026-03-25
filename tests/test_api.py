@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from api import MsgMetadata, FindQuery, build_find_matcher
+from api import MsgMetadata, FindQuery, buildFindMatcher
 
 
 def test_init_aio():
@@ -346,6 +346,22 @@ def test_find_query_echo_multi(api):
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
+def test_find_query_not_to(api):
+    msg1 = ["ii/ok", "test.local", "0", "u", "n,1", "RSS-bot", "S", "", "", "qwe", "qwe"]
+    msg2 = ["ii/ok", "test2.local", "1", "u", "n,1", "robot", "S", "", "", "qwe", "qwe"]
+    msg3 = ["ii/ok", "test3.local", "1", "u", "n,1", "t", "S", "", "", " qwe", "qwe"]
+    api.save_message([("1" * 20, msg1),
+                      ("2" * 20, msg2),
+                      ("3" * 20, msg3)],
+                     "node", None)
+
+    data = api.find_query_msgids(
+        FindQuery("qwe", "bot", regex=True))
+    assert data == [MsgMetadata.from_list("3" * 20, msg3)]
+
+
+# noinspection PyTestParametrized
+@pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
 def test_find_query_empty(api):
     data = api.find_query_msgids(FindQuery())
     assert len(data) >= 4
@@ -353,8 +369,8 @@ def test_find_query_empty(api):
 
 def test_find_matcher_regex():
     # any case, anywhere
-    matcher = build_find_matcher(
-        FindQuery("qwe+", regex=True, case=False, word=False, orig=True))
+    matcher = buildFindMatcher(
+        "qwe+", FindQuery(regex=True, case=False, word=False, orig=True))
     assert not matcher("\n +++ zxc+")  # query
     assert not matcher("\n zxc+")  # query
     assert matcher("\n qwe+")
@@ -367,8 +383,8 @@ def test_find_matcher_regex():
     assert matcher(" +++ zxcqwe+")
 
     # case, anywhere
-    matcher = build_find_matcher(
-        FindQuery("qwe+", regex=True, case=True, word=False, orig=True))
+    matcher = buildFindMatcher(
+        "qwe+", FindQuery(regex=True, case=True, word=False, orig=True))
     assert not matcher("\n +++ zxc+")  # query
     assert not matcher("\n zxc+")  # query
     assert not matcher("\n QWE+")  # case
@@ -377,8 +393,8 @@ def test_find_matcher_regex():
     assert matcher("\n +++ qwe+")
 
     # any case, not origin
-    matcher = build_find_matcher(
-        FindQuery("qwe+", regex=True, case=False, word=False, orig=False))
+    matcher = buildFindMatcher(
+        "qwe+", FindQuery(regex=True, case=False, word=False, orig=False))
     assert not matcher("\n +++ zxc+")  # query
     assert not matcher("\n zxc+")  # query
     assert not matcher("\n +++ QWE+")  # origin
@@ -387,8 +403,8 @@ def test_find_matcher_regex():
     assert matcher("\n qwe+")
 
     # case, not origin
-    matcher = build_find_matcher(
-        FindQuery("qwe+", regex=True, case=True, word=False, orig=False))
+    matcher = buildFindMatcher(
+        "qwe+", FindQuery(regex=True, case=True, word=False, orig=False))
     assert not matcher("\n +++ zxc+")  # query
     assert not matcher("\n zxc+")  # query
     assert not matcher("\n +++ qwe+")  # origin
@@ -399,8 +415,8 @@ def test_find_matcher_regex():
 
 def test_find_matcher_word():
     # any case, anywhere
-    matcher = build_find_matcher(
-        FindQuery("qwe+", regex=False, case=False, word=True, orig=True))
+    matcher = buildFindMatcher(
+        "qwe+", FindQuery(regex=False, case=False, word=True, orig=True))
     assert not matcher("\n +++ zxc+")  # query
     assert not matcher("\n zxc+")  # query
     assert not matcher("zxcqwe+")  # word
@@ -415,8 +431,8 @@ def test_find_matcher_word():
     assert matcher("\n +++ qwe+")
 
     # case, anywhere
-    matcher = build_find_matcher(
-        FindQuery("qwe+", regex=False, case=True, word=True, orig=True))
+    matcher = buildFindMatcher(
+        "qwe+", FindQuery(regex=False, case=True, word=True, orig=True))
     assert not matcher("\n +++ zxc+")  # query
     assert not matcher("\n zxc+")  # query
     assert not matcher("\n QWE+")  # case
@@ -428,8 +444,8 @@ def test_find_matcher_word():
     assert matcher("\n +++ qwe+")
 
     # any case, not origin
-    matcher = build_find_matcher(
-        FindQuery("qwe+", regex=False, case=False, word=True, orig=False))
+    matcher = buildFindMatcher(
+        "qwe+", FindQuery(regex=False, case=False, word=True, orig=False))
     assert not matcher("\n +++ zxc+")  # query
     assert not matcher("\n zxc+")  # query
     assert not matcher("\n +++ QWE+")  # origin
@@ -440,7 +456,8 @@ def test_find_matcher_word():
     assert matcher("\n qwe+")
 
     # case, not origin
-    matcher = build_find_matcher(FindQuery("qwe+", regex=False, case=True, word=True, orig=False))
+    matcher = buildFindMatcher(
+        "qwe+", FindQuery(regex=False, case=True, word=True, orig=False))
     assert not matcher("\n +++ zxc+\n")  # query
     assert not matcher("\n zxc+\n")  # query
     assert not matcher("\n +++ qwe+\n")  # origin
@@ -450,20 +467,3 @@ def test_find_matcher_word():
     assert not matcher("\n zxcQWE+\n")  # word
     assert matcher("\n qwe+\n")
     assert matcher("qwe+")
-
-
-def test_find_matcher_not():
-    matcher = build_find_matcher(
-        FindQuery("qwe+", "zxc", regex=False, case=False, word=False, orig=True))
-    assert not matcher("\n +++ qwe+ zxc+")
-    assert not matcher("\n qwe+ zxc+")
-    assert matcher("\n +++ qwe+ ")
-    assert matcher("\n qwe+ ")
-
-    matcher = build_find_matcher(
-        FindQuery("qwe+", "zxc", regex=False, case=False, word=False, orig=False))
-    assert not matcher("\n +++ qwe+ zxc+")
-    assert not matcher("\n qwe+ zxc+")
-    assert not matcher("\n +++ qwe+ ")
-    assert matcher("\n qwe+ \n+++ zxc ")  # skip orig
-    assert matcher("\n qwe+ ")

@@ -4,7 +4,7 @@ import os
 from collections import defaultdict
 from typing import Optional, List, Callable
 
-from . import MsgMetadata, FindQuery, build_find_matcher, filterEchoarea
+from . import MsgMetadata, FindQuery, buildFindMatcher, filterEchoarea, buildFindMatchers, txtApiMatch
 
 storage = "txt"
 
@@ -209,7 +209,6 @@ FIND_OK = 0
 
 def find_query_msgids(fq: FindQuery,
                       progress_handler: Callable = None) -> List[MsgMetadata]:
-    match = build_find_matcher(fq)
 
     echoareas = sorted(list(filter(
         lambda e: e not in ("favorites", "carbonarea"),
@@ -220,6 +219,7 @@ def find_query_msgids(fq: FindQuery,
     total_msg_progress = 0
     echo_progress = 0
     total_echoareas = len(echoareas)
+    match, matchNot = buildFindMatchers(fq)
 
     for echo in echoareas:
         echo_msgids = get_echo_msgids(echo)
@@ -242,21 +242,8 @@ def find_query_msgids(fq: FindQuery,
             with open(storage + "msg/" + msgid_, "r") as f:
                 msg = f.read().split("\n")
 
-            if fq.msgid and msgid_ == fq.query:
+            if txtApiMatch(fq, match, matchNot, msgid_, msg):
                 find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
-            if fq.body and match("\n".join(msg[7:])):
-                find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
-            if fq.subj and match(msg[6]):
-                find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
-            if fq.fr and match(msg[3]):
-                find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
-            if fq.to and match(msg[5]):
-                find_result.append(MsgMetadata.from_list(msgid_, msg))
-                continue  #
 
     return find_result
 

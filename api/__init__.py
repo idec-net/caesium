@@ -1,7 +1,7 @@
 import re
 import time
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Tuple
 
 
 @dataclass
@@ -92,7 +92,7 @@ def _compilePattern(query, flags, regex, word):
     return p
 
 
-def build_find_matcher(fq: FindQuery) -> Callable[[str], int]:
+def buildFindMatcher(query, fq: FindQuery) -> Callable[[str], int]:
     flags = re.UNICODE
     if not fq.case:
         flags |= re.IGNORECASE
@@ -115,17 +115,45 @@ def build_find_matcher(fq: FindQuery) -> Callable[[str], int]:
                 res = pattern.search(s)
                 return 1 if res else 0  # sqlite compatible result
         return _match
-    #
-    mp = None
-    mpNot = None
+
+    return match(_compilePattern(query, flags, fq.regex, fq.word))
+
+
+def buildFindMatchers(fq: FindQuery) -> Tuple[Callable[[str], int],
+                                              Callable[[str], int]]:
+    match = None
     if fq.query:
-        mp = match(_compilePattern(fq.query, flags, fq.regex, fq.word))
+        match = buildFindMatcher(fq.query, fq)
 
+    matchNot = None
     if fq.queryNot:
-        mpNot = match(_compilePattern(fq.queryNot, flags, fq.regex, fq.word))
+        matchNot = buildFindMatcher(fq.queryNot, fq)
 
-    def matcher(s):
-        return ((mp(s) if mp else True)
-                and ((not mpNot(s)) if mpNot else True))
+    return match, matchNot
 
-    return matcher
+
+def txtApiMatch(fq: FindQuery, match, matchNot, msgid, msg) -> bool:
+    if not match and not matchNot:
+        return True  # any matched
+    # Skip not-matched first
+    if matchNot and fq.body and matchNot("\n".join(msg[7:])):
+        return False
+    if matchNot and fq.subj and matchNot(msg[6]):
+        return False
+    if matchNot and fq.fr and matchNot(msg[3]):
+        return False
+    if matchNot and fq.to and matchNot(msg[5]):
+        return False
+    # Positive
+    if fq.msgid and msgid == fq.query:
+        return True
+    if match and fq.body and match("\n".join(msg[7:])):
+        return True
+    if match and fq.subj and match(msg[6]):
+        return True
+    if match and fq.fr and match(msg[3]):
+        return True
+    if match and fq.to and match(msg[5]):
+        return True
+    #
+    return False

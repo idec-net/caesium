@@ -2,7 +2,7 @@
 import sqlite3
 from typing import Optional, List, Callable
 
-from . import MsgMetadata, FindQuery, build_find_matcher
+from . import MsgMetadata, FindQuery, buildFindMatcher
 from core import FEAT_FEATURES, FEAT_X_C
 
 con = None  # type: Optional[sqlite3.Connection]
@@ -205,29 +205,48 @@ FIND_OK = 0
 
 def find_query_msgids(fq: FindQuery,
                       progress_handler: Callable = None) -> List[MsgMetadata]:
-    match = build_find_matcher(fq)
-    con.create_function("MATCH", 1, match)
-
-    if progress_handler:
-        con.set_progress_handler(progress_handler, 100)
-    #
     args = []
     where = []
-    if fq.msgid:
-        where.append("msgid = ?")
-        args.append(fq.query)
-    if fq.body:
-        where.append("MATCH(body)")
-    if fq.subj:
-        where.append("MATCH(subject)")
-    if fq.fr:
-        where.append("MATCH(fr)")
-    if fq.to:
-        where.append("MATCH(t)")
+
+    if fq.query:
+        match = buildFindMatcher(fq.query, fq)
+        con.create_function("MATCH", 1, match)
+
+        if fq.msgid:
+            where.append("msgid = ?")
+            args.append(fq.query)
+        if fq.body:
+            where.append("MATCH(body)")
+        if fq.subj:
+            where.append("MATCH(subject)")
+        if fq.fr:
+            where.append("MATCH(fr)")
+        if fq.to:
+            where.append("MATCH(t)")
+
     if where:
         where = "(" + " OR ".join(where) + ")"
     else:
         where = "TRUE"
+
+    if fq.queryNot:
+        matchNot = buildFindMatcher(fq.queryNot, fq)
+        con.create_function("MATCH_NOT", 1, matchNot)
+
+        where_not = []
+        if fq.body:
+            where_not.append("NOT MATCH_NOT(body)")
+        if fq.subj:
+            where_not.append("NOT MATCH_NOT(subject)")
+        if fq.fr:
+            where_not.append("NOT MATCH_NOT(fr)")
+        if fq.to:
+            where_not.append("NOT MATCH_NOT(t)")
+        if where_not:
+            where += " AND (" + " AND ".join(where_not) + ")"
+
+    if progress_handler:
+        con.set_progress_handler(progress_handler, 100)
 
     if fq.echo and fq.echoQuery:
         echos = fq.echoQuery.split(" ")
@@ -254,6 +273,7 @@ def find_query_msgids(fq: FindQuery,
         raise ex
     finally:
         con.create_function("MATCH", 1, None)
+        con.create_function("MATCH_NOT", 1, None)
         con.set_progress_handler(None, 1)
 
 
