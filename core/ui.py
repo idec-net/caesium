@@ -12,7 +12,7 @@ from typing import Optional, List, Tuple, TypeVar, Generic, Union
 
 import api.ait as api
 from api import MsgMetadata, FindQuery
-from core import __version__, parser, utils, keystroke
+from core import __version__, parser, utils, keystroke, config
 from core.cmd import Common, Reader, Selector, Qs
 from core.config import (
     get_color, load_colors, Config, TOKEN2UI, ECHO_FIND,
@@ -179,7 +179,7 @@ def draw_message_box(smsg, wait):
     win = curses.newwin(box_height, max_width,
                         int((HEIGHT - box_height) / 2),
                         int((WIDTH - max_width) / 2))
-    win.bkgd(' ', get_color(UI_TEXT))
+    win.bkgd(' ', curses.color_pair(config.color_pairs[UI_TEXT][0]))
     win.attrset(get_color(UI_BORDER))
     win.border()
 
@@ -1098,7 +1098,7 @@ class FindQueryWindow:
     @staticmethod
     def drawTitle(win):  # type: (curses.window) -> None
         h, w = win.getmaxyx()
-        win.bkgd(" ", get_color(UI_TEXT))
+        win.bkgd(" ", curses.color_pair(config.color_pairs[UI_TEXT][0]))
         #
         border = get_color(UI_BORDER)
         win.attrset(border)

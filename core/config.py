@@ -164,7 +164,7 @@ TOKEN2UI = {
 }
 
 color_pairs = {
-    # "ui-element": [color-pair-NUM, bold-attr]
+    # "ui-element": [color-pair-NUM, dim-bold-attr]
     UI_BORDER: [1, 0],
     UI_CURSOR: [2, 0],
     UI_SCROLL: [3, 0],
@@ -183,10 +183,8 @@ color_pairs = {
 
 
 def get_color(theme_part):
-    if theme_part not in color_pairs:
-        theme_part = UI_TEXT
-    cp, bold = color_pairs[theme_part]
-    return curses.color_pair(cp) | bold
+    cp, dim_bold = color_pairs[theme_part]
+    return curses.color_pair(cp) | dim_bold
 
 
 if sys.version_info >= (3, 10):
@@ -247,7 +245,7 @@ def load_colors(theme):
         params = line.split(" ")
         if (len(params) not in (3, 4)
                 or params[0] not in color_pairs
-                or len(params) == 4 and params[3] != "bold"):
+                or len(params) == 4 and params[3] not in ("bold", "dim", "dimBold")):
             raise ValueError("Invalid theme params :: " + line)
         # foreground
         if params[1].startswith("#"):
@@ -271,7 +269,11 @@ def load_colors(theme):
             bg = colors.index(params[2])
         # bold
         color_pairs[params[0]][1] = curses.A_NORMAL
-        if len(params) == 4:
+        if len(params) == 4 and params[3] == "bold":
             color_pairs[params[0]][1] = curses.A_BOLD
+        if len(params) == 4 and params[3] == "dim":
+            color_pairs[params[0]][1] = curses.A_DIM
+        if len(params) == 4 and params[3] == "dimBold":
+            color_pairs[params[0]][1] = curses.A_DIM | curses.A_BOLD
         #
         curses.init_pair(color_pairs[params[0]][0], fg, bg)

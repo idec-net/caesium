@@ -23,7 +23,7 @@ from core import (
 )
 from core.cmd import Common, Out, Reader, Selector, Qs
 from core.config import (
-    get_color, UI_BORDER, UI_TEXT, UI_CURSOR
+    color_pairs, get_color, UI_BORDER, UI_TEXT, UI_CURSOR
 )
 
 # TODO: Add http/https/socks proxy support
@@ -1089,7 +1089,7 @@ load_keys()
 try:
     ui.initialize_curses()
     ui.load_theme(cfg)
-    ui.stdscr.bkgd(" ", get_color("text"))
+    ui.stdscr.bkgd(" ", curses.color_pair(color_pairs[UI_TEXT][0]))  # wo attrs
 
     if cfg.splash:
         ui.draw_splash(ui.stdscr, splash)
