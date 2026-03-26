@@ -298,12 +298,7 @@ class EchoSelectorScreen:
             #
             if key == curses.KEY_RESIZE:
                 ui.set_term_size()
-                self.scroll = ui.ScrollCalc(len(self.echos.data), ui.HEIGHT - 2,
-                                            self.echos.idx)
-                ui.stdscr.clear()
-                if self.qs:
-                    self.qs.y = ui.HEIGHT - 1
-                    self.qs.width = ui.WIDTH - len(ui.version) - 13
+                self.onResize()
             elif self.qs:
                 if ks in Qs.CLOSE or ks in Qs.APPLY:
                     if ks in Qs.APPLY and self.qs.result:
@@ -438,11 +433,13 @@ class EchoSelectorScreen:
         elif ks in Selector.FIND:
             win = ui.FindQueryWindow(cfg=cfg)
             find_result = win.show()
+            if win.resized:
+                self.onResize()
             if find_result:
                 find_result = sorted(find_result, key=lambda m: m.time)
-                self.go, _ = EchoReader(
+                self.showReader(EchoReader(
                     config.ECHO_FIND, 0, True, self.counts,
-                    mode=ui.ReaderMode.FIND, msgids=find_result).show()
+                    mode=ui.ReaderMode.FIND, msgids=find_result))
 
     def fetch_mail(self, force_full_idx):
         ui.terminate_curses()
@@ -462,8 +459,8 @@ class EchoSelectorScreen:
         if cur_echo.name in self.counts.lasts:
             last = self.counts.lasts[cur_echo.name]
         last = min(self.counts.total[cur_echo.name], last + 1)
-        self.go, self.next_echo = EchoReader(
-            cur_echo, last, self.echos.isArch(), self.counts).show()
+        self.showReader(EchoReader(
+            cur_echo, last, self.echos.isArch(), self.counts))
         self.counts.rescan_counts(self.echos.data)
         if self.next_echo and isinstance(self.next_echo, bool):
             self.echos.idx = self.counts.find_new(self.echos.idx)
@@ -483,14 +480,27 @@ class EchoSelectorScreen:
     def read_outgoing(self):
         out_length = outgoing.get_out_length(cfg.nodes[node], drafts=False)
         if out_length:
-            self.go, self.next_echo = EchoReader(
-                config.ECHO_OUT, out_length, self.echos.isArch(), self.counts).show()
+            self.showReader(EchoReader(
+                config.ECHO_OUT, out_length, self.echos.isArch(), self.counts))
 
     def read_drafts(self):
         out_length = outgoing.get_out_length(cfg.nodes[node], drafts=True)
         if out_length:
-            self.go, self.next_echo = EchoReader(
-                config.ECHO_DRAFTS, 0, self.echos.isArch(), self.counts).show()
+            self.showReader(EchoReader(
+                config.ECHO_DRAFTS, 0, self.echos.isArch(), self.counts))
+
+    def showReader(self, reader):
+        self.go, self.next_echo = reader.show()
+        if reader.resized:
+            self.onResize()
+
+    def onResize(self):
+        self.scroll = ui.ScrollCalc(len(self.echos.data), ui.HEIGHT - 2,
+                                    self.echos.idx)
+        ui.stdscr.clear()
+        if self.qs:
+            self.qs.y = ui.HEIGHT - 1
+            self.qs.width = ui.WIDTH - len(ui.version) - 13
 
 
 def call_editor(node_, out=''):
@@ -590,6 +600,7 @@ class EchoReader:
     go: bool = True  # show reader
     done: bool = False  # close app
     next_echo: Union[str, bool] = False  # jump to next echo after reader closed
+    resized: bool = False
 
     def __init__(self, echo: config.Echo, msgn, archive, counts,
                  mode=ui.ReaderMode.ECHO, msgids=None):
@@ -773,6 +784,7 @@ class EchoReader:
         #
         if key == curses.KEY_RESIZE:
             ui.set_term_size()
+            self.resized = True
             self.reader.setRect(x=0, y=5, w=ui.WIDTH, h=ui.HEIGHT - 5 - 1)
             self.reader.prerender(self.reader.scroll.pos)
             ui.stdscr.clear()
