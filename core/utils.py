@@ -10,14 +10,14 @@ def separate(fetch_list, step=20):  # type: (List, int) -> List
         yield fetch_list[x:x + step]
 
 
-def msgn_status(total, msgn, width):  # type: (int, int, int) -> str
+def msgnStatus(total, msgn, width):  # type: (int, int, int) -> str
     remains = total - msgn - 1
     if width >= 80:
         return "Сообщение %d из %d (%d осталось)" % (msgn + 1, total, remains)
     return "%d/%d [%d]" % (msgn + 1, total, remains)
 
 
-def msg_strftime(msg_time_sec, width):  # type: (str, int) -> str
+def msgStrftime(msg_time_sec, width):  # type: (str, int) -> str
     if not str.isdigit(msg_time_sec):
         return ""
     msg_time_sec = time.gmtime(int(msg_time_sec))
@@ -26,13 +26,13 @@ def msg_strftime(msg_time_sec, width):  # type: (str, int) -> str
     return time.strftime("%d.%m.%y %H:%M", msg_time_sec)
 
 
-def msg_strfsize(size_bytes):  # type: (int) -> str
+def msgStrfsize(size_bytes):  # type: (int) -> str
     if size_bytes < 1024:
         return str(size_bytes) + " B"
     return str(format(size_bytes / 1024, ".2f")) + " KiB"
 
 
-def open_file(filepath):
+def openFile(filepath):
     if platform.system() == "Darwin":  # macOS
         subprocess.call(("open", filepath))
     elif platform.system() == "Windows":  # windows
@@ -43,7 +43,7 @@ def open_file(filepath):
         subprocess.call(("xdg-open", filepath))
 
 
-def offsets_echo_count(old, new):
+def offsetsEchoCount(old, new):
     # type: (dict[str, int], dict[str, int]) -> dict[str, int]
     offsets = {}
     for echo, count in new.items():

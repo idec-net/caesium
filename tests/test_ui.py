@@ -6,7 +6,7 @@ def msg(msgid):
     return MsgMetadata(msgid, "", "", 0, "", "", "", "")
 
 
-def test_push_pop():
+def test_pushPop():
     msgs = MsgModeStack(ReaderMode.ECHO, [], -1)
     assert not msgs.stack
     assert msgs.mode == ReaderMode.ECHO
@@ -57,7 +57,7 @@ def test_modeSubj():
     assert msgs.idx == 0
 
 
-def test_modeSubj_differMsgid():
+def test_modeSubjDifferMsgid():
     msgs = MsgModeStack(ReaderMode.ECHO, [msg("0"), msg("1")], 1)
     #
     msgs.modeSubjOn([msg("1"), msg("01"), msg("001"), msg("0001")])

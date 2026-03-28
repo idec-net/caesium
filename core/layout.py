@@ -24,7 +24,7 @@ class Pad:
 PAD_EMPTY = Pad(0, 0, 0, 0)
 
 
-def _parse_padding(pad: Union[Pad, str, int]):
+def _parsePadding(pad: Union[Pad, str, int]):
     if isinstance(pad, int):
         return Pad(pad, pad, pad, pad)
     elif isinstance(pad, str):
@@ -55,7 +55,7 @@ class Unit:
         return self.val
 
 
-def _parse_percent_unit(val: Union[str, int], total: int = 0):
+def _parsePercentUnit(val: Union[str, int], total: int = 0):
     if isinstance(val, str):
         if val.endswith("%"):
             return Unit(src=val, val=int(round(total / 100 * int(val[:-1]))))
@@ -102,35 +102,35 @@ class CC:
     growY: bool = None
 
     # noinspection DuplicatedCode
-    def parse_percent_units(self, width, height):
+    def parsePercentUnits(self, width, height):
         if isinstance(self.pad, str):
-            self.pad = _parse_padding(self.pad)
+            self.pad = _parsePadding(self.pad)
         #
-        self.w = _parse_percent_unit(self.w, width)
+        self.w = _parsePercentUnit(self.w, width)
         if self.w:
             self.wMin = self.w
             self.wMax = self.w
             self.wPref = self.w
         else:
-            self.wMin = _parse_percent_unit(self.wMin, width)
-            self.wMax = _parse_percent_unit(self.wMax, width)
-            self.wPref = _parse_percent_unit(self.wPref, width)
+            self.wMin = _parsePercentUnit(self.wMin, width)
+            self.wMax = _parsePercentUnit(self.wMax, width)
+            self.wPref = _parsePercentUnit(self.wPref, width)
         #
-        self.h = _parse_percent_unit(self.h, height)
+        self.h = _parsePercentUnit(self.h, height)
         if self.h:
             self.hMin = self.h
             self.hMax = self.h
             self.hPref = self.h
         else:
-            self.hMin = _parse_percent_unit(self.hMin, height)
-            self.hMax = _parse_percent_unit(self.hMax, height)
-            self.hPref = _parse_percent_unit(self.hPref, height)
+            self.hMin = _parsePercentUnit(self.hMin, height)
+            self.hMax = _parsePercentUnit(self.hMax, height)
+            self.hPref = _parsePercentUnit(self.hPref, height)
         #
-        self.width = _parse_percent_unit(self.width, width)
-        self.height = _parse_percent_unit(self.height, height)
+        self.width = _parsePercentUnit(self.width, width)
+        self.height = _parsePercentUnit(self.height, height)
 
 
-def parse_constraint(scc):
+def parseConstraint(scc: str):
     cc = CC()
     params = list(filter(None, map(lambda s: s.strip(), scc.split(' '))))
     for i, p in enumerate(params):
@@ -185,7 +185,7 @@ def parse_constraint(scc):
         elif p == 'pad':
             paddings = list(takewhile(str.isdigit, params[i + 1:]))
             i += len(paddings)
-            cc.pad = _parse_padding(' '.join(paddings))
+            cc.pad = _parsePadding(' '.join(paddings))
         #
         elif p == 'width':
             i += 1
@@ -257,7 +257,7 @@ class _DimContainer:  # Row/Column Dimension Container
     grow: bool = None
 
 
-def _adjust_size(diff: int, items: Collection[_DimContainer]):
+def _adjustSize(diff: int, items: Collection[_DimContainer]):
     if not items:
         return diff
     nonMinMax = []
@@ -287,7 +287,7 @@ def _adjust_size(diff: int, items: Collection[_DimContainer]):
     return diff
 
 
-def _adjust_size_spanned(items: List[_DimContainer], itN, spanCells, col=True):
+def _adjustSizeSpanned(items: List[_DimContainer], itN, spanCells, col=True):
     maxGrow = 0
     for c in spanCells:
         spanItem = items[itN:itN + (c.cc.colSpan if col else c.cc.rowSpan)]
@@ -296,9 +296,9 @@ def _adjust_size_spanned(items: List[_DimContainer], itN, spanCells, col=True):
             spanGrow = c.width - spanWidth
             if spanGrow > maxGrow:
                 maxGrow = spanGrow
-                maxGrow -= _adjust_size(spanGrow, spanItem)
+                maxGrow -= _adjustSize(spanGrow, spanItem)
             else:
-                _adjust_size(spanGrow, spanItem)
+                _adjustSize(spanGrow, spanItem)
     return maxGrow
 
 
@@ -327,10 +327,10 @@ class GridLayout(Layout):
         if constraint is None:
             constraint = CC()
         elif isinstance(constraint, str):
-            constraint = parse_constraint(constraint)
+            constraint = parseConstraint(constraint)
         self.widgets.append((wid, constraint))
 
-    def _init_grid(self):
+    def _initGrid(self):
         self.rows.clear()
         self.cols.clear()
         curRow = []
@@ -356,7 +356,7 @@ class GridLayout(Layout):
             for (wid, cc) in row:
                 span_cell = None
                 rSpan_offset = 0
-                while self._get_cell(r, colN):
+                while self._getCell(r, colN):
                     colN += 1  # skip prefilled row spanned cells
                 #
                 for rs in range(cc.rowSpan or 1, 0, -1):
@@ -366,7 +366,7 @@ class GridLayout(Layout):
                                      col=colN + cSpan_offset,
                                      wid=wid, cc=cc,
                                      span=span_cell, cSpan=cs, rSpan=rs)
-                        self._put_cell(cell)
+                        self._putCell(cell)
                         if not span_cell:
                             span_cell = cell
                         cSpan_offset += 1
@@ -377,10 +377,10 @@ class GridLayout(Layout):
         self.h = height
         self.w = width
         if not self.rows:
-            self._init_grid()
+            self._initGrid()
         #
         for wid, cc in self.widgets:
-            cc.parse_percent_units(width=width, height=height)
+            cc.parsePercentUnits(width=width, height=height)
             if not cc.width and wid and wid.w:
                 cc.width = wid.w + cc.pad.horizontal()
             if not cc.height and wid and wid.h:
@@ -402,9 +402,9 @@ class GridLayout(Layout):
         for cn, col in enumerate(self.cols):
             spCells = list(filter(lambda _: _ and _.is_c_spanned() and not _.span,
                                   col.cells))
-            growX -= _adjust_size_spanned(self.cols, cn, spCells, col=True)
+            growX -= _adjustSizeSpanned(self.cols, cn, spCells, col=True)
         if width > 0:
-            _adjust_size(growX, list(filter(lambda _: _.grow, self.cols)) or self.cols)
+            _adjustSize(growX, list(filter(lambda _: _.grow, self.cols)) or self.cols)
         #
         growY = height
         for row in self.rows:
@@ -418,9 +418,9 @@ class GridLayout(Layout):
         for rn, row in enumerate(self.rows):
             spCells = list(filter(lambda _: _ and _.is_r_spanned() and not _.span,
                                   row.cells))
-            growY -= _adjust_size_spanned(self.rows, rn, spCells, col=False)
+            growY -= _adjustSizeSpanned(self.rows, rn, spCells, col=False)
         if height > 0:
-            _adjust_size(growY, list(filter(lambda _: _.grow, self.rows)) or self.rows)
+            _adjustSize(growY, list(filter(lambda _: _.grow, self.rows)) or self.rows)
 
         x = offset_x
         for cn, col in enumerate(self.cols):
@@ -440,7 +440,7 @@ class GridLayout(Layout):
                     ww += sum(map(lambda _: _.sz, spanned))
                 #
                 if cell.cc.width:
-                    cell.width = int(_parse_percent_unit(cell.cc.width, cell.width))
+                    cell.width = int(_parsePercentUnit(cell.cc.width, cell.width))
                 if cell.width > ww or cell.cc.fill or cell.cc.fillX:
                     cell.width = ww
                 wx = x
@@ -456,7 +456,7 @@ class GridLayout(Layout):
                     wh += sum(map(lambda _: _.sz, spanned))
                 #
                 if cell.cc.height:
-                    cell.height = int(_parse_percent_unit(cell.cc.height, cell.height))
+                    cell.height = int(_parsePercentUnit(cell.cc.height, cell.height))
                 if cell.height > wh or cell.cc.fill or cell.cc.fillY:
                     cell.height = wh
                 wy = y
@@ -479,21 +479,21 @@ class GridLayout(Layout):
                 y += wh
             x += col.sz
 
-    def _get_cell(self, row, col):
+    def _getCell(self, row, col):
         if 0 <= row < len(self.rows):
             r = self.rows[row]
             if 0 <= col < len(r.cells):
                 return r.cells[col]  #
         return None
 
-    def _put_cell(self, cell: _Cell):
+    def _putCell(self, cell: _Cell):
         self.rows[cell.row].cells[cell.col] = cell
         self.cols[cell.col].cells[cell.row] = cell
 
-    def collect_widgets(self):
+    def collectWidgets(self):
         for w, _ in self.widgets:
             if isinstance(w, GridLayout):
-                for w2 in list(w.collect_widgets()):
+                for w2 in list(w.collectWidgets()):
                     yield w2
                 continue
             yield w

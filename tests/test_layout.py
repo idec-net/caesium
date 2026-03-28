@@ -1,4 +1,4 @@
-from core.layout import GridLayout, CC, parse_constraint
+from core.layout import GridLayout, CC, parseConstraint
 from core.ui import Widget
 
 
@@ -165,11 +165,11 @@ def test_complex():
     assert (w12.y, w12.x, w12.w, w12.h) == (10, 2, 76, 0)
 
 
-def test_parse_constraint():
-    assert CC(w="50%") == parse_constraint("w 50%")
+def test_parseConstraint():
+    assert CC(w="50%") == parseConstraint("w 50%")
 
     assert (CC(w="100%", h=1, fillX=True, colSpan=2, wrap=True)
-            == parse_constraint("w 100% h 1 fillX colSpan 2 wrap"))
+            == parseConstraint("w 100% h 1 fillX colSpan 2 wrap"))
 
     assert (CC(wMin=1, wMax=2, wPref="3%",
                hMin=2, hMax=3, hPref="4%",
@@ -177,7 +177,7 @@ def test_parse_constraint():
                rowSpan=2, colSpan=3, wrap=True,
                fill=True, fillX=True, fillY=True,
                grow=True, growX=True, growY=True)
-            == parse_constraint("w 1 2 3% h 2 3 4% rowSpan 2 colSpan 3 wrap"
-                                " width 30% height 25"
-                                " fillX fillY fill"
-                                " grow growX growY"))
+            == parseConstraint("w 1 2 3% h 2 3 4% rowSpan 2 colSpan 3 wrap"
+                               " width 30% height 25"
+                               " fillX fillY fill"
+                               " grow growX growY"))

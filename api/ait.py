@@ -19,7 +19,7 @@ def init(directory="ait/"):
         os.mkdir(storage + "nodes")
 
 
-def get_echo_length(echo):
+def getEchoLength(echo):
     if os.path.exists(storage + echo + ".iat"):
         echo_length = sum(1 for _ in open(storage + echo + ".iat", "r", newline="\n"))
     else:
@@ -27,7 +27,7 @@ def get_echo_length(echo):
     return echo_length
 
 
-def save_to_favorites(msgid, msg):
+def saveToFavorites(msgid, msg):
     favorites = []
     if os.path.exists(storage + "favorites.mat"):
         with open(storage + "favorites.mat", "r") as f:
@@ -43,14 +43,14 @@ def save_to_favorites(msgid, msg):
         return False
 
 
-def get_echo_msgids(echo):
+def getEchoMsgids(echo):
     if os.path.exists(storage + echo + ".iat"):
         with codecs.open(storage + echo + ".iat", "r", "utf-8") as f:
             return list(filter(None, f.read().splitlines()))
     return []
 
 
-def get_echo_msgs_metadata(echo):
+def getEchoMsgsMetadata(echo):
     # type: (str) -> List[MsgMetadata]
     if not os.path.exists(storage + echo + ".mat"):
         return []
@@ -60,18 +60,18 @@ def get_echo_msgs_metadata(echo):
         for str_msg in filter(None, f.read().split("\n")):
             msgid, msg = str_msg.split(":", maxsplit=1)
             msg = msg.split(chr(15))
-            echo_msgs.append(MsgMetadata.from_list(msgid, msg))
+            echo_msgs.append(MsgMetadata.fromList(msgid, msg))
     return echo_msgs
 
 
-def get_carbonarea():
+def getCarbonarea():
     if os.path.exists(storage + "carbonarea.iat"):
         with open(storage + "carbonarea.iat", "r") as f:
             return list(filter(None, f.read().splitlines()))
     return []
 
 
-def add_to_carbonarea(msgid, msgbody):
+def addToCarbonarea(msgid, msgbody):
     with codecs.open(storage + "carbonarea.iat", "a", "utf-8") as f:
         f.write(msgid + "\n")
     with codecs.open(storage + "carbonarea.mat", "a", "utf-8") as f:
@@ -79,7 +79,7 @@ def add_to_carbonarea(msgid, msgbody):
 
 
 # noinspection PyUnusedLocal
-def save_message(raw, node, to):
+def saveMessage(raw, node, to):
     for msg in raw:
         msgid = msg[0]
         msgbody = msg[1]
@@ -88,42 +88,42 @@ def save_message(raw, node, to):
         with codecs.open(storage + msgbody[1] + ".mat", "a", "utf-8") as f:
             f.write(msgid + ":" + chr(15).join(msgbody) + "\n")
         if to:
-            carbonarea = get_carbonarea()
+            carbonarea = getCarbonarea()
             for name in to:
                 if name in msgbody[5] and msgid not in carbonarea:
-                    add_to_carbonarea(msgid, msgbody)
+                    addToCarbonarea(msgid, msgbody)
 
 
-def get_favorites_list():
+def getFavoritesList():
     if not os.path.exists(storage + "favorites.iat"):
         return []
     with codecs.open(storage + "favorites.iat", "r", "utf-8") as f:
         return f.read().splitlines()
 
 
-def remove_from_favorites(msgid):
+def removeFromFavorites(msgid):
     with codecs.open(storage + "favorites.mat", "r", "utf-8") as f:
         favorites_list = f.read().split("\n")
     favorites = []
-    favorites_index = []
+    favoritesIdx = []
     for item in favorites_list:
         if not item.startswith(msgid + ":"):
             favorites.append(item)
-            favorites_index.append(item.split(":")[0])
+            favoritesIdx.append(item.split(":")[0])
     with codecs.open(storage + "favorites.iat", "w", "utf-8") as f:
-        f.write("\n".join(favorites_index))
+        f.write("\n".join(favoritesIdx))
     with codecs.open(storage + "favorites.mat", "w", "utf-8") as f:
         f.write("\n".join(favorites))
 
 
-def remove_echoarea(echoarea):
+def removeEchoarea(echoarea):
     if os.path.exists(storage + "%s.iat" % echoarea):
         os.remove(storage + "%s.iat" % echoarea)
     if os.path.exists(storage + "%s.mat" % echoarea):
         os.remove(storage + "%s.mat" % echoarea)
 
 
-def read_msg(msgid, echoarea):
+def readMsg(msgid, echoarea):
     if not os.path.exists(storage + echoarea + ".mat") or not msgid:
         return ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"], 0
 
@@ -139,7 +139,7 @@ def read_msg(msgid, echoarea):
     return msg, size
 
 
-def find_msg(msgid):
+def findMsg(msgid):
     for echo in os.listdir(storage):
         if echo in ("carbonarea.iat", "favorites.iat") or not echo.endswith(".iat"):
             continue  # not echo
@@ -148,11 +148,11 @@ def find_msg(msgid):
             exists = list(filter(lambda it: it.strip() == msgid,
                                  f.read().split("\n")))
             if exists:
-                return read_msg(msgid, echo[0:-len(".iat")])
+                return readMsg(msgid, echo[0:-len(".iat")])
     return ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"], 0
 
 
-def find_subj_msgids(echoarea, subj):
+def findSubjMsgids(echoarea, subj):
     # type: (str, str) -> List[MsgMetadata]
     if subj.startswith("Re: "):
         subj = subj[4:]
@@ -169,66 +169,65 @@ def find_subj_msgids(echoarea, subj):
                                                        "carbonarea.mat"),
             os.listdir(storage))))
 
-    thread_msgs = []
+    threadMsgs = []
     for echo in echoareas:
         with codecs.open(storage + echo, "r", "utf-8") as f:
             for str_msg in filter(None, f.read().split("\n")):
                 msgid, msg = str_msg.split(":", maxsplit=1)
                 msg = msg.split(chr(15))
                 if msg[6] in (subj, subjRe, subjReSpace):
-                    thread_msgs.append(MsgMetadata.from_list(msgid, msg))
-    return thread_msgs
+                    threadMsgs.append(MsgMetadata.fromList(msgid, msg))
+    return threadMsgs
 
 
 FIND_CANCEL = 1
 FIND_OK = 0
 
 
-def find_query_msgids(fq: FindQuery,
-                      progress_handler: Callable = None) -> List[MsgMetadata]:
-
+def findQueryMsgids(fq: FindQuery,
+                    progressHandler: Callable = None) -> List[MsgMetadata]:
     echoareas = sorted(list(filter(
         lambda e: e.endswith(".mat") and e not in ("favorites.mat",
                                                    "carbonarea.mat"),
         os.listdir(storage))))
     echoareas = filterEchoarea(fq, echoareas, len(".mat"))
     #
-    find_result = []
-    total_msg_progress = 0
-    echo_progress = 0
-    total_echoareas = len(echoareas)
+    findResult = []
+    totalMsgProgress = 0
+    echoProgress = 0
+    totalEchoareas = len(echoareas)
     match, matchNot = buildFindMatchers(fq)
 
     for echo in echoareas:
         with codecs.open(storage + echo, "r", "utf-8") as f:
-            echo_msgs = list(filter(None, f.read().split("\n")))
-        echo_progress += 1
-        echo_msg_progress = 0
-        echo_total_msgs = len(echo_msgs)
+            echoMsgs = list(filter(None, f.read().split("\n")))
+        echoProgress += 1
+        echoMsgProgress = 0
+        echoTotalMsgs = len(echoMsgs)
 
-        for msg in echo_msgs:
-            if len(find_result) >= fq.limit:
-                return find_result  #
+        for msg in echoMsgs:
+            if len(findResult) >= fq.limit:
+                return findResult  #
             #
-            total_msg_progress += 1
-            echo_msg_progress += 1
-            if progress_handler:
-                progress = (echo_progress, total_echoareas,
-                            echo_msg_progress, echo_total_msgs,
-                            total_msg_progress, len(find_result))
-                if progress_handler(progress) == FIND_CANCEL:
+            totalMsgProgress += 1
+            echoMsgProgress += 1
+            if progressHandler:
+                progress = (echoProgress, totalEchoareas,
+                            echoMsgProgress, echoTotalMsgs,
+                            totalMsgProgress, len(findResult))
+                if progressHandler(progress) == FIND_CANCEL:
                     return []
             #
             msg = msg.split(chr(15))
             msgid_, msg[0] = msg[0].split(":")
 
             if txtApiMatch(fq, match, matchNot, msgid_, msg):
-                find_result.append(MsgMetadata.from_list(msgid_, msg))
+                findResult.append(MsgMetadata.fromList(msgid_, msg))
 
-    return find_result
+    return findResult
 
 
-def get_node_features(node):  # type: (str) -> Optional[List[str]]
+def getNodeFeatures(node):  # type: (str) -> Optional[List[str]]
     features = storage + "nodes/" + node + ".x-features"
     if not os.path.exists(features):
         return None  #
@@ -238,26 +237,26 @@ def get_node_features(node):  # type: (str) -> Optional[List[str]]
                                      f.read().splitlines())))
 
 
-def save_node_features(node, features):  # type: (str, List[str]) -> None
-    x_features = storage + "nodes/" + node + ".x-features"
-    with open(x_features, "w") as f:
+def saveNodeFeatures(node, features):  # type: (str, List[str]) -> None
+    xFeatures = storage + "nodes/" + node + ".x-features"
+    with open(xFeatures, "w") as f:
         f.write("\n".join(features))
 
 
-def get_node_echo_counts(node):  # type: (str) -> Optional[dict[str, int]]
-    x_counts = storage + "nodes/" + node + ".x-counts"
-    if not os.path.exists(x_counts):
+def getNodeEchoCounts(node):  # type: (str) -> Optional[dict[str, int]]
+    xCounts = storage + "nodes/" + node + ".x-counts"
+    if not os.path.exists(xCounts):
         return None  #
 
-    with open(x_counts, "r") as f:
-        echo_counts = list(filter(None, map(lambda it: it.strip().split(":"),
-                                            f.read().splitlines())))
-        return {echo[0]: int(echo[1]) for echo in echo_counts}
+    with open(xCounts, "r") as f:
+        echoCounts = list(filter(None, map(lambda it: it.strip().split(":"),
+                                           f.read().splitlines())))
+        return {echo[0]: int(echo[1]) for echo in echoCounts}
 
 
-def save_node_echo_counts(node, echo_counts):  # type: (str, dict[str, int]) -> None
+def saveNodeEchoCounts(node, echo_counts):  # type: (str, dict[str, int]) -> None
     ec = ["%s:%s\n" % (echo, str(count))
           for echo, count in echo_counts.items()]
-    x_counts = storage + "nodes/" + node + ".x-counts"
-    with open(x_counts, "w") as f:
+    xCounts = storage + "nodes/" + node + ".x-counts"
+    with open(xCounts, "w") as f:
         f.writelines(ec)

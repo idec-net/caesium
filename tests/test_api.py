@@ -9,7 +9,7 @@ import pytest
 from api import MsgMetadata, FindQuery, buildFindMatcher
 
 
-def test_init_aio():
+def test_initAio():
     import api.aio as api
     api.init("test2.aio")
     assert api.storage == "test2.aio/"
@@ -17,7 +17,7 @@ def test_init_aio():
     shutil.rmtree(Path("test2.aio"))
 
 
-def test_init_ait():
+def test_initAit():
     import api.ait as api
     api.init("test2.ait")
     assert api.storage == "test2.ait/"
@@ -25,7 +25,7 @@ def test_init_ait():
     shutil.rmtree(Path("test2.ait"))
 
 
-def test_init_sqlite():
+def test_initSqlite():
     import api.sqlite as api
     api.init("test2.db")
     assert api.c
@@ -34,7 +34,7 @@ def test_init_sqlite():
     os.remove(Path("test2.db"))
 
 
-def test_init_txt():
+def test_initTxt():
     import api.txt as api
     api.init("test2.txt")
     assert api.storage == "test2.txt/"
@@ -66,246 +66,247 @@ def api(storage):
 
 
 def clean(api):
-    api.remove_echoarea("test.local")
-    api.remove_echoarea("test2.local")
-    api.remove_echoarea("test3.local")
-    api.remove_echoarea("carbonarea")
-    api.remove_echoarea("favorites")
-    api.remove_echoarea("idec.talks")
+    api.removeEchoarea("test.local")
+    api.removeEchoarea("test2.local")
+    api.removeEchoarea("test3.local")
+    api.removeEchoarea("carbonarea")
+    api.removeEchoarea("favorites")
+    api.removeEchoarea("idec.talks")
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_get_echo_length(api):
-    assert api.get_echo_length("ring2.global") == 4
-    assert api.get_echo_length("test.local") == 0
+def test_getEchoLength(api):
+    assert api.getEchoLength("ring2.global") == 4
+    assert api.getEchoLength("test.local") == 0
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_save_messages(api):
-    assert api.get_echo_length("test.local") == 0
+def test_saveMessages(api):
+    assert api.getEchoLength("test.local") == 0
 
     msg1 = ["ii/ok", "test.local", "0", "admin", "node,1", "All", "Subj", "", "Msg1", "Row2"]
     msg2 = ["ii/ok", "test.local", "0", "admin", "node,1", "All", "Subj", "", "Msg2", "Row2"]
 
-    api.save_message([("11", msg1), ("22", msg2)], "node", "user")
-    assert api.get_echo_length("test.local") == 2
+    api.saveMessage([("11", msg1), ("22", msg2)], "node", "user")
+    assert api.getEchoLength("test.local") == 2
     #
-    msg, size = api.read_msg("11", "test.local")
+    msg, size = api.readMsg("11", "test.local")
     assert msg == msg1
 
-    msg, size = api.read_msg("22", "test.local")
+    msg, size = api.readMsg("22", "test.local")
     assert msg == msg2
 
-    msgids = api.get_echo_msgids("test.local")
+    msgids = api.getEchoMsgids("test.local")
     assert msgids == ["11", "22"]
-    assert api.get_echo_msgs_metadata("test.local") == [MsgMetadata.from_list("11", msg1),
-                                                        MsgMetadata.from_list("22", msg2)]
+    assert api.getEchoMsgsMetadata("test.local") == [MsgMetadata.fromList("11", msg1),
+                                                     MsgMetadata.fromList("22", msg2)]
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_add_to_carbonarea(api):
-    assert api.get_echo_length("test.local") == 0
+def test_addToCarbonarea(api):
+    assert api.getEchoLength("test.local") == 0
 
     msg1 = ["ii/ok", "test.local", "0", "admin", "node,1", "All", "Subj", "", "Msg1", "Row2"]
     msg2 = ["ii/ok", "test.local", "0", "admin", "node,1", "user", "Subj", "", "Msg2", "Row2"]
 
-    api.save_message([("1" * 20, msg1), ("2" * 20, msg2)], "node", ["user"])
-    assert api.get_echo_length("test.local") == 2
-    assert api.get_carbonarea() == ["2" * 20]
+    api.saveMessage([("1" * 20, msg1), ("2" * 20, msg2)], "node", ["user"])
+    assert api.getEchoLength("test.local") == 2
+    assert api.getCarbonarea() == ["2" * 20]
     #
-    msg, size = api.read_msg("1" * 20, "test.local")
+    msg, size = api.readMsg("1" * 20, "test.local")
     assert msg == msg1
 
-    msg, size = api.read_msg("2" * 20, "carbonarea")
+    msg, size = api.readMsg("2" * 20, "carbonarea")
     assert msg == msg2
 
-    data = api.get_echo_msgs_metadata("carbonarea")
-    assert data == [MsgMetadata.from_list("2" * 20, msg2)]
+    data = api.getEchoMsgsMetadata("carbonarea")
+    assert data == [MsgMetadata.fromList("2" * 20, msg2)]
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_save_favorites(api):
-    assert not api.get_favorites_list()
+def test_saveFavorites(api):
+    assert not api.getFavoritesList()
 
     msg1 = ["ii/ok", "test.local", "0", "admin", "node,1", "All", "Subj", "", "Msg1", "Row2"]
     msg2 = ["ii/ok", "test.local", "0", "admin", "node,1", "user", "Subj", "", "Msg2", "Row2"]
-    api.save_message([("1" * 20, msg1), ("2" * 20, msg2)], "node", ["user"])
-    api.save_to_favorites("2" * 20, msg2)
+    api.saveMessage([("1" * 20, msg1), ("2" * 20, msg2)], "node", ["user"])
+    api.saveToFavorites("2" * 20, msg2)
 
-    favorites = api.get_favorites_list()
+    favorites = api.getFavoritesList()
     assert favorites == ["2" * 20]
-    msg, size = api.read_msg("2" * 20, "favorites")
+    msg, size = api.readMsg("2" * 20, "favorites")
     assert msg == msg2
 
-    data = api.get_echo_msgs_metadata("favorites")
-    assert data == [MsgMetadata.from_list("2" * 20, msg2)]
+    data = api.getEchoMsgsMetadata("favorites")
+    assert data == [MsgMetadata.fromList("2" * 20, msg2)]
 
-    api.remove_from_favorites("2" * 20)
-    assert not api.get_favorites_list()
+    api.removeFromFavorites("2" * 20)
+    assert not api.getFavoritesList()
 
-    data = api.get_echo_msgs_metadata("favorites")
+    data = api.getEchoMsgsMetadata("favorites")
     assert data == []
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_remove_from_favorites(api):
+def test_removeFromFavorites(api):
     msg1 = ["ii/ok", "test.local", "0", "admin", "node,1", "All", "Subj", "", "Msg1", "Row2"]
     msg2 = ["ii/ok", "test.local", "0", "admin", "node,1", "user", "Subj", "", "Msg2", "Row2"]
-    api.save_message([("1" * 20, msg1), ("2" * 20, msg2)], "node", ["user"])
-    api.save_to_favorites("1" * 20, msg1)
-    api.save_to_favorites("2" * 20, msg2)
+    api.saveMessage([("1" * 20, msg1), ("2" * 20, msg2)], "node", ["user"])
+    api.saveToFavorites("1" * 20, msg1)
+    api.saveToFavorites("2" * 20, msg2)
     #
-    api.remove_from_favorites("1" * 20)
+    api.removeFromFavorites("1" * 20)
     #
-    favorites = api.get_favorites_list()
+    favorites = api.getFavoritesList()
     assert favorites == ["2" * 20]
-    msg, size = api.read_msg("2" * 20, "favorites")
+    msg, size = api.readMsg("2" * 20, "favorites")
     assert msg == msg2
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_non_printable(api):
+def test_nonPrintable(api):
     msgid = "nFaF9Z8R81USSRIE7YUF"
     msgbody = ("aWkvb2sKaWRlYy50YWxrcwoxNzI5NjA0OTcyCnJldm9sdGVj"
                "aAp0Z2ksMTUKQWxsCkZpcnN0IHRlc3QKChwVLyASGBQePwo=")
     msgbody = base64.b64decode(msgbody).decode("utf8").split("\n")
     #
-    api.save_message([(msgid, msgbody)], "", "")
+    api.saveMessage([(msgid, msgbody)], "", "")
     #
-    assert api.get_echo_length("idec.talks") == 1
-    assert api.get_echo_msgids("idec.talks") == [msgid]
-    assert api.get_echo_msgs_metadata("idec.talks") == [MsgMetadata.from_list(msgid, msgbody)]
+    assert api.getEchoLength("idec.talks") == 1
+    assert api.getEchoMsgids("idec.talks") == [msgid]
+    assert api.getEchoMsgsMetadata("idec.talks") == [MsgMetadata.fromList(msgid, msgbody)]
     #
-    msg, _ = api.read_msg(msgid, "idec.talks")
+    msg, _ = api.readMsg(msgid, "idec.talks")
     assert msg == msgbody
     #
-    api.save_to_favorites(msgid, msgbody)
-    assert api.get_favorites_list() == [msgid]
-    msg, _ = api.read_msg(msgid, "favorites")
+    api.saveToFavorites(msgid, msgbody)
+    assert api.getFavoritesList() == [msgid]
+    msg, _ = api.readMsg(msgid, "favorites")
     assert msg == msgbody
 
-    data = api.get_echo_msgs_metadata("idec.talks")
-    assert data == [MsgMetadata.from_list(msgid, msgbody)]
+    data = api.getEchoMsgsMetadata("idec.talks")
+    assert data == [MsgMetadata.fromList(msgid, msgbody)]
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_find_msg(api):
-    msg, size = api.find_msg("unknonwnmsgid")
+def test_findMsg(api):
+    msg, size = api.findMsg("unknonwnmsgid")
     assert msg == ["", "", "", "", "", "", "", "", "Сообщение отсутствует в базе"]
     assert size == 0
 
-    msg, size = api.find_msg("25Ll1pZMnIbdWB8Ring2")
+    msg, size = api.findMsg("25Ll1pZMnIbdWB8Ring2")
     assert msg[1] == "ring2.global"
     assert size == 81
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_node_features(api):
-    features = api.get_node_features("unknown")
+def test_nodeFeatures(api):
+    features = api.getNodeFeatures("unknown")
     assert features is None
     #
-    api.save_node_features("node", ["feat1", "", "feat2"])
-    features = api.get_node_features("node")
+    api.saveNodeFeatures("node", ["feat1", "", "feat2"])
+    features = api.getNodeFeatures("node")
     assert features == ["feat1", "feat2"]
     #
-    api.save_node_features("node", ["feat1", "feat3"])
-    features = api.get_node_features("node")
+    api.saveNodeFeatures("node", ["feat1", "feat3"])
+    features = api.getNodeFeatures("node")
     assert features == ["feat1", "feat3"]
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_node_echo_counts(api):
-    ec = api.get_node_echo_counts("unknown")
+def test_nodeEchoCounts(api):
+    ec = api.getNodeEchoCounts("unknown")
     assert ec is None
     #
-    api.save_node_echo_counts("node", {"echo.1": 1, "echo.2": 2})
-    ec = api.get_node_echo_counts("node")
+    api.saveNodeEchoCounts("node", {"echo.1": 1, "echo.2": 2})
+    ec = api.getNodeEchoCounts("node")
     assert ec == {"echo.1": 1, "echo.2": 2}
     #
-    api.save_node_echo_counts("node", {"echo.2": 2, "echo.3": 3})
-    ec = api.get_node_echo_counts("node")
+    api.saveNodeEchoCounts("node", {"echo.2": 2, "echo.3": 3})
+    ec = api.getNodeEchoCounts("node")
     assert ec == {"echo.2": 2, "echo.3": 3}
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_find_subj_msgids(api):
+def test_findSubjMsgids(api):
     msg1 = ["ii/ok", "test.local", "0", "admin", "node,1", "All", "Subj", "", "Msg1", "Row2"]
     msg2 = ["ii/ok", "test.local", "1", "admin", "node,1", "user", "Re: Subj", "", "Msg2", "Row2"]
     msg3 = ["ii/ok", "test.local", "2", "admin", "node,1", "user", "Subj2", "", "Msg2", "Row2"]
-    api.save_message([("1" * 20, msg1), ("2" * 20, msg2), ("3" * 20, msg3)], "node", ["user"])
+    api.saveMessage([("1" * 20, msg1), ("2" * 20, msg2), ("3" * 20, msg3)], "node", ["user"])
 
-    data = api.find_subj_msgids("test.local", "Re: Subj")
-    assert data == [MsgMetadata.from_list("1" * 20, msg1),
-                    MsgMetadata.from_list("2" * 20, msg2)]
+    data = api.findSubjMsgids("test.local", "Re: Subj")
+    assert data == [MsgMetadata.fromList("1" * 20, msg1),
+                    MsgMetadata.fromList("2" * 20, msg2)]
 
-    data = api.find_subj_msgids(None, "Re: Subj")
-    assert data == [MsgMetadata.from_list("1" * 20, msg1),
-                    MsgMetadata.from_list("2" * 20, msg2)]
+    data = api.findSubjMsgids(None, "Re: Subj")
+    assert data == [MsgMetadata.fromList("1" * 20, msg1),
+                    MsgMetadata.fromList("2" * 20, msg2)]
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_find_query_msgids(api):
+def test_findQueryMsgids(api):
     msg1 = ["ii/ok", "test.local", "0", "юзер", "node,1", "All", "Сабж", "", "Msg1", "Row2"]
     msg2 = ["ii/ok", "test2.local", "1", "admin", "node,1", "юзер", "Re: Subj", "", "Мсг2", "Row2"]
-    api.save_message([("1" * 20, msg1), ("2" * 20, msg2)], "node", ["user"])
+    api.saveMessage([("1" * 20, msg1), ("2" * 20, msg2)], "node", ["user"])
 
     def query(q, msgid=False, body=False, subj=False, fr=False, to=False,
               echo=False, echoQuery=""):
         return FindQuery(query=q,
                          msgid=msgid, body=body, subj=subj, fr=fr, to=to,
                          echo=echo, echoQuery=echoQuery)
+
     # msgid exact
-    data = api.find_query_msgids(query("1" * 20, True, False, False, True, False, False))
-    assert data == [MsgMetadata.from_list("1" * 20, msg1)]
-    data = api.find_query_msgids(query("1" * 19, True, False, False, True, False, False))
+    data = api.findQueryMsgids(query("1" * 20, True, False, False, True, False, False))
+    assert data == [MsgMetadata.fromList("1" * 20, msg1)]
+    data = api.findQueryMsgids(query("1" * 19, True, False, False, True, False, False))
     assert data == []
     # unicode body
-    data = api.find_query_msgids(query("Мсг2", True, True, True, True, True, False))
-    assert data == [MsgMetadata.from_list("2" * 20, msg2)]
+    data = api.findQueryMsgids(query("Мсг2", True, True, True, True, True, False))
+    assert data == [MsgMetadata.fromList("2" * 20, msg2)]
     # unicode subj
-    data = api.find_query_msgids(query("Сабж", True, True, True, True, True, False))
-    assert data == [MsgMetadata.from_list("1" * 20, msg1)]
+    data = api.findQueryMsgids(query("Сабж", True, True, True, True, True, False))
+    assert data == [MsgMetadata.fromList("1" * 20, msg1)]
     # unicode from
-    data = api.find_query_msgids(query("юзер", False, False, False, True, False, False))
-    assert data == [MsgMetadata.from_list("1" * 20, msg1)]
+    data = api.findQueryMsgids(query("юзер", False, False, False, True, False, False))
+    assert data == [MsgMetadata.fromList("1" * 20, msg1)]
     # unicode to
-    data = api.find_query_msgids(query("юзер", False, False, False, False, True, False))
-    assert data == [MsgMetadata.from_list("2" * 20, msg2)]
+    data = api.findQueryMsgids(query("юзер", False, False, False, False, True, False))
+    assert data == [MsgMetadata.fromList("2" * 20, msg2)]
     # unicode echo only
-    data = api.find_query_msgids(query("Row2", True, True, True, True, True, True, "test2.local"))
-    assert data == [MsgMetadata.from_list("2" * 20, msg2)]
+    data = api.findQueryMsgids(query("Row2", True, True, True, True, True, True, "test2.local"))
+    assert data == [MsgMetadata.fromList("2" * 20, msg2)]
     # empty results
-    data = api.find_query_msgids(query("Unknown", True, True, True, True, True, False))
+    data = api.findQueryMsgids(query("Unknown", True, True, True, True, True, False))
     assert data == []
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_find_query_matcher(api):
+def test_findQueryMatcher(api):
     msg1 = ["ii/ok", "test.local", "0", "u", "n,1", "t", "S", "", "", "zxcqwe+", "zxcQWE+"]
     msg2 = ["ii/ok", "test.local", "1", "u", "n,1", "t", "S", "", "", " +++ zxc+", " zxc+"]
     msg3 = ["ii/ok", "test.local", "1", "u", "n,1", "t", "S", "", "", " qwe+", " QWE+"]
     msg4 = ["ii/ok", "test.local", "1", "u", "n,1", "t", "S", "", "", " +++ qwe+", " +++ QWE+"]
     msg5 = ["ii/ok", "test.local", "1", "u", "n,1", "t", "S", "", "", "юникод+", ""]
     msg6 = ["ii/ok", "test.local", "1", "u", "n,1", "t", "S", "", "", " +++ ЮНИКОД+", ""]
-    api.save_message([("1" * 20, msg1),
-                      ("2" * 20, msg2),
-                      ("3" * 20, msg3),
-                      ("4" * 20, msg4),
-                      ("5" * 20, msg5),
-                      ("6" * 20, msg6)],
-                     "node", None)
+    api.saveMessage([("1" * 20, msg1),
+                     ("2" * 20, msg2),
+                     ("3" * 20, msg3),
+                     ("4" * 20, msg4),
+                     ("5" * 20, msg5),
+                     ("6" * 20, msg6)],
+                    "node", None)
 
     def query(q, regex=False, case=False, word=False, orig=False):
         return FindQuery(
@@ -313,70 +314,70 @@ def test_find_query_matcher(api):
             msgid=False, subj=False, fr=False, to=False, echo=False, body=True,
             regex=regex, case=case, word=word, orig=orig)
     #
-    data = api.find_query_msgids(query("qwe+", regex=True, orig=True))
-    assert data == [MsgMetadata.from_list("1" * 20, msg1),
-                    MsgMetadata.from_list("3" * 20, msg3),
-                    MsgMetadata.from_list("4" * 20, msg4)]
+    data = api.findQueryMsgids(query("qwe+", regex=True, orig=True))
+    assert data == [MsgMetadata.fromList("1" * 20, msg1),
+                    MsgMetadata.fromList("3" * 20, msg3),
+                    MsgMetadata.fromList("4" * 20, msg4)]
 
-    data = api.find_query_msgids(query("qwe+", case=True, word=True))
-    assert data == [MsgMetadata.from_list("3" * 20, msg3)]
+    data = api.findQueryMsgids(query("qwe+", case=True, word=True))
+    assert data == [MsgMetadata.fromList("3" * 20, msg3)]
 
-    data = api.find_query_msgids(query("юникод+", case=False, orig=True))
-    assert data == [MsgMetadata.from_list("5" * 20, msg5),
-                    MsgMetadata.from_list("6" * 20, msg6)]
+    data = api.findQueryMsgids(query("юникод+", case=False, orig=True))
+    assert data == [MsgMetadata.fromList("5" * 20, msg5),
+                    MsgMetadata.fromList("6" * 20, msg6)]
 
-    data = api.find_query_msgids(query("юникод+", case=True, orig=True))
-    assert data == [MsgMetadata.from_list("5" * 20, msg5)]
+    data = api.findQueryMsgids(query("юникод+", case=True, orig=True))
+    assert data == [MsgMetadata.fromList("5" * 20, msg5)]
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_find_query_echo_multi(api):
+def test_findQueryEchoMulti(api):
     msg1 = ["ii/ok", "test.local", "0", "u", "n,1", "t", "S", "", "", "qwe", "qwe"]
     msg2 = ["ii/ok", "test2.local", "1", "u", "n,1", "t", "S", "", "", "qwe", "qwe"]
     msg3 = ["ii/ok", "test3.local", "1", "u", "n,1", "t", "S", "", "", " qwe", "qwe"]
-    api.save_message([("1" * 20, msg1),
-                      ("2" * 20, msg2),
-                      ("3" * 20, msg3)],
-                     "node", None)
+    api.saveMessage([("1" * 20, msg1),
+                     ("2" * 20, msg2),
+                     ("3" * 20, msg3)],
+                    "node", None)
 
-    data = api.find_query_msgids(
+    data = api.findQueryMsgids(
         FindQuery("qwe", echoQuery="test.local test3.local"))
-    assert data == [MsgMetadata.from_list("1" * 20, msg1),
-                    MsgMetadata.from_list("3" * 20, msg3)]
+    assert data == [MsgMetadata.fromList("1" * 20, msg1),
+                    MsgMetadata.fromList("3" * 20, msg3)]
 
-    data = api.find_query_msgids(
+    data = api.findQueryMsgids(
         FindQuery("qwe", echoQueryNot="test.local test3.local"))
-    assert data == [MsgMetadata.from_list("2" * 20, msg2)]
+    assert data == [MsgMetadata.fromList("2" * 20, msg2)]
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_find_query_not_to(api):
+def test_findQueryNotTo(api):
     msg1 = ["ii/ok", "test.local", "0", "u", "n,1", "RSS-bot", "S", "", "", "qwe", "qwe"]
     msg2 = ["ii/ok", "test2.local", "1", "u", "n,1", "robot", "S", "", "", "qwe", "qwe"]
     msg3 = ["ii/ok", "test3.local", "1", "u", "n,1", "t", "S", "", "", " qwe", "qwe"]
-    api.save_message([("1" * 20, msg1),
-                      ("2" * 20, msg2),
-                      ("3" * 20, msg3)],
-                     "node", None)
+    api.saveMessage([("1" * 20, msg1),
+                     ("2" * 20, msg2),
+                     ("3" * 20, msg3)],
+                    "node", None)
 
-    data = api.find_query_msgids(
+    data = api.findQueryMsgids(
         FindQuery("qwe", "bot", regex=True))
-    assert data == [MsgMetadata.from_list("3" * 20, msg3)]
+    assert data == [MsgMetadata.fromList("3" * 20, msg3)]
 
-    data = api.find_query_msgids(
+    data = api.findQueryMsgids(
         FindQuery("qwe", echoQueryNot="test. test2."))
-    assert data == [MsgMetadata.from_list("3" * 20, msg3)]
+    assert data == [MsgMetadata.fromList("3" * 20, msg3)]
 
-    data = api.find_query_msgids(
+    data = api.findQueryMsgids(
         FindQuery("qwe", echoSkipArch=True, echoArch="test.local test2.local"))
-    assert data == [MsgMetadata.from_list("3" * 20, msg3)]
+    assert data == [MsgMetadata.fromList("3" * 20, msg3)]
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_find_query_date(api):
+def test_findQueryDate(api):
     now = datetime.now()
     msg1 = ["ii/ok", "test.local", str(int((now + timedelta(days=-1)).timestamp())),
             "u", "n,1", "t", "S", "", "", "qwe", "qwe"]
@@ -384,34 +385,34 @@ def test_find_query_date(api):
             "u", "n,1", "t", "S", "", "", "qwe", "qwe"]
     msg3 = ["ii/ok", "test3.local", str(int((now + timedelta(days=+1)).timestamp())),
             "u", "n,1", "t", "S", "", "", " qwe", "qwe"]
-    api.save_message([("1" * 20, msg1),
-                      ("2" * 20, msg2),
-                      ("3" * 20, msg3)],
-                     "node", None)
+    api.saveMessage([("1" * 20, msg1),
+                     ("2" * 20, msg2),
+                     ("3" * 20, msg3)],
+                    "node", None)
 
-    data = api.find_query_msgids(FindQuery("qwe", dtFr=now.date()))
-    assert data == [MsgMetadata.from_list("2" * 20, msg2),
-                    MsgMetadata.from_list("3" * 20, msg3)]
+    data = api.findQueryMsgids(FindQuery("qwe", dtFr=now.date()))
+    assert data == [MsgMetadata.fromList("2" * 20, msg2),
+                    MsgMetadata.fromList("3" * 20, msg3)]
 
-    data = api.find_query_msgids(FindQuery("qwe", dtTo=now.date()))
-    assert data == [MsgMetadata.from_list("1" * 20, msg1),
-                    MsgMetadata.from_list("2" * 20, msg2)]
+    data = api.findQueryMsgids(FindQuery("qwe", dtTo=now.date()))
+    assert data == [MsgMetadata.fromList("1" * 20, msg1),
+                    MsgMetadata.fromList("2" * 20, msg2)]
 
-    data = api.find_query_msgids(FindQuery("qwe", dtFr=now.date(), dtTo=now.date()))
-    assert data == [MsgMetadata.from_list("2" * 20, msg2)]
+    data = api.findQueryMsgids(FindQuery("qwe", dtFr=now.date(), dtTo=now.date()))
+    assert data == [MsgMetadata.fromList("2" * 20, msg2)]
 
 
 # noinspection PyTestParametrized
 @pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
-def test_find_query_empty(api):
-    data = api.find_query_msgids(FindQuery())
+def test_findQueryEmpty(api):
+    data = api.findQueryMsgids(FindQuery())
     assert len(data) >= 4
 
-    data = api.find_query_msgids(FindQuery(queryNot="nnii"))
+    data = api.findQueryMsgids(FindQuery(queryNot="nnii"))
     assert len(data) == 1
 
 
-def test_find_matcher_regex():
+def test_findMatcherRegex():
     # any case, anywhere
     matcher = buildFindMatcher(
         "qwe+", FindQuery(regex=True, case=False, word=False, orig=True))
@@ -457,7 +458,7 @@ def test_find_matcher_regex():
     assert matcher("\n qwe+")
 
 
-def test_find_matcher_word():
+def test_findMatcherWord():
     # any case, anywhere
     matcher = buildFindMatcher(
         "qwe+", FindQuery(regex=False, case=False, word=True, orig=True))

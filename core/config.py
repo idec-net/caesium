@@ -11,11 +11,11 @@ from core import parser
 CONFIG_FILEPATH = "caesium.cfg"
 
 
-def ensure_exists():
+def ensureExists():
     if not os.path.exists(CONFIG_FILEPATH):
-        with open("caesium.def.cfg", "r") as def_cfg:
+        with open("caesium.def.cfg", "r") as defCfg:
             with open(CONFIG_FILEPATH, "w") as cfg:
-                cfg.write(def_cfg.read())
+                cfg.write(defCfg.read())
 
 
 @dataclasses.dataclass
@@ -163,7 +163,7 @@ TOKEN2UI = {
     parser.TT.URL: UI_URL,
 }
 
-color_pairs = {
+COLOR_PAIRS = {
     # "ui-element": [color-pair-NUM, dim-bold-attr]
     UI_BORDER: [1, 0],
     UI_CURSOR: [2, 0],
@@ -182,23 +182,23 @@ color_pairs = {
 }
 
 
-def get_color(theme_part):
-    cp, dim_bold = color_pairs[theme_part]
-    return curses.color_pair(cp) | dim_bold
+def getColor(theme_part):
+    cp, dimBold = COLOR_PAIRS[theme_part]
+    return curses.color_pair(cp) | dimBold
 
 
 if sys.version_info >= (3, 10):
-    def can_change_color():
+    def canChangeColor():
         return (curses.has_extended_color_support()
                 and curses.can_change_color())
 else:
-    def can_change_color():
+    def canChangeColor():
         return ("256" in os.environ.get("TERM", "linux")
                 and curses.can_change_color())
 
 
-def init_hex_color(color, cache, idx):
-    if not can_change_color():
+def initHexColor(color, cache, idx):
+    if not canChangeColor():
         raise ValueError("No extended color support in the terminal "
                          + str(curses.termname()))
 
@@ -214,42 +214,42 @@ def init_hex_color(color, cache, idx):
         raise ValueError("Invalid color value :: " + color)
     if (r, g, b) in cache:
         return cache[(r, g, b)], False
-    curses_r = int(round(r / 255 * 1000))  # to 0..1000
-    curses_g = int(round(g / 255 * 1000))
-    curses_b = int(round(b / 255 * 1000))
-    curses.init_color(idx, curses_r, curses_g, curses_b)
+    cursesR = int(round(r / 255 * 1000))  # to 0..1000
+    cursesG = int(round(g / 255 * 1000))
+    cursesB = int(round(b / 255 * 1000))
+    curses.init_color(idx, cursesR, cursesG, cursesB)
     cache[(r, g, b)] = idx
     return idx, True
 
 
-def load_colors(theme):
+def loadColors(theme):
     colors = ["black", "red", "green", "yellow", "blue",
               "magenta", "cyan", "white",
               "brblack", "brred", "brgreen", "bryellow", "brblue",
               "brmagenta", "brcyan", "brwhite"]
     c256cache = {}
     c256idx = curses.COLORS - 1
-    shrink_spaces = re.compile(r"(\s\s+|\t+)")
-    color3_regex = re.compile(r"#[a-fA-F0-9]{3}")
-    color6_regex = re.compile(r"#[a-fA-F0-9]{6}")
+    shrinkSpaces = re.compile(r"(\s\s+|\t+)")
+    color3regex = re.compile(r"#[a-fA-F0-9]{3}")
+    color6regex = re.compile(r"#[a-fA-F0-9]{6}")
     with open("themes/" + theme + ".cfg", "r") as f:
         lines = f.readlines()
     for line in lines:
         # sanitize
-        line = shrink_spaces.sub(" ", line.strip())
-        nocolor = color3_regex.sub("-" * 4, color6_regex.sub("-" * 7, line))
+        line = shrinkSpaces.sub(" ", line.strip())
+        nocolor = color3regex.sub("-" * 4, color6regex.sub("-" * 7, line))
         if "#" in nocolor:
             line = line[0:nocolor.index("#")].strip()  # skip comments
         if not line:
             continue
         params = line.split(" ")
         if (len(params) not in (3, 4)
-                or params[0] not in color_pairs
+                or params[0] not in COLOR_PAIRS
                 or len(params) == 4 and params[3] not in ("bold", "dim", "dimBold")):
             raise ValueError("Invalid theme params :: " + line)
         # foreground
         if params[1].startswith("#"):
-            fg, idxChange = init_hex_color(params[1], c256cache, c256idx)
+            fg, idxChange = initHexColor(params[1], c256cache, c256idx)
             if idxChange:
                 c256idx -= 1
         elif params[1].startswith("color"):
@@ -260,7 +260,7 @@ def load_colors(theme):
         if params[2] == "default":
             bg = -1
         elif params[2].startswith("#"):
-            bg, idxChange = init_hex_color(params[2], c256cache, c256idx)
+            bg, idxChange = initHexColor(params[2], c256cache, c256idx)
             if idxChange:
                 c256idx -= 1
         elif params[2].startswith("color"):
@@ -268,12 +268,12 @@ def load_colors(theme):
         else:
             bg = colors.index(params[2])
         # bold
-        color_pairs[params[0]][1] = curses.A_NORMAL
+        COLOR_PAIRS[params[0]][1] = curses.A_NORMAL
         if len(params) == 4 and params[3] == "bold":
-            color_pairs[params[0]][1] = curses.A_BOLD
+            COLOR_PAIRS[params[0]][1] = curses.A_BOLD
         if len(params) == 4 and params[3] == "dim":
-            color_pairs[params[0]][1] = curses.A_DIM
+            COLOR_PAIRS[params[0]][1] = curses.A_DIM
         if len(params) == 4 and params[3] == "dimBold":
-            color_pairs[params[0]][1] = curses.A_DIM | curses.A_BOLD
+            COLOR_PAIRS[params[0]][1] = curses.A_DIM | curses.A_BOLD
         #
-        curses.init_pair(color_pairs[params[0]][0], fg, bg)
+        curses.init_pair(COLOR_PAIRS[params[0]][0], fg, bg)

@@ -15,8 +15,8 @@ from api import MsgMetadata, FindQuery
 from core import __version__, parser, utils, keystroke, config
 from core.cmd import Common, Reader, Selector, Qs
 from core.config import (
-    get_color, load_colors, Config, TOKEN2UI, ECHO_FIND,
-    UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT, Echo
+    getColor, loadColors, Config, Echo, TOKEN2UI, ECHO_FIND,
+    UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT,
 )
 from core.layout import GridLayout, CC
 
@@ -63,25 +63,25 @@ THEME = ThemeAscii
 THEMES = {t.NAME: t for t in (ThemeAscii, ThemeUtf8)}
 
 
-def load_theme(cfg: Config):
+def loadTheme(cfg: Config):
     try:
-        load_colors(cfg.themeColors)
+        loadColors(cfg.themeColors)
     except ValueError as err:
-        load_colors("default")
+        loadColors("default")
         stdscr.refresh()
-        show_message_box("Цветовая схема %s не установлена.\n"
-                         "%s\n"
-                         "Будет использована схема по-умолчанию."
-                         % (cfg.themeColors, str(err)))
+        showMessageBox("Цветовая схема %s не установлена.\n"
+                       "%s\n"
+                       "Будет использована схема по-умолчанию."
+                       % (cfg.themeColors, str(err)))
     #
     global THEME
     THEME = ThemeAscii
     if cfg.themeWidgets in THEMES:
         THEME = THEMES[cfg.themeWidgets]
     elif cfg.themeWidgets:
-        show_message_box("Неизвестная схема виджетов %s\n"
-                         "Будет использована схема по-умолчанию."
-                         % cfg.themeWidgets)
+        showMessageBox("Неизвестная схема виджетов %s\n"
+                       "Будет использована схема по-умолчанию."
+                       % cfg.themeWidgets)
 
 
 class ReaderMode(Enum):
@@ -97,12 +97,12 @@ class SelectorMode(Enum):
     SEARCH = 'Q'  # Quick Search results
 
 
-def set_term_size():
+def setTermSize():
     global HEIGHT, WIDTH, stdscr
     HEIGHT, WIDTH = stdscr.getmaxyx()
 
 
-def initialize_curses():
+def initializeCurses():
     global stdscr
     stdscr = curses.initscr()
     curses.start_color()
@@ -112,10 +112,10 @@ def initialize_curses():
     curses.curs_set(0)
     curses.raw()
     stdscr.keypad(True)
-    set_term_size()
+    setTermSize()
 
 
-def terminate_curses():
+def terminateCurses():
     curses.curs_set(1)
     if stdscr:
         stdscr.keypad(False)
@@ -124,7 +124,7 @@ def terminate_curses():
     curses.endwin()
 
 
-def get_keystroke(timeout=-1):
+def getKeystroke(timeout=-1):
     stdscr.timeout(timeout)
     key = -1
     if not keystroke.PENDING_KEYS:
@@ -137,34 +137,34 @@ def get_keystroke(timeout=-1):
     return ks, key, _
 
 
-def draw_splash(scr, splash):  # type: (curses.window, List[str]) -> None
+def drawSplash(scr, splash):  # type: (curses.window, List[str]) -> None
     scr.clear()
     h, w = scr.getmaxyx()
     x = int((w - len(splash[1])) / 2) - 1
     y = int((h - len(splash)) / 2)
-    color = get_color(UI_TEXT)
+    color = getColor(UI_TEXT)
     for i, line in enumerate(splash):
         scr.addstr(y + i, x, line, color)
     scr.refresh()
 
 
-def draw_title(scr, y, x, title):
+def drawTitle(scr, y, x, title):
     h, w = scr.getmaxyx()
     x = max(0, x)
     borders = len(THEME.title[0]) + len(THEME.title[1])
     if (x + len(title) + borders) > w:
         title = title[:w - x - borders - len(THEME.ellipsis)] + THEME.ellipsis
     #
-    border = get_color(UI_BORDER)
+    border = getColor(UI_BORDER)
     if THEME.title[0]:
         scr.addstr(y, x, THEME.title[0], border)
-    color = get_color(UI_TITLES)
+    color = getColor(UI_TITLES)
     scr.addstr(y, x + len(THEME.title[0]), title, color)
     if THEME.title[1]:
         scr.addstr(y, x + len(THEME.title[0]) + len(title), THEME.title[1], border)
 
 
-def draw_message_box(smsg, wait):
+def drawMessageBox(smsg, wait):
     msg = smsg.split("\n")
     if wait:
         msg.extend(LABEL_ANY_KEY)
@@ -179,42 +179,42 @@ def draw_message_box(smsg, wait):
     win = curses.newwin(box_height, max_width,
                         int((HEIGHT - box_height) / 2),
                         int((WIDTH - max_width) / 2))
-    win.bkgd(' ', curses.color_pair(config.color_pairs[UI_TEXT][0]))
-    win.attrset(get_color(UI_BORDER))
+    win.bkgd(' ', curses.color_pair(config.COLOR_PAIRS[UI_TEXT][0]))
+    win.attrset(getColor(UI_BORDER))
     win.border()
 
-    color = get_color(UI_TEXT)
+    color = getColor(UI_TEXT)
     for i, line in enumerate(msg, start=1):
         if i >= HEIGHT - 1:
             break
         win.addstr(i, 1, line, color)
 
-    color = get_color(UI_TITLES)
+    color = getColor(UI_TITLES)
     if wait:
         win.addstr(len(msg) + 2, int((max_width - len(LABEL_ANY_KEY)) / 2),
                    LABEL_ANY_KEY, color)
     win.refresh()
 
 
-def show_message_box(smsg):
-    draw_message_box(smsg, True)
+def showMessageBox(smsg):
+    drawMessageBox(smsg, True)
     stdscr.getch()
     stdscr.clear()
 
 
-def draw_scrollbarV(scr, y, x, scroll):
+def drawScrollBarV(scr, y, x, scroll):
     # type: (curses.window, int, int, ScrollCalc) -> None
-    color = get_color(UI_SCROLL)
+    color = getColor(UI_SCROLL)
     for i in range(y, y + scroll.track):
         scr.addstr(i, x, "░", color)
     for i in range(y + scroll.thumb_pos, y + scroll.thumb_pos + scroll.thumb_sz):
         scr.addstr(i, x, "█", color)
 
 
-def draw_status_bar(scr, mode=None, text=None):
+def drawStatusBar(scr, mode=None, text=None):
     # type: (curses.window, Union[ReaderMode, SelectorMode], str) -> None
     h, w = scr.getmaxyx()
-    color = get_color(UI_STATUS)
+    color = getColor(UI_STATUS)
     scr.insstr(h - 1, 0, " " * w, color)
     scr.addstr(h - 1, 1, version, color)
     scr.addstr(h - 1, w - 8, "│ " + datetime.now().strftime("%H:%M"), color)
@@ -226,24 +226,24 @@ def draw_status_bar(scr, mode=None, text=None):
         scr.addstr(h - 1, w - 11, mode.value, color)
 
 
-def draw_reader(scr, echo: str, msgid, out):
+def drawReader(scr, echo: str, msgid, out):
     h, w = scr.getmaxyx()
-    color = get_color(UI_BORDER)
+    color = getColor(UI_BORDER)
     scr.addstr(0, 0, "─" * w, color)
     scr.addstr(4, 0, "─" * w, color)
     if out:
-        draw_title(scr, 0, 0, echo)
+        drawTitle(scr, 0, 0, echo)
         if msgid.endswith(".out"):
             ns = "не отправлено"
-            draw_title(scr, 4, w - len(ns) - 2, ns)
+            drawTitle(scr, 4, w - len(ns) - 2, ns)
     else:
         if w >= 80:
-            draw_title(scr, 0, 0, echo + " / " + msgid)
+            drawTitle(scr, 0, 0, echo + " / " + msgid)
         else:
-            draw_title(scr, 0, 0, echo)
+            drawTitle(scr, 0, 0, echo)
     for i in range(1, 4):
         scr.addstr(i, 0, " " * w, 1)
-    color = get_color(UI_TITLES)
+    color = getColor(UI_TITLES)
     scr.addstr(1, 1, "От:   ", color)
     scr.addstr(2, 1, "Кому: ", color)
     scr.addstr(3, 1, "Тема: ", color)
@@ -281,7 +281,7 @@ class ScrollCalc:
         self._pos = max(0, min(self.content - self.view, pos))
         self.calc()
 
-    def pos_bottom(self):
+    def posBottom(self):
         return max(0, min(self.pos + self.view, self.content) - 1)
 
     def calc(self):
@@ -292,7 +292,7 @@ class ScrollCalc:
                             * available_track + 0.5)
         self.thumb_pos = max(0, min(available_track, thumb_pos))
 
-    def ensure_visible(self, pos, center=False):
+    def ensureVisible(self, pos, center=False):
         if pos < self.pos:
             self.pos = pos  # scroll up
             if center:
@@ -303,12 +303,12 @@ class ScrollCalc:
                 self.pos += self.view // 2
 
     # region search.Pager implementation
-    def next_page_top(self):
+    def nextPageTop(self):
         return self.pos + self.view
 
-    def prev_page_bottom(self):
+    def prevPageBottom(self):
         return self.pos - 1
-    # endregion implementation
+    # endregion search.Pager implementation
 
 
 class SelectWindow:
@@ -318,10 +318,10 @@ class SelectWindow:
         self.title = title
         self.items = items
         self.cursor = 0
-        self.win = self.init_win(self.items, self.title)
+        self.win = self.initWin(self.items, self.title)
         self.resized = False
 
-    def init_win(self, items, title, win=None):
+    def initWin(self, items, title, win=None):
         test_width = items + [LABEL_ESC + THEME.title[0] + THEME.title[1],
                               title + THEME.title[0] + THEME.title[1]]
         w = 0 if not items else max(map(lambda it: len(it), test_width))
@@ -334,7 +334,7 @@ class SelectWindow:
             win.mvwin(y, x)
         else:
             win = curses.newwin(h + 2, w + 2, y, x)
-        color = get_color(UI_BORDER)
+        color = getColor(UI_BORDER)
         lbl_title = title[0:min(w - 2, len(title))]
         lbl_esc = LABEL_ESC[0:min(w - 2, len(LABEL_ESC))]
         win.attrset(color)
@@ -344,7 +344,7 @@ class SelectWindow:
         win.addstr(h + 1, 1, THEME.title[0], color)
         win.addstr(h + 1, 2 + len(lbl_esc), THEME.title[1], color)
 
-        color = get_color(UI_TITLES)
+        color = getColor(UI_TITLES)
         win.addstr(0, 2, lbl_title, color)
         win.addstr(h + 1, 2, lbl_esc, color)
         self.scroll = ScrollCalc(len(items), h)
@@ -355,20 +355,20 @@ class SelectWindow:
             self.draw(self.win, self.items, self.cursor, self.scroll)
             self.win.refresh()
             #
-            ks, key, _ = get_keystroke()
+            ks, key, _ = getKeystroke()
             #
             if key == curses.KEY_RESIZE:
-                set_term_size()
+                setTermSize()
                 stdscr.clear()
                 stdscr.refresh()
-                self.win = self.init_win(self.items, self.title, self.win)
+                self.win = self.initWin(self.items, self.title, self.win)
                 self.resized = True
             elif ks in Selector.ENTER:
                 return self.cursor + 1  # return 1-based index
             elif ks in Reader.QUIT:
                 return False  #
             else:
-                self.on_key_pressed(ks, self.scroll)
+                self.onKeyPressed(ks, self.scroll)
 
     @staticmethod
     def draw(win, items, cursor, scroll):
@@ -378,17 +378,17 @@ class SelectWindow:
                 win.insstr(0, 0, "#" * w)
             return  # no space to draw
         #
-        scroll.ensure_visible(cursor)
+        scroll.ensureVisible(cursor)
         for i, item in enumerate(items[scroll.pos:scroll.pos + h - 2]):
-            color = get_color(UI_TEXT if i + scroll.pos != cursor else
-                              UI_CURSOR)
+            color = getColor(UI_TEXT if i + scroll.pos != cursor else
+                             UI_CURSOR)
             win.addstr(i + 1, 1, " " * (w - 2), color)
             win.addstr(i + 1, 1, item[:w - 2], color)
 
         if scroll.is_scrollable:
-            draw_scrollbarV(win, 1, w - 1, scroll)
+            drawScrollBarV(win, 1, w - 1, scroll)
 
-    def on_key_pressed(self, ks, scroll):  # type: (str, ScrollCalc) -> None
+    def onKeyPressed(self, ks, scroll):  # type: (str, ScrollCalc) -> None
         if ks in Reader.UP:
             self.cursor -= 1
             if self.cursor < 0:
@@ -407,7 +407,7 @@ class SelectWindow:
             else:
                 self.cursor = max(0, self.cursor - scroll.view)
         elif ks in Reader.NPAGE:
-            page_bottom = scroll.pos_bottom()
+            page_bottom = scroll.posBottom()
             if self.cursor < page_bottom:
                 self.cursor = page_bottom
             else:
@@ -520,7 +520,7 @@ class MsgListScreen:
         self.echo = echo
         self.msgs = msgs
         self.scroll = ScrollCalc(len(msgs.data), HEIGHT - 2)
-        self.scroll.ensure_visible(msgs.idx, center=True)
+        self.scroll.ensureVisible(msgs.idx, center=True)
         self.resized = False
         self.qs = None  # type: Optional[QuickSearch]
 
@@ -528,15 +528,15 @@ class MsgListScreen:
         stdscr.clear()
         self.draw_title(stdscr, self.echo)
         while True:
-            self.scroll.ensure_visible(self.msgs.idx)
+            self.scroll.ensureVisible(self.msgs.idx)
             self.draw(stdscr, self.msgs.data, self.msgs.idx, self.scroll)
             if self.qs:
                 self.qs.draw(stdscr)
             #
-            ks, key, _ = get_keystroke()
+            ks, key, _ = getKeystroke()
             #
             if key == curses.KEY_RESIZE:
-                set_term_size()
+                setTermSize()
                 self.scroll = ScrollCalc(len(self.msgs.data), HEIGHT - 2)
                 self.resized = True
                 if self.qs:
@@ -553,11 +553,11 @@ class MsgListScreen:
                     self.qs = None
                     curses.curs_set(0)
                 else:
-                    self.qs.on_key_pressed_search(key, ks, self.scroll)
-                    self.msgs.idx = self.qs.ensure_cursor_visible(
+                    self.qs.onKeyPressedSearch(key, ks, self.scroll)
+                    self.msgs.idx = self.qs.ensureCursorVisible(
                         ks, self.msgs.idx, self.scroll)
             elif ks in Qs.OPEN:
-                self.qs = newQuickSearch(self.msgs.data, self.on_search_item)
+                self.qs = newQuickSearch(self.msgs.data, self.onSearchItem)
             elif ks in Selector.ENTER and self.msgs.data:
                 return self.msgs.idx  #
             elif ks in Reader.QUIT:
@@ -566,31 +566,31 @@ class MsgListScreen:
                 self.msgs.pop()
                 self.updateScroll()
             else:
-                self.on_key_pressed(ks, self.scroll)
+                self.onKeyPressed(ks, self.scroll)
 
     @staticmethod
     def draw_title(win, echo):
         _, w = win.getmaxyx()
-        color = get_color(UI_BORDER)
+        color = getColor(UI_BORDER)
         win.addstr(0, 0, "─" * w, color)
         if echo == ECHO_FIND:
             if w >= 80:
-                draw_title(win, 0, 0, f"Найденные сообщения"
-                                      f" '{FindQueryWindow.query}'")
+                drawTitle(win, 0, 0, f"Найденные сообщения"
+                                     f" '{FindQueryWindow.query}'")
             else:
-                draw_title(win, 0, 0, f"'{FindQueryWindow.query}'")
+                drawTitle(win, 0, 0, f"'{FindQueryWindow.query}'")
         else:
             if w >= 80:
-                draw_title(win, 0, 0, "Список сообщений в конференции " + echo)
+                drawTitle(win, 0, 0, "Список сообщений в конференции " + echo)
             else:
-                draw_title(win, 0, 0, echo)
+                drawTitle(win, 0, 0, echo)
 
     def draw(self, win, data, cursor, scroll):
         # type: (curses.window, List[MsgMetadata], int, ScrollCalc) -> None
         h, w = win.getmaxyx()
         for i in range(1, h - 1):
-            color = get_color(UI_TEXT if scroll.pos + i - 1 != cursor else
-                              UI_CURSOR)
+            color = getColor(UI_TEXT if scroll.pos + i - 1 != cursor else
+                             UI_CURSOR)
             win.addstr(i, 0, " " * w, color)
             pos = scroll.pos + i - 1
             if pos >= scroll.content:
@@ -615,19 +615,19 @@ class MsgListScreen:
                                color | curses.A_REVERSE)
         #
         if scroll.is_scrollable:
-            draw_scrollbarV(win, 1, w - 1, scroll)
-        draw_status_bar(win, mode=self.msgs.mode,
-                        text=utils.msgn_status(len(data), cursor, w))
+            drawScrollBarV(win, 1, w - 1, scroll)
+        drawStatusBar(win, mode=self.msgs.mode,
+                      text=utils.msgnStatus(len(data), cursor, w))
 
     def updateScroll(self):
         self.scroll = ScrollCalc(len(self.msgs.data), HEIGHT - 2)
-        self.scroll.ensure_visible(self.msgs.idx, center=True)
+        self.scroll.ensureVisible(self.msgs.idx, center=True)
 
-    def on_key_pressed(self, ks, scroll):
+    def onKeyPressed(self, ks, scroll):
         if ks in Reader.MSUBJ:
             if self.msgs.mode != ReaderMode.SUBJ:
                 m = self.msgs.curItem()
-                data = api.find_subj_msgids(m.echo, m.subj)
+                data = api.findSubjMsgids(m.echo, m.subj)
                 self.msgs.modeSubjOn(data)
             else:
                 self.msgs.modeSubjOff()
@@ -642,7 +642,7 @@ class MsgListScreen:
             else:
                 self.msgs.idx = max(0, self.msgs.idx - scroll.view)
         elif ks in Selector.NPAGE:
-            page_bottom = scroll.pos_bottom()
+            page_bottom = scroll.posBottom()
             if self.msgs.idx < page_bottom:
                 self.msgs.idx = page_bottom
             else:
@@ -654,7 +654,7 @@ class MsgListScreen:
 
     # noinspection PyUnusedLocal
     @staticmethod
-    def on_search_item(sidx, pattern, it):
+    def onSearchItem(sidx, pattern, it):
         # type: (int, re.Pattern, MsgMetadata) -> Optional[List[Tuple[List[re.Match], List[re.Match]]]]
         result_name = []
         result_subj = []
@@ -688,10 +688,10 @@ class Widget:
     def right(self):
         return self.x + self.w
 
-    def set_focused(self, focused):
+    def setFocused(self, focused):
         pass
 
-    def on_key_pressed(self, ks, key):
+    def onKeyPressed(self, ks, key):
         pass
 
     def draw(self, win):  # type: (curses.window) -> None
@@ -706,7 +706,7 @@ class SeparatorHWidget(Widget):
         self.x = x
         self.y = y
         if color:
-            self.color = get_color(color)
+            self.color = getColor(color)
 
     def draw(self, win):  # type: (curses.window) -> None
         win.addstr(self.y, self.x, "─" * self.w, self.color)
@@ -723,7 +723,7 @@ class LabelWidget(Widget):
         self.txt = txt
         self.enabled = enabled
         if color:
-            self.color = get_color(color)
+            self.color = getColor(color)
         else:
             self.color = self._color(self.enabled)
 
@@ -731,16 +731,16 @@ class LabelWidget(Widget):
     @staticmethod
     def _color(enabled):
         if enabled:
-            return get_color(UI_TEXT)
-        return get_color(UI_COMMENT)
+            return getColor(UI_TEXT)
+        return getColor(UI_COMMENT)
 
-    def set_enabled(self, enabled):
+    def setEnabled(self, enabled):
         if self.enabled == enabled:
             return
         self.enabled = enabled
         self.color = self._color(enabled)
 
-    def set_txt(self, txt):
+    def setTxt(self, txt):
         self.txt = txt
         self.w = len(txt)
 
@@ -773,22 +773,22 @@ class CheckBoxWidget(Widget):
     @staticmethod
     def _color(focused, enabled):
         if enabled:
-            return get_color(UI_TITLES if focused else UI_TEXT)
-        return get_color(UI_COMMENT) | curses.A_ITALIC
+            return getColor(UI_TITLES if focused else UI_TEXT)
+        return getColor(UI_COMMENT) | curses.A_ITALIC
 
-    def set_checked(self, checked):
+    def setChecked(self, checked):
         if self.checked == checked:
             return
         self.checked = checked
         self.content = self._content(checked, self.lbl)
 
-    def set_focused(self, focused):
+    def setFocused(self, focused):
         if self.focused == focused:
             return
         self.focused = focused
         self.color = self._color(focused, self.enabled)
 
-    def set_enabled(self, enabled):
+    def setEnabled(self, enabled):
         if self.enabled == enabled:
             return
         self.enabled = enabled
@@ -798,9 +798,9 @@ class CheckBoxWidget(Widget):
         if self.w > 0:
             win.addnstr(self.y, self.x, self.content, self.w, self.color)
 
-    def on_key_pressed(self, ks, key):
+    def onKeyPressed(self, ks, key):
         if key == ord(" "):
-            self.set_checked(not self.checked)
+            self.setChecked(not self.checked)
 
 
 class InputWidget(Widget):
@@ -823,16 +823,16 @@ class InputWidget(Widget):
     @staticmethod
     def _color(focused, enabled):
         if enabled:
-            return get_color(UI_CURSOR)
-        return get_color(UI_TEXT)
+            return getColor(UI_CURSOR)
+        return getColor(UI_TEXT)
 
-    def set_focused(self, focused):
+    def setFocused(self, focused):
         if self.focused == focused:
             return
         self.focused = focused
         self.color = self._color(focused, self.enabled)
 
-    def set_enabled(self, enabled):
+    def setEnabled(self, enabled):
         if self.enabled == enabled:
             return
         self.enabled = enabled
@@ -859,20 +859,20 @@ class InputWidget(Widget):
         if right:
             win.addstr(self.y, self.x + self.w - len(right), right, self.color)
 
-    def _move_cursor_right(self, increment):
+    def _moveCursorRight(self, increment):
         self.cursor = min(len(self.txt), self.cursor + increment)
         contentWidth = self.w - (len(THEME.input[0]) + len(THEME.input[1]))
         if self.cursor - self.offset > contentWidth - 1:
             self.offset += increment
 
-    def _move_cursor_left(self, decrement):
+    def _moveCursorLeft(self, decrement):
         self.cursor = max(0, self.cursor - decrement)
         if self.cursor - self.offset < 0:
             self.offset -= decrement
         if self.offset and self.offset == self.cursor:
             self.offset -= 1
 
-    def on_key_pressed(self, ks, key):
+    def onKeyPressed(self, ks, key):
         # TODO: Common navigation commands?
         if key == curses.KEY_HOME:
             self.cursor = 0
@@ -882,15 +882,15 @@ class InputWidget(Widget):
             contentWidth = self.w - (len(THEME.input[0]) + len(THEME.input[1]))
             self.offset = max(0, self.cursor - contentWidth + 1)
         elif key == curses.KEY_LEFT:
-            self._move_cursor_left(1)
+            self._moveCursorLeft(1)
         elif key == curses.KEY_RIGHT:
-            self._move_cursor_right(1)
+            self._moveCursorRight(1)
         elif key in (curses.KEY_BACKSPACE, 127):
             # 127 - Ctrl+? - Android backspace
             txt = self.txt[0:max(0, self.cursor - 1)] + self.txt[self.cursor:]
             if not self.mask or self.mask.match(txt):
                 self.txt = txt
-                self._move_cursor_left(1)
+                self._moveCursorLeft(1)
         elif key == curses.KEY_DC:  # DEL
             txt = self.txt[0:max(0, self.cursor)] + self.txt[self.cursor + 1:]
             if not self.mask or self.mask.match(txt):
@@ -904,9 +904,9 @@ class InputWidget(Widget):
                 txt = self.txt[0:self.cursor] + ks + self.txt[self.cursor:]
                 if not self.mask or self.mask.match(txt):
                     self.txt = txt
-                    self._move_cursor_right(len(ks))
+                    self._moveCursorRight(len(ks))
 
-    def get_win_cursor_pos(self):
+    def getWinCursorPos(self):
         return len(THEME.input[0]) + self.cursor - self.offset
 
 
@@ -944,9 +944,9 @@ class InputRegexWidget(InputWidget):
         self.placeholder = placeholder
         self.color = self._color(self.focused, self.enabled)
         self.regexOn = regexOn
-        self.template = self._compile_regex()
+        self.template = self._compileRegex()
 
-    def _compile_regex(self):
+    def _compileRegex(self):
         template = None
         try:
             if self.regexOn:
@@ -956,13 +956,13 @@ class InputRegexWidget(InputWidget):
             self.err.setErr(True)
         return template
 
-    def on_key_pressed(self, ks, key):
-        super().on_key_pressed(ks, key)
-        self.template = self._compile_regex()
+    def onKeyPressed(self, ks, key):
+        super().onKeyPressed(ks, key)
+        self.template = self._compileRegex()
 
-    def set_regexOn(self, regex):
+    def setRegexOn(self, regex):
         self.regexOn = regex
-        self.template = self._compile_regex()
+        self.template = self._compileRegex()
 
     def draw(self, win):  # type: (curses.window) -> None
         super().draw(win)
@@ -988,8 +988,8 @@ class InputDateWidget(InputWidget):
     def setDate(self, d: date):
         self.txt = d.strftime("%d.%m.%Y")
 
-    def on_key_pressed(self, ks, key):
-        super().on_key_pressed(ks, key)
+    def onKeyPressed(self, ks, key):
+        super().onKeyPressed(ks, key)
         self.err.setErr(bool(self.txt and not self.getDate()))
 
     def draw(self, win):  # type: (curses.window) -> None
@@ -1103,7 +1103,7 @@ class FindQueryWindow:
             (self.lblProgress, "w 100% fill growY wrap"),
         )
         self.layout.pack(offset_x=2, offset_y=1, width=w - 4, height=h - 2)
-        self.widgets = deque(sorted(list(self.layout.collect_widgets()),
+        self.widgets = deque(sorted(list(self.layout.collectWidgets()),
                                     key=lambda _: _.focusOrder))
         #
         self.setFocused(self.inpQuery)
@@ -1113,10 +1113,10 @@ class FindQueryWindow:
         if self.focusedWid == focusWid:
             return
         if self.focusedWid:
-            self.focusedWid.set_focused(False)
+            self.focusedWid.setFocused(False)
         self.focusedWid = focusWid
         if self.focusedWid:
-            self.focusedWid.set_focused(True)
+            self.focusedWid.setFocused(True)
 
     @staticmethod
     def initWin(win=None):
@@ -1145,22 +1145,22 @@ class FindQueryWindow:
 
     def _keys(self):
         if self.findInProgress:
-            ks, key, _ = get_keystroke(0)
+            ks, key, _ = getKeystroke(0)
         else:
-            ks, key, _ = get_keystroke()
+            ks, key, _ = getKeystroke()
         self.go = self.onKeyPressed(ks, key)
 
     @staticmethod
     def drawTitle(win):  # type: (curses.window) -> None
         h, w = win.getmaxyx()
-        win.bkgd(" ", curses.color_pair(config.color_pairs[UI_TEXT][0]))
+        win.bkgd(" ", curses.color_pair(config.COLOR_PAIRS[UI_TEXT][0]))
         #
-        border = get_color(UI_BORDER)
+        border = getColor(UI_BORDER)
         win.attrset(border)
         win.border()
 
         x = (w - len(THEME.findIcon) - len(LABEL_FIND)) // 2 - 1
-        draw_title(win, 0, x, THEME.findIcon + LABEL_FIND)
+        drawTitle(win, 0, x, THEME.findIcon + LABEL_FIND)
 
     def drawContent(self, win):  # type: (curses.window) -> None
         h, w = win.getmaxyx()
@@ -1175,7 +1175,7 @@ class FindQueryWindow:
 
     def onKeyPressed(self, ks, key):
         if key == curses.KEY_RESIZE:
-            set_term_size()
+            setTermSize()
             stdscr.clear()
             stdscr.refresh()
             self.win = self.initWin(self.win)
@@ -1216,7 +1216,7 @@ class FindQueryWindow:
                 self.setFocused(wid)
 
             elif self.focusedWid:
-                self.focusedWid.on_key_pressed(ks, key)
+                self.focusedWid.onKeyPressed(ks, key)
             self.updateState()
         return True  #
 
@@ -1241,11 +1241,11 @@ class FindQueryWindow:
     def updateState(self):
         if self.findInProgress:
             return  #
-        self.inpEcho.set_enabled(self.chkEcho.checked)
-        self.inpEchoNot.set_enabled(self.chkEcho.checked)
-        self.chkWord.set_enabled(not self.chkRegex.checked)
-        self.inpQuery.set_regexOn(self.chkRegex.checked)
-        self.inpQueryNot.set_regexOn(self.chkRegex.checked)
+        self.inpEcho.setEnabled(self.chkEcho.checked)
+        self.inpEchoNot.setEnabled(self.chkEcho.checked)
+        self.chkWord.setEnabled(not self.chkRegex.checked)
+        self.inpQuery.setRegexOn(self.chkRegex.checked)
+        self.inpQueryNot.setRegexOn(self.chkRegex.checked)
 
         self.query.query = self.inpQuery.txt
         self.query.queryNot = self.inpQueryNot.txt
@@ -1267,15 +1267,15 @@ class FindQueryWindow:
         self.query.orig = not self.chkOrig.checked
 
         if self.findInProgress is None:
-            self.lblProgress.set_txt("")
+            self.lblProgress.setTxt("")
         else:
-            self.lblProgress.set_txt("Ничего не найдено")
+            self.lblProgress.setTxt("Ничего не найдено")
         self.refreshCursor()
 
     def refreshCursor(self):
         if isinstance(self.focusedWid, InputWidget):
             y, x = self.win.getbegyx()
-            inp_cursor_x = self.focusedWid.get_win_cursor_pos()
+            inp_cursor_x = self.focusedWid.getWinCursorPos()
             stdscr.move(y + self.focusedWid.y,
                         x + self.focusedWid.x + inp_cursor_x)
             curses.curs_set(1)
@@ -1290,8 +1290,8 @@ class FindQueryWindow:
                 arch += list(map(lambda e: e.name, node.archive + node.stat))
             self.query.echoArch = " ".join(arch)
 
-        self.findResult = api.find_query_msgids(
-            self.query, progress_handler=self.findProgressHandler)
+        self.findResult = api.findQueryMsgids(
+            self.query, progressHandler=self.findProgressHandler)
         self.findInProgress = False
 
     def findProgressHandler(self, param=None):
@@ -1308,7 +1308,7 @@ class FindQueryWindow:
                          f" TMsg: {param[4]}"
                          f" E: {param[0]}/{param[1]}"
                          f" EMsg: {param[2]}/{param[3]}")
-        self.lblProgress.set_txt(progress)
+        self.lblProgress.setTxt(progress)
         self._show()
         return api.FIND_OK
 
@@ -1345,7 +1345,7 @@ class QuickSearch(InputRegexWidget):
         self.result = []
         self.idx = 0
         self.matcher = matcher
-        self.color = get_color(color)
+        self.color = getColor(color)
         self.statTxt = ""
         self.statPos = 0
 
@@ -1354,7 +1354,7 @@ class QuickSearch(InputRegexWidget):
         super().draw(win)
         if self.txt and not self.err:
             win.addstr(self.y, self.x + self.statPos, self.statTxt, self.color)
-        win.move(self.y, self.x + self.get_win_cursor_pos())
+        win.move(self.y, self.x + self.getWinCursorPos())
 
     def search(self, query, pos):
         self.result = []
@@ -1363,7 +1363,7 @@ class QuickSearch(InputRegexWidget):
 
         if self.txt != query:
             self.txt = query
-            self.template = self._compile_regex()
+            self.template = self._compileRegex()
         if not (query and self.template):
             return  #
 
@@ -1377,7 +1377,7 @@ class QuickSearch(InputRegexWidget):
                     if self.idx == -1 and i >= pos:
                         self.idx = len(self.result) - 1
 
-    def on_key_pressed_search(self, key, ks, pager):
+    def onKeyPressedSearch(self, key, ks, pager):
         prevTxt = self.txt
         if ks in Qs.HOME:
             self.home()
@@ -1388,15 +1388,15 @@ class QuickSearch(InputRegexWidget):
         elif ks in Qs.PREV:
             self.prev()
         elif ks in Qs.NPAGE:
-            self.next_after(pager.next_page_top())
+            self.nextAfter(pager.nextPageTop())
         elif ks in Qs.PPAGE:
-            self.prev_before(pager.prev_page_bottom())
+            self.prevBefore(pager.prevPageBottom())
         elif ks in Qs.LEFT:
-            self._move_cursor_left(1)
+            self._moveCursorLeft(1)
         elif ks in Qs.RIGHT:
-            self._move_cursor_right(1)
+            self._moveCursorRight(1)
         else:
-            super().on_key_pressed(ks, key)
+            super().onKeyPressed(ks, key)
 
         if self.txt != prevTxt:
             self.search(self.txt, pager.pos)
@@ -1405,12 +1405,12 @@ class QuickSearch(InputRegexWidget):
             idx = self.idx + 1 if self.result else 0
             self.statTxt = "(%d/%d)" % (idx, len(self.result))
             self.statPos = self.w - len(self.statTxt) - len(THEME.input[1])
-            if self.get_win_cursor_pos() + 1 >= self.statPos:
-                self.offset += self.get_win_cursor_pos() + 1 - self.statPos
+            if self.getWinCursorPos() + 1 >= self.statPos:
+                self.offset += self.getWinCursorPos() + 1 - self.statPos
         elif self.err:
             errPos = self.w - len(THEME.error[0]) - len(THEME.input[1]) - 1  #
-            if self.get_win_cursor_pos() + 1 >= errPos:
-                self.offset += self.get_win_cursor_pos() + 1 - errPos
+            if self.getWinCursorPos() + 1 >= errPos:
+                self.offset += self.getWinCursorPos() + 1 - errPos
 
     def home(self):
         self.idx = 0
@@ -1428,7 +1428,7 @@ class QuickSearch(InputRegexWidget):
         if self.idx < 0:
             self.idx = len(self.result) - 1
 
-    def next_after(self, pos):
+    def nextAfter(self, pos):
         if not self.result:
             return  #
         while self.result[self.idx] < pos:
@@ -1437,7 +1437,7 @@ class QuickSearch(InputRegexWidget):
                 self.end()
                 break  #
 
-    def prev_before(self, pos):
+    def prevBefore(self, pos):
         if not self.result:
             return  #
         while self.result[self.idx] > pos:
@@ -1446,14 +1446,14 @@ class QuickSearch(InputRegexWidget):
                 self.home()
                 break  #
 
-    def ensure_cursor_visible(self, ks, cursor, scroll):
+    def ensureCursorVisible(self, ks, cursor, scroll):
         if self.result:
             cursor = self.result[self.idx]
             if ks in Qs.NPAGE:
                 scroll.pos = cursor
             elif ks in Qs.PPAGE:
                 scroll.pos = cursor - scroll.view
-            scroll.ensure_visible(cursor)
+            scroll.ensureVisible(cursor)
         return cursor
 
 
@@ -1485,82 +1485,82 @@ class ReaderWidget(Widget):
     def prerender(self, pos=0):
         self.tokens = parser.tokenize(self.msg[8:])
         height = parser.prerender(self.tokens, self.w, self.h)
-        self.t2l = parser.token_line_map(self.tokens)
+        self.t2l = parser.tokenLineMap(self.tokens)
         self.scroll = ScrollCalc(height, self.h, pos)
 
     def draw(self, scr, qs=None):
-        self.render_body(scr, self.tokens, self.scroll.pos, qs)
+        self.renderBody(scr, self.tokens, self.scroll.pos, qs)
         if self.scroll.is_scrollable:
-            draw_scrollbarV(scr, self.y, self.x + self.w - 1, self.scroll)
+            drawScrollBarV(scr, self.y, self.x + self.w - 1, self.scroll)
 
-    def render_body(self, scr, tokens, scroll, qs=None):
+    def renderBody(self, scr, tokens, scroll, qs=None):
         # type: (curses.window, List[parser.Token], int, QuickSearch) -> None
         if not tokens:
             return
-        tnum, offset = parser.find_visible_token(tokens, scroll)
-        line_num = tokens[tnum].line_num
+        tnum, offset = parser.findVisibleToken(tokens, scroll)
+        lineNum = tokens[tnum].lineNum
         y, x = (self.y, self.x)
         h, w = (self.y + self.h, self.x + self.w)
-        text_attr = 0
+        txtAttr = 0
         if parser.INLINE_STYLE_ENABLED:
             # Rewind tokens from the begin of line to apply inline text attributes
-            first_token = tnum
-            while tokens[first_token].line_num == line_num and first_token > 0:
-                first_token -= 1
-            for token in tokens[first_token:tnum]:
-                text_attr = ReaderWidget.applyAttr(token, text_attr)
+            firstToken = tnum
+            while tokens[firstToken].lineNum == lineNum and firstToken > 0:
+                firstToken -= 1
+            for token in tokens[firstToken:tnum]:
+                txtAttr = ReaderWidget.applyAttr(token, txtAttr)
 
         for token in tokens[tnum:]:
-            if token.line_num > line_num:
-                line_num = token.line_num
+            if token.lineNum > lineNum:
+                lineNum = token.lineNum
                 y, x = (y + 1, self.x)
             if y >= h:
                 break  # tokens
             #
-            text_attr = ReaderWidget.applyAttr(token, text_attr)
+            txtAttr = ReaderWidget.applyAttr(token, txtAttr)
             #
-            y, x = self.renderToken(scr, token, y, x, h, offset, text_attr, qs)
+            y, x = self.renderToken(scr, token, y, x, h, offset, txtAttr, qs)
             offset = 0  # required in the first partial multiline token only
 
     @staticmethod
-    def applyAttr(token, text_attr):
+    def applyAttr(token, txtAttr):
         if token.type == parser.TT.URL:
-            text_attr |= curses.A_UNDERLINE
+            txtAttr |= curses.A_UNDERLINE
         else:
-            text_attr &= ~curses.A_UNDERLINE
+            txtAttr &= ~curses.A_UNDERLINE
 
         if token.type == parser.TT.ITALIC_BEGIN:
-            text_attr |= curses.A_ITALIC
+            txtAttr |= curses.A_ITALIC
         elif token.type == parser.TT.ITALIC_END:
-            text_attr &= ~curses.A_ITALIC
+            txtAttr &= ~curses.A_ITALIC
 
         elif token.type == parser.TT.BOLD_BEGIN:
-            text_attr |= curses.A_BOLD
+            txtAttr |= curses.A_BOLD
         elif token.type == parser.TT.BOLD_END:
-            text_attr &= ~curses.A_BOLD
-        return text_attr
+            txtAttr &= ~curses.A_BOLD
+        return txtAttr
 
-    def renderToken(self, scr, token: parser.Token, y, x, h, offset, text_attr, qs=None):
+    def renderToken(self, scr, token: parser.Token, y, x, h, offset, txtAttr, qs=None):
         matches = []
         # noinspection PyUnresolvedReferences
         if (qs and qs.result
-                and hasattr(token, 'search_idx')
-                and token.search_idx is not None):
+                and hasattr(token, 'searchIdx')
+                and token.searchIdx is not None):
             # noinspection PyUnresolvedReferences
-            matches = token.search_matches
+            matches = token.searchMatches
         #
         for i, line in enumerate(token.render[offset:]):
             if y + i >= h:
                 return y + i, x  #
-            attr = get_color(TOKEN2UI.get(token.type, UI_TEXT))
+            attr = getColor(TOKEN2UI.get(token.type, UI_TEXT))
             if line:
-                scr.addstr(y + i, x, line, attr | text_attr)
+                scr.addstr(y + i, x, line, attr | txtAttr)
                 #
-                for m_idx, (off, match) in enumerate(matches):
+                for mIdx, (off, match) in enumerate(matches):
                     if off == offset + i:
                         scr.addstr(y + i, x + match.start(),
                                    line[match.start():match.end()],
-                                   attr | text_attr | curses.A_REVERSE)
+                                   attr | txtAttr | curses.A_REVERSE)
 
             if len(token.render) > 1 and i + offset < len(token.render) - 1:
                 x = self.x  # new line in multiline token -- carriage return
@@ -1568,7 +1568,7 @@ class ReaderWidget(Widget):
                 x += len(line)  # last/single line -- move caret in line
         return y + (len(token.render) - 1) - offset, x  #
 
-    def on_key_pressed(self, ks, key):
+    def onKeyPressed(self, ks, key):
         if ks in Reader.UP:
             self.scroll.pos -= 1
         elif ks in Reader.DOWN:
@@ -1588,17 +1588,17 @@ class ReaderWidget(Widget):
     # region QuickSearch
     def qsPager(self):
         return Pager(
-            parser.find_visible_token(self.tokens, self.scroll.pos)[0],
-            lambda: parser.find_visible_token(self.tokens, self.scroll.pos + self.scroll.view)[0],
-            lambda: parser.find_visible_token(self.tokens, self.scroll.pos)[0] - 1)
+            parser.findVisibleToken(self.tokens, self.scroll.pos)[0],
+            lambda: parser.findVisibleToken(self.tokens, self.scroll.pos + self.scroll.view)[0],
+            lambda: parser.findVisibleToken(self.tokens, self.scroll.pos)[0] - 1)
 
     def ensureVisibleOnQsKey(self, ks, tidx, off):
         if ks in Qs.HOME or ks in Qs.END:
-            self.scroll.ensure_visible(self.t2l[tidx].start + off, center=True)
+            self.scroll.ensureVisible(self.t2l[tidx].start + off, center=True)
         elif ks in Qs.NPAGE:
-            self.scroll.ensure_visible(self.t2l[tidx].start + off + self.scroll.view - 1)
+            self.scroll.ensureVisible(self.t2l[tidx].start + off + self.scroll.view - 1)
         elif ks in Qs.PPAGE:
-            self.scroll.ensure_visible(self.t2l[tidx].start + off - self.scroll.view + 1)
+            self.scroll.ensureVisible(self.t2l[tidx].start + off - self.scroll.view + 1)
         else:
-            self.scroll.ensure_visible(self.t2l[tidx].start + off)
+            self.scroll.ensureVisible(self.t2l[tidx].start + off)
     # endregion QuickSearch
