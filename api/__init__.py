@@ -24,7 +24,7 @@ class MsgMetadata:
         return self._strtime
 
     @staticmethod
-    def from_list(msgid, msg):
+    def fromList(msgid, msg):
         return MsgMetadata(msgid=msgid,
                            tags=msg[0],
                            echo=msg[1],
@@ -88,7 +88,7 @@ def filterEchoarea(fq: FindQuery, echoareas, extLen):
     return echoareas
 
 
-origin_template = re.compile(r"^\s*\+\+\+")
+originTemplate = re.compile(r"^\s*\+\+\+")
 
 
 def _compilePattern(query, flags, regex, word):
@@ -116,7 +116,7 @@ def buildFindMatcher(query, fq: FindQuery) -> Callable[[str], int]:
                 while res:
                     line = s.rfind("\n", 0, res.end())
                     line = s[line if line != -1 else 0:res.end()]
-                    orig = origin_template.match(line)
+                    orig = originTemplate.match(line)
                     if not orig:
                         return 1  # sqlite compatible result
                     res = pattern.search(s, res.end())
@@ -162,6 +162,8 @@ def txtApiMatch(fq: FindQuery, match, matchNot, msgid, msg) -> bool:
         return False
     if matchNot and fq.to and matchNot(msg[5]):
         return False
+    if not match:
+        return True
     # Positive
     if fq.msgid and msgid == fq.query:
         return True

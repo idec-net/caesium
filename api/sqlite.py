@@ -9,6 +9,7 @@ from core import FEAT_FEATURES, FEAT_X_C
 con = None  # type: Optional[sqlite3.Connection]
 c = None  # type: Optional[sqlite3.Cursor]
 
+
 # Frequently Asked Questions
 # (18) Case-insensitive matching of Unicode characters does not work.
 # https://www.sqlite.org/faq.html#q18
@@ -56,18 +57,18 @@ def init(db="idec.db"):
     con.commit()
 
 
-def get_echo_length(echo):
+def getEchoLength(echo):
     row = c.execute("SELECT COUNT(1) FROM msg WHERE echoarea = ?;",
                     (echo,)).fetchone()
     return row[0]
 
 
-def get_echocount(echo):
-    return get_echo_length(echo)
+def getEchocount(echo):
+    return getEchoLength(echo)
 
 
 # noinspection PyUnusedLocal
-def save_to_favorites(msgid, msg):
+def saveToFavorites(msgid, msg):
     favorites = c.execute("SELECT COUNT(1) FROM msg WHERE msgid = ? AND favorites = 1",
                           (msgid,)).fetchone()[0]
     if favorites == 0:
@@ -78,7 +79,7 @@ def save_to_favorites(msgid, msg):
         return False
 
 
-def get_echo_msgids(echo):
+def getEchoMsgids(echo):
     msgids = []
     for row in c.execute("SELECT msgid FROM msg WHERE echoarea = ? ORDER BY id;",
                          (echo,)):
@@ -87,7 +88,7 @@ def get_echo_msgids(echo):
     return msgids
 
 
-def get_echo_msgs_metadata(echo):
+def getEchoMsgsMetadata(echo):
     # type: (str) -> List[MsgMetadata]
     if echo == "favorites":
         rows = c.execute(
@@ -102,10 +103,10 @@ def get_echo_msgs_metadata(echo):
             "SELECT msgid, tags, echoarea, time, fr, addr, t, subject"
             " FROM msg WHERE echoarea = ? ORDER BY id;",
             (echo,))
-    return list(map(lambda r: MsgMetadata.from_list(r[0], r[1:]), rows))
+    return list(map(lambda r: MsgMetadata.fromList(r[0], r[1:]), rows))
 
 
-def get_carbonarea():
+def getCarbonarea():
     msgids = []
     for row in c.execute("SELECT msgid FROM msg WHERE carbonarea = 1 ORDER BY id"):
         msgids.append(row[0])
@@ -113,14 +114,14 @@ def get_carbonarea():
 
 
 # noinspection PyUnusedLocal
-def add_to_carbonarea(msgid, msgbody):
+def addToCarbonarea(msgid, msgbody):
     c.execute("UPDATE msg SET carbonarea = 1 WHERE msgid = ?;",
               (msgid,))
     con.commit()
 
 
 # noinspection PyUnusedLocal
-def save_message(raw, node, to):
+def saveMessage(raw, node, to):
     for msg in raw:
         msgid = msg[0]
         msgbody = msg[1]
@@ -136,31 +137,31 @@ def save_message(raw, node, to):
         msgid = msg[0]
         msgbody = msg[1]
         if to:
-            carbonarea = get_carbonarea()
+            carbonarea = getCarbonarea()
             for name in to:
                 if name in msgbody[5] and msgid not in carbonarea:
-                    add_to_carbonarea(msgid, msgbody)
+                    addToCarbonarea(msgid, msgbody)
 
 
-def get_favorites_list():
+def getFavoritesList():
     msgids = []
     for row in c.execute("SELECT msgid FROM msg WHERE favorites = 1;"):
         msgids.append(row[0])
     return msgids
 
 
-def remove_from_favorites(msgid):
+def removeFromFavorites(msgid):
     c.execute("UPDATE msg SET favorites = 0 WHERE msgid = ?;", (msgid,))
     con.commit()
 
 
-def remove_echoarea(echoarea):
+def removeEchoarea(echoarea):
     c.execute("DELETE FROM msg WHERE echoarea = ?;", (echoarea,))
     con.commit()
 
 
 # noinspection PyUnusedLocal
-def read_msg(msgid, echoarea):
+def readMsg(msgid, echoarea):
     row = c.execute("SELECT tags, echoarea, time, fr, addr, t, subject, body"
                     " FROM msg WHERE msgid = ?;",
                     (msgid,)).fetchone()
@@ -173,21 +174,21 @@ def read_msg(msgid, echoarea):
     return msg.split("\n"), size
 
 
-def find_msg(msgid):
-    return read_msg(msgid, None)
+def findMsg(msgid):
+    return readMsg(msgid, None)
 
 
-def find_subj_msgids(echoarea, subj):  # type: (str, str) -> List[str]
+def findSubjMsgids(echoarea, subj):  # type: (str, str) -> List[str]
     if subj.startswith("Re: "):
         subj = subj[4:]
     elif subj.startswith("Re:"):
         subj = subj[3:]
     subjRe = "Re:" + subj
     subjReSpace = "Re: " + subj
-    where_clause = "TRUE"
+    whereClause = "TRUE"
     args = []
     if echoarea:
-        where_clause += " AND echoarea = ? "
+        whereClause += " AND echoarea = ? "
         args.append(echoarea)
 
     rows = c.execute("SELECT msgid, tags, echoarea, time, fr, addr, t, subject"
@@ -195,17 +196,17 @@ def find_subj_msgids(echoarea, subj):  # type: (str, str) -> List[str]
                      " WHERE %s"
                      "   AND (subject = ? OR subject = ? OR subject = ?)"
                      " ORDER BY id"
-                     " LIMIT 1000;" % where_clause,
+                     " LIMIT 1000;" % whereClause,
                      (*args, subj, subjRe, subjReSpace))
-    return list(map(lambda r: MsgMetadata.from_list(r[0], r[1:]), rows))
+    return list(map(lambda r: MsgMetadata.fromList(r[0], r[1:]), rows))
 
 
 FIND_CANCEL = 1
 FIND_OK = 0
 
 
-def find_query_msgids(fq: FindQuery,
-                      progress_handler: Callable = None) -> List[MsgMetadata]:
+def findQueryMsgids(fq: FindQuery,
+                    progressHandler: Callable = None) -> List[MsgMetadata]:
     args = []
     where = []
 
@@ -234,17 +235,17 @@ def find_query_msgids(fq: FindQuery,
         matchNot = buildFindMatcher(fq.queryNot, fq)
         con.create_function("MATCH_NOT", 1, matchNot)
 
-        where_not = []
+        whereNot = []
         if fq.body:
-            where_not.append("NOT MATCH_NOT(body)")
+            whereNot.append("NOT MATCH_NOT(body)")
         if fq.subj:
-            where_not.append("NOT MATCH_NOT(subject)")
+            whereNot.append("NOT MATCH_NOT(subject)")
         if fq.fr:
-            where_not.append("NOT MATCH_NOT(fr)")
+            whereNot.append("NOT MATCH_NOT(fr)")
         if fq.to:
-            where_not.append("NOT MATCH_NOT(t)")
-        if where_not:
-            where += " AND (" + " AND ".join(where_not) + ")"
+            whereNot.append("NOT MATCH_NOT(t)")
+        if whereNot:
+            where += " AND (" + " AND ".join(whereNot) + ")"
 
     if fq.dtFr:
         dtFr = int(datetime.combine(fq.dtFr, datetime.min.time()).timestamp())
@@ -256,8 +257,8 @@ def find_query_msgids(fq: FindQuery,
         where += " AND time <= ?"
         args.append(dtTo)
 
-    if progress_handler:
-        con.set_progress_handler(progress_handler, 100)
+    if progressHandler:
+        con.set_progress_handler(progressHandler, 100)
 
     if fq.echo and fq.echoQuery:
         echos = list(filter(None, fq.echoQuery.split(" ")))
@@ -281,7 +282,7 @@ def find_query_msgids(fq: FindQuery,
             " ORDER BY id"
             " LIMIT ?;" % where,
             (*args, fq.limit))
-        return list(map(lambda r: MsgMetadata.from_list(r[0], r[1:]), rows))
+        return list(map(lambda r: MsgMetadata.fromList(r[0], r[1:]), rows))
     except sqlite3.OperationalError as ex:
         if "interrupted" == str(ex):
             return []  #
@@ -292,7 +293,7 @@ def find_query_msgids(fq: FindQuery,
         con.set_progress_handler(None, 1)
 
 
-def get_node_features(node):  # type: (str) -> Optional[List[str]]
+def getNodeFeatures(node):  # type: (str) -> Optional[List[str]]
     features = c.execute("SELECT response FROM node_feature"
                          " WHERE node = ? AND feature = ?;",
                          (node, FEAT_FEATURES)).fetchone()
@@ -302,7 +303,7 @@ def get_node_features(node):  # type: (str) -> Optional[List[str]]
     return None
 
 
-def save_node_features(node, features):  # type: (str, List[str]) -> None
+def saveNodeFeatures(node, features):  # type: (str, List[str]) -> None
     features = "\n".join(features)
     c.execute("DELETE FROM node_feature WHERE node = ? AND feature = ?;",
               (node, FEAT_FEATURES))
@@ -311,18 +312,18 @@ def save_node_features(node, features):  # type: (str, List[str]) -> None
     con.commit()
 
 
-def get_node_echo_counts(node):  # type: (str) -> Optional[dict[str, int]]
+def getNodeEchoCounts(node):  # type: (str) -> Optional[dict[str, int]]
     ec = c.execute("SELECT response FROM node_feature"
                    " WHERE node = ? AND feature = ?;",
                    (node, FEAT_X_C)).fetchone()
     if ec:
-        echo_counts = list(filter(None, map(lambda it: it.strip().split(":"),
-                                            ec[0].splitlines())))
-        return {echo[0]: int(echo[1]) for echo in echo_counts}
+        echoCounts = list(filter(None, map(lambda it: it.strip().split(":"),
+                                           ec[0].splitlines())))
+        return {echo[0]: int(echo[1]) for echo in echoCounts}
     return None
 
 
-def save_node_echo_counts(node, echo_counts):  # type: (str, dict[str, int]) -> None
+def saveNodeEchoCounts(node, echo_counts):  # type: (str, dict[str, int]) -> None
     ec = ["%s:%s\n" % (echo, str(count))
           for echo, count in echo_counts.items()]
     ec = "".join(ec)

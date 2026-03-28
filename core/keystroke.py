@@ -116,12 +116,12 @@ class KsSeq:
     sequences = []
 
     @staticmethod
-    def any_startswith(ks):
+    def anyStartswith(ks):
         return any(filter(lambda s: s.startswith(f"{KsSeq.ks} {ks}".strip()),
                           KsSeq.sequences))
 
     @staticmethod
-    def init_sequences():
+    def initSequences():
         KsSeq.sequences = []
         for k, group in cmd.__dict__.items():
             if not isinstance(group, type):
@@ -131,10 +131,10 @@ class KsSeq:
                     KsSeq.sequences += [_ for _ in val.ks if " " in _]
 
 
-def getkeystroke(scr: curses.window, init_ch=-1) -> Tuple[str, int, Any]:
-    ks, key, _ = _getkeystroke(scr, init_ch)
+def getkeystroke(scr: curses.window, initCh=-1) -> Tuple[str, int, Any]:
+    ks, key, _ = _getkeystroke(scr, initCh)
     #
-    if len(KsSeq.ks) < KsSeq.MAX_LEN and KsSeq.any_startswith(ks):
+    if len(KsSeq.ks) < KsSeq.MAX_LEN and KsSeq.anyStartswith(ks):
         KsSeq.ks = f"{KsSeq.ks} {ks}".strip()  # make keystroke sequence
     else:
         KsSeq.ks = ks  # flush current sequence
@@ -143,13 +143,13 @@ def getkeystroke(scr: curses.window, init_ch=-1) -> Tuple[str, int, Any]:
     return ks, key, _  #
 
 
-def _getkeystroke(scr: curses.window, init_ch=-1) -> Tuple[str, int, Any]:
+def _getkeystroke(scr: curses.window, initCh=-1) -> Tuple[str, int, Any]:
     # drainPendingKeys
     if not PENDING_KEYS:
         while True:
-            k = get_wch(scr, init_ch)
-            if init_ch != -1:
-                init_ch = -1  # reset initial ch to prevent endless loop
+            k = getWch(scr, initCh)
+            if initCh != -1:
+                initCh = -1  # reset initial ch to prevent endless loop
             if k == -1:
                 break  #
             PENDING_KEYS.append(k)
@@ -197,18 +197,18 @@ def _getkeystroke(scr: curses.window, init_ch=-1) -> Tuple[str, int, Any]:
     return name, k, None
 
 
-def get_wch(scr: curses.window, init_ch=-1) -> Union[int, str]:
+def getWch(scr: curses.window, initCh=-1) -> Union[int, str]:
     # npyscreen - wgwidget._get_ch
     # https://github.com/npcole/npyscreen/blob/master/npyscreen/wgwidget.py#L475
 
     # For now, disable all attempt to use get_wch()
     # but everything that follows could be in the except clause above.
     # Try to read utf-8 if possible.
-    _stored_bytes = []
-    if init_ch == -1:
+    _storedBytes = []
+    if initCh == -1:
         ch = scr.getch()
     else:
-        ch = init_ch
+        ch = initCh
     if ch <= 193:
         return ch
     # if we are here, we need to read 1, 2 or 3 more bytes.
@@ -216,22 +216,22 @@ def get_wch(scr: curses.window, init_ch=-1) -> Union[int, str]:
     # but we'll risk not checking...
     elif 194 <= ch <= 223:
         # 2 bytes
-        _stored_bytes.append(ch)
-        _stored_bytes.append(scr.getch())
+        _storedBytes.append(ch)
+        _storedBytes.append(scr.getch())
     elif 224 <= ch <= 239:
         # 3 bytes
-        _stored_bytes.append(ch)
-        _stored_bytes.append(scr.getch())
-        _stored_bytes.append(scr.getch())
+        _storedBytes.append(ch)
+        _storedBytes.append(scr.getch())
+        _storedBytes.append(scr.getch())
     elif 240 <= ch <= 244:
         # 4 bytes
-        _stored_bytes.append(ch)
-        _stored_bytes.append(scr.getch())
-        _stored_bytes.append(scr.getch())
-        _stored_bytes.append(scr.getch())
+        _storedBytes.append(ch)
+        _storedBytes.append(scr.getch())
+        _storedBytes.append(scr.getch())
+        _storedBytes.append(scr.getch())
     elif ch >= 245:
         # probably a control character
         return ch
 
-    ch = bytes(_stored_bytes).decode('utf-8', errors='strict')
+    ch = bytes(_storedBytes).decode('utf-8', errors='strict')
     return ch

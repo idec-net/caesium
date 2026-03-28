@@ -8,8 +8,8 @@ from core.layout import GridLayout
 
 
 def show_key():
-    ui.initialize_curses()
-    lbl_ks = ui.LabelWidget(color=UI_CODE)
+    ui.initializeCurses()
+    lblKs = ui.LabelWidget(color=UI_CODE)
     KsSeq.sequences += ["C-w C-r z", "C-n C-f"]
     layout = GridLayout(
         (ui.LabelWidget("Caesium Keystroke tester",
@@ -20,26 +20,26 @@ def show_key():
                         color=UI_TEXT), "h 2 wrap"),
         (ui.LabelWidget("Press Ctrl+C to exit.",
                         color=UI_TEXT), "h 2 wrap"),
-        (lbl_ks, "growY"),
+        (lblKs, "growY"),
     )
     layout.pack(2, 2, height=ui.HEIGHT - 4, width=ui.WIDTH - 4)
     while True:
         for wid, _ in layout.widgets:  # type: (ui.Widget, ui.CC)
             wid.draw(ui.stdscr)
         #
-        ks, key, _ = ui.get_keystroke()
+        ks, key, _ = ui.getKeystroke()
         #
         if key == curses.KEY_RESIZE:
-            ui.set_term_size()
+            ui.setTermSize()
             layout.pack(2, 2, height=ui.HEIGHT - 4, width=ui.WIDTH - 4)
-        ui.stdscr.addstr(lbl_ks.y, lbl_ks.x, " " * lbl_ks.w)
-        lbl_ks.set_txt(f"{ks} ({key})")
+        ui.stdscr.addstr(lblKs.y, lblKs.x, " " * lblKs.w)
+        lblKs.setTxt(f"{ks} ({key})")
 
 
 if __name__ == "__main__":
     try:
-        ui.initialize_curses()
-        ui.load_colors("default")
+        ui.initializeCurses()
+        ui.loadColors("default")
         show_key()
     finally:
-        ui.terminate_curses()
+        ui.terminateCurses()

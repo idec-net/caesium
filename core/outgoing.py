@@ -27,7 +27,7 @@ def directory(node):
     return storage + "out/" + node.nodename + "/"
 
 
-def get_out_msgids(node, drafts=False):
+def getOutMsgids(node, drafts=False):
     # type: (config.Node, bool) -> List[str]
     msgids = []
     node_dir = directory(node)
@@ -41,9 +41,9 @@ def get_out_msgids(node, drafts=False):
     return msgids
 
 
-def get_out_msgs_metadata(node, drafts=False):
+def getOutMsgsMetadata(node, drafts=False):
     # type: (config.Node, bool) -> List[MsgMetadata]
-    msgids = get_out_msgids(node, drafts)
+    msgids = getOutMsgids(node, drafts)
     msgs_metadata = []
     node_dir = directory(node)
     for msgid in msgids:
@@ -51,12 +51,12 @@ def get_out_msgs_metadata(node, drafts=False):
             msg = f.read().strip().replace("\r", "").split("\n")
             if len(msg) < 4:
                 msg += [""] * (4 - len(msg))
-            msgs_metadata.append(MsgMetadata.from_list(
+            msgs_metadata.append(MsgMetadata.fromList(
                 msgid, ["", msg[0], datetime.now().timestamp(), "", "", msg[1], msg[2]]))
     return msgs_metadata
 
 
-def read_out_msg(msgid, node):  # type: (str, config.Node) -> (List[str], int)
+def readOutMsg(msgid, node):  # type: (str, config.Node) -> (List[str], int)
     node_dir = directory(node)
     with open(node_dir + msgid, "r") as f:
         temp = f.read().strip().replace("\r", "").split("\n")
@@ -76,7 +76,7 @@ def read_out_msg(msgid, node):  # type: (str, config.Node) -> (List[str], int)
     return msg, size
 
 
-def save_out(filepath):
+def saveOut(filepath):
     with codecs.open("temp", "r", "utf-8") as f:
         new = f.read().strip().replace("\r", "").split("\n")
     if len(new) <= 1:
@@ -97,7 +97,7 @@ def outcount(node):
     return outpath + "/%s" % str(num + 1).zfill(5)
 
 
-def get_out_length(node, drafts=False):
+def getOutLength(node, drafts=False):
     node_dir = directory(node)
     if drafts:
         return len([f for f in os.listdir(node_dir)
@@ -107,7 +107,7 @@ def get_out_length(node, drafts=False):
                     if f.endswith(".out") or f.endswith(".outmsg")])
 
 
-def new_msg(echo):
+def newMsg(echo):
     with open("template.txt", "r") as t:
         with open("temp", "w") as f:
             f.write(echo + "\n")
@@ -116,7 +116,7 @@ def new_msg(echo):
             f.write(t.read())
 
 
-def quote_msg(msgid, msg, oldquote):
+def quoteMsg(msgid, msg, oldquote):
     with open("template.txt", "r") as t:
         with open("temp", "w") as f:
             subj = msg[6]
@@ -136,7 +136,7 @@ def quote_msg(msgid, msg, oldquote):
             for line in msg[8:]:
                 if line.startswith("+++") or not line.strip():
                     continue  # skip sign and empty lines
-                qq = parser.quote_template.match(line)
+                qq = parser.quoteTemplate.match(line)
                 if qq:
                     quoter = ">"
                     if len(line) > qq.span()[1] and line[qq.span()[1]] != " ":
