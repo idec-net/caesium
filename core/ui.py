@@ -990,7 +990,7 @@ class InputDateWidget(InputWidget):
 
     def on_key_pressed(self, ks, key):
         super().on_key_pressed(ks, key)
-        self.err.setErr(self.txt and not self.getDate())
+        self.err.setErr(bool(self.txt and not self.getDate()))
 
     def draw(self, win):  # type: (curses.window) -> None
         super().draw(win)

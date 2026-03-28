@@ -162,6 +162,8 @@ def txtApiMatch(fq: FindQuery, match, matchNot, msgid, msg) -> bool:
         return False
     if matchNot and fq.to and matchNot(msg[5]):
         return False
+    if not match:
+        return True
     # Positive
     if fq.msgid and msgid == fq.query:
         return True

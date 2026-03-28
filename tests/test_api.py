@@ -407,6 +407,9 @@ def test_find_query_empty(api):
     data = api.find_query_msgids(FindQuery())
     assert len(data) >= 4
 
+    data = api.find_query_msgids(FindQuery(queryNot="nnii"))
+    assert len(data) == 1
+
 
 def test_find_matcher_regex():
     # any case, anywhere
