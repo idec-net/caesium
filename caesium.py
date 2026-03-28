@@ -23,7 +23,7 @@ from core import (
 )
 from core.cmd import Common, Out, Reader, Selector, Qs
 from core.config import (
-    get_color, UI_BORDER, UI_TEXT, UI_CURSOR
+    color_pairs, get_color, UI_BORDER, UI_TEXT, UI_CURSOR
 )
 
 # TODO: Add http/https/socks proxy support
@@ -298,12 +298,7 @@ class EchoSelectorScreen:
             #
             if key == curses.KEY_RESIZE:
                 ui.set_term_size()
-                self.scroll = ui.ScrollCalc(len(self.echos.data), ui.HEIGHT - 2,
-                                            self.echos.idx)
-                ui.stdscr.clear()
-                if self.qs:
-                    self.qs.y = ui.HEIGHT - 1
-                    self.qs.width = ui.WIDTH - len(ui.version) - 13
+                self.onResize()
             elif self.qs:
                 if ks in Qs.CLOSE or ks in Qs.APPLY:
                     if ks in Qs.APPLY and self.qs.result:
@@ -438,11 +433,13 @@ class EchoSelectorScreen:
         elif ks in Selector.FIND:
             win = ui.FindQueryWindow(cfg=cfg)
             find_result = win.show()
+            if win.resized:
+                self.onResize()
             if find_result:
                 find_result = sorted(find_result, key=lambda m: m.time)
-                self.go, _ = EchoReader(
+                self.showReader(EchoReader(
                     config.ECHO_FIND, 0, True, self.counts,
-                    mode=ui.ReaderMode.FIND, msgids=find_result).show()
+                    mode=ui.ReaderMode.FIND, msgids=find_result))
 
     def fetch_mail(self, force_full_idx):
         ui.terminate_curses()
@@ -462,8 +459,8 @@ class EchoSelectorScreen:
         if cur_echo.name in self.counts.lasts:
             last = self.counts.lasts[cur_echo.name]
         last = min(self.counts.total[cur_echo.name], last + 1)
-        self.go, self.next_echo = EchoReader(
-            cur_echo, last, self.echos.isArch(), self.counts).show()
+        self.showReader(EchoReader(
+            cur_echo, last, self.echos.isArch(), self.counts))
         self.counts.rescan_counts(self.echos.data)
         if self.next_echo and isinstance(self.next_echo, bool):
             self.echos.idx = self.counts.find_new(self.echos.idx)
@@ -483,14 +480,27 @@ class EchoSelectorScreen:
     def read_outgoing(self):
         out_length = outgoing.get_out_length(cfg.nodes[node], drafts=False)
         if out_length:
-            self.go, self.next_echo = EchoReader(
-                config.ECHO_OUT, out_length, self.echos.isArch(), self.counts).show()
+            self.showReader(EchoReader(
+                config.ECHO_OUT, out_length, self.echos.isArch(), self.counts))
 
     def read_drafts(self):
         out_length = outgoing.get_out_length(cfg.nodes[node], drafts=True)
         if out_length:
-            self.go, self.next_echo = EchoReader(
-                config.ECHO_DRAFTS, 0, self.echos.isArch(), self.counts).show()
+            self.showReader(EchoReader(
+                config.ECHO_DRAFTS, 0, self.echos.isArch(), self.counts))
+
+    def showReader(self, reader):
+        self.go, self.next_echo = reader.show()
+        if reader.resized:
+            self.onResize()
+
+    def onResize(self):
+        self.scroll = ui.ScrollCalc(len(self.echos.data), ui.HEIGHT - 2,
+                                    self.echos.idx)
+        ui.stdscr.clear()
+        if self.qs:
+            self.qs.y = ui.HEIGHT - 1
+            self.qs.width = ui.WIDTH - len(ui.version) - 13
 
 
 def call_editor(node_, out=''):
@@ -590,6 +600,7 @@ class EchoReader:
     go: bool = True  # show reader
     done: bool = False  # close app
     next_echo: Union[str, bool] = False  # jump to next echo after reader closed
+    resized: bool = False
 
     def __init__(self, echo: config.Echo, msgn, archive, counts,
                  mode=ui.ReaderMode.ECHO, msgids=None):
@@ -622,7 +633,8 @@ class EchoReader:
         self.reader.prerender()
 
     def msgid(self):
-        return self._msgid or self.msgs.curItem().msgid
+        m = self.msgs.curItem()
+        return self._msgid or (m.msgid if m else "")
 
     def get_msgs_metadata(self):
         if self.out:
@@ -634,14 +646,17 @@ class EchoReader:
 
     def read_cur_msg(self):  # type: () -> (List[str], int)
         self._msgid = None
-        if self.out:
+        if self.out and "." in self.msgid():  # .out, .outmsg, .draft
             self.reader.setMsg(*outgoing.read_out_msg(self.msgid(), self.cur_node))
         else:
             m = self.msgs.curItem()
-            if not m:
+            if not m and self.msgs.data:
                 self.msgs.idx = 0
                 m = self.msgs.curItem()
-            self.reader.setMsg(*api.read_msg(self._msgid or m.msgid, m.echo))
+            if m:
+                self.reader.setMsg(*api.read_msg(self._msgid or m.msgid, m.echo))
+            else:
+                self.reader.setMsg(*api.read_msg("unknown", "unknown"))
 
     def read_msg_skip_twit(self, increment):
         self.read_cur_msg()
@@ -651,9 +666,12 @@ class EchoReader:
                 break
             self.read_cur_msg()
 
-    def prerender_msg_or_quit(self):
+    def reload_msgs_or_quit(self):
         self.msgs.data = self.get_msgs_metadata()
         if self.msgs.data:
+            if self.msgs.stack:
+                self.msgs.mode = self.msgs.stack[0][0]
+                self.msgs.stack.clear()
             self.msgs.idx = min(self.msgs.idx, len(self.msgs.data) - 1)
             self.read_cur_msg()
             self.reader.prerender()
@@ -670,6 +688,7 @@ class EchoReader:
                 links)))
             i = win.show()
             if win.resized:
+                self.reader.setRect(x=0, y=5, w=ui.WIDTH, h=ui.HEIGHT - 5 - 1)
                 self.reader.prerender(self.reader.scroll.pos)
             if i:
                 self.open_link(links[i - 1])
@@ -765,6 +784,7 @@ class EchoReader:
         #
         if key == curses.KEY_RESIZE:
             ui.set_term_size()
+            self.resized = True
             self.reader.setRect(x=0, y=5, w=ui.WIDTH, h=ui.HEIGHT - 5 - 1)
             self.reader.prerender(self.reader.scroll.pos)
             ui.stdscr.clear()
@@ -837,7 +857,8 @@ class EchoReader:
             self.reader.ensureVisibleOnQsKey(ks, tidx, off)
 
     def mode_restore(self):
-        msgid = self.msgs.curItem().msgid
+        m = self.msgs.curItem()
+        msgid = m.msgid if m else ""
         self.msgs.pop()
         if msgid != self.msgs.curItem().msgid:
             self.stack.clear()
@@ -850,6 +871,8 @@ class EchoReader:
             if self.msgs.mode != ui.ReaderMode.SUBJ:
                 data = api.find_subj_msgids(self.reader.msg[1], self.reader.msg[6])
                 self.msgs.modeSubjOn(data)
+                if self.msgs.data and self.msgs.idx == -1:
+                    self.msgs.idx = 0
             else:
                 self.msgs.modeSubjOff()
             self.stack.clear()
@@ -940,7 +963,7 @@ class EchoReader:
             if self.msgid().endswith(".out") or self.msgid().endswith(".draft"):
                 copyfile(outgoing.directory(self.cur_node) + self.msgid(), "temp")
                 call_editor(self.cur_node, self.msgid())
-                self.prerender_msg_or_quit()
+                self.reload_msgs_or_quit()
             else:
                 ui.show_message_box("Сообщение уже отправлено")
         elif ks in Out.SIGN and self.out:
@@ -949,12 +972,12 @@ class EchoReader:
             ui.draw_message_box("Подождите", False)
             api.remove_from_favorites(self.msgid())
             self.counts.get_counts(self.cur_node, False)
-            self.prerender_msg_or_quit()
+            self.reload_msgs_or_quit()
         elif ks in Out.DEL and self.drafts and self.msgs.data:
             if ui.SelectWindow("Удалить черновик '%s'?" % self.msgid(),
                                ["Нет", "Да"]).show() == 2:
                 os.remove(outgoing.directory(self.cur_node) + self.msgid())
-                self.prerender_msg_or_quit()
+                self.reload_msgs_or_quit()
         elif ks in Reader.GETMSG and self.reader.size == 0 and self._msgid:
             try:
                 ui.draw_message_box("Подождите", False)
@@ -969,12 +992,15 @@ class EchoReader:
         elif ks in Reader.TO_OUT and self.drafts:
             draft_msg = outgoing.directory(self.cur_node) + self.msgid()
             os.rename(draft_msg, draft_msg.replace(".draft", ".out"))
-            self.prerender_msg_or_quit()
-        elif ks in Reader.TO_DRAFTS and self.out and not self.drafts and self.msgid().endswith(".out"):
-            out_msg = outgoing.directory(self.cur_node) + self.msgid()
-            os.rename(out_msg, out_msg.replace(".out", ".draft"))
-            self.prerender_msg_or_quit()
-        elif ks in Reader.LIST and not self.out and not self.drafts:
+            self.reload_msgs_or_quit()
+        elif ks in Reader.TO_DRAFTS and self.out and not self.drafts:
+            if not self.msgid().endswith(".out"):
+                out_msg = outgoing.directory(self.cur_node) + self.msgid()
+                os.rename(out_msg, out_msg.replace(".out", ".draft"))
+                self.reload_msgs_or_quit()
+            else:
+                ui.show_message_box("Сообщение уже отправлено")
+        elif ks in Reader.LIST and self.msgs.data:
             mode = self.msgs.mode
             msgid = self.msgs.curItem().msgid
             win = ui.MsgListScreen(self.echo.name, self.msgs)
@@ -987,6 +1013,7 @@ class EchoReader:
                 self.read_cur_msg()
                 self.reader.prerender()
             elif win.resized:
+                self.reader.setRect(x=0, y=5, w=ui.WIDTH, h=ui.HEIGHT - 5 - 1)
                 self.reader.prerender(self.reader.scroll.pos)
         elif ks in Reader.INLINES:
             parser.INLINE_STYLE_ENABLED = not parser.INLINE_STYLE_ENABLED
@@ -1062,7 +1089,7 @@ load_keys()
 try:
     ui.initialize_curses()
     ui.load_theme(cfg)
-    ui.stdscr.bkgd(" ", get_color("text"))
+    ui.stdscr.bkgd(" ", curses.color_pair(color_pairs[UI_TEXT][0]))  # wo attrs
 
     if cfg.splash:
         ui.draw_splash(ui.stdscr, splash)

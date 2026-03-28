@@ -1,6 +1,7 @@
 import re
 import time
 from dataclasses import dataclass
+from datetime import date
 from typing import Callable, Tuple
 
 
@@ -39,6 +40,8 @@ class FindQuery:
     DEFAULT_LIMIT = 10000
     query: str = ""
     queryNot: str = ""
+    dtFr: date = None
+    dtTo: date = None
     msgid: bool = True
     body: bool = True
     subj: bool = True
@@ -141,6 +144,13 @@ def buildFindMatchers(fq: FindQuery) -> Tuple[Callable[[str], int],
 
 
 def txtApiMatch(fq: FindQuery, match, matchNot, msgid, msg) -> bool:
+    try:
+        if fq.dtFr and date.fromtimestamp(int(msg[2])) < fq.dtFr:
+            return False
+        if fq.dtTo and date.fromtimestamp(int(msg[2])) > fq.dtTo:
+            return False
+    except ValueError as e:
+        raise ValueError("msgid :: " + msgid) from e
     if not match and not matchNot:
         return True  # any matched
     # Skip not-matched first
@@ -155,13 +165,13 @@ def txtApiMatch(fq: FindQuery, match, matchNot, msgid, msg) -> bool:
     # Positive
     if fq.msgid and msgid == fq.query:
         return True
-    if match and fq.body and match("\n".join(msg[7:])):
-        return True
     if match and fq.subj and match(msg[6]):
         return True
     if match and fq.fr and match(msg[3]):
         return True
     if match and fq.to and match(msg[5]):
+        return True
+    if match and fq.body and match("\n".join(msg[7:])):
         return True
     #
     return False
