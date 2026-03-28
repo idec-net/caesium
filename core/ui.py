@@ -5,7 +5,7 @@ import time
 import sys
 from abc import ABC
 from collections import deque
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 from itertools import cycle
 from typing import Optional, List, Tuple, TypeVar, Generic, Union
@@ -679,7 +679,7 @@ class Widget:
     focused: bool = False
     enabled: bool = True
     focusable: bool = True
-    focusOrder: int = 0
+    focusOrder: float = 0
     x: int = 0
     y: int = 0
     w: int = 0
@@ -808,7 +808,8 @@ class InputWidget(Widget):
     offset: int = 0
     h: int = 1
 
-    def __init__(self, txt="", fOrder=0, y=0, x=0, w=0, *, placeholder="", mask=None):
+    def __init__(self, txt="", fOrder: float = 0, y=0, x=0, w=0,
+                 *, placeholder="", mask=None):
         self.focusOrder = fOrder
         self.x = x
         self.y = y
@@ -909,9 +910,27 @@ class InputWidget(Widget):
         return len(THEME.input[0]) + self.cursor - self.offset
 
 
+class ErrIndicator:
+    err: bool = False
+    w: int = 0
+    txt: str = ""
+
+    def setErr(self, err):
+        if self.err == err:
+            return
+        self.err = err
+        self.txt = THEME.error[0]
+
+    def draw(self, win, y, x, color):
+        if self.err:
+            win.addstr(y, x - len(self.txt) - 1, self.txt, color | THEME.error[1])
+
+    def __bool__(self):
+        return self.err
+
+
 class InputRegexWidget(InputWidget):
     regexOn: bool = True
-    err: bool = False
 
     def __init__(self, txt="", fOrder=0, y=0, x=0, w=0,
                  *, placeholder="", regexOn=False):
@@ -921,6 +940,7 @@ class InputRegexWidget(InputWidget):
         self.y = y
         self.w = w
         self.txt = txt
+        self.err = ErrIndicator()
         self.placeholder = placeholder
         self.color = self._color(self.focused, self.enabled)
         self.regexOn = regexOn
@@ -931,9 +951,9 @@ class InputRegexWidget(InputWidget):
         try:
             if self.regexOn:
                 template = re.compile(self.txt, re.IGNORECASE)
-            self.err = False
+            self.err.setErr(False)
         except re.error:
-            self.err = True
+            self.err.setErr(True)
         return template
 
     def on_key_pressed(self, ks, key):
@@ -946,11 +966,36 @@ class InputRegexWidget(InputWidget):
 
     def draw(self, win):  # type: (curses.window) -> None
         super().draw(win)
-        if self.w > 3 and self.err:
-            err = THEME.error[0]
-            err_len = len(err) + len(THEME.input[1]) + 1
-            win.addstr(self.y, self.x + self.w - err_len,
-                       err, self.color | THEME.error[1])
+        self.err.draw(win, self.y, self.x + self.w - len(THEME.input[1]),
+                      self.color)
+
+
+class InputDateWidget(InputWidget):
+    def __init__(self, fOrder: float = 0, y=0, x=0, w=0, *, dt: date = None):
+        super().__init__(fOrder=fOrder, y=y, x=x, w=w,
+                         placeholder="DD.MM.YYYY",
+                         mask=re.compile(r"^[0-9.]*$"))
+        self.err = ErrIndicator()
+        if dt:
+            self.setDate(dt)
+
+    def getDate(self):
+        try:
+            return datetime.strptime(self.txt, "%d.%m.%Y").date()
+        except ValueError:
+            return None
+
+    def setDate(self, d: date):
+        self.txt = d.strftime("%d.%m.%Y")
+
+    def on_key_pressed(self, ks, key):
+        super().on_key_pressed(ks, key)
+        self.err.setErr(self.txt and not self.getDate())
+
+    def draw(self, win):  # type: (curses.window) -> None
+        super().draw(win)
+        self.err.draw(win, self.y, self.x + self.w - len(THEME.input[1]),
+                      self.color)
 
 
 class FindQueryWindow:
@@ -981,6 +1026,8 @@ class FindQueryWindow:
             placeholder="<введите текст для исключения>",
             regexOn=self.query.regex)
 
+        self.inpDtFr = InputDateWidget(2.1, dt=self.query.dtFr)
+        self.inpDtTo = InputDateWidget(2.2, dt=self.query.dtTo)
         self.chkMsgid = CheckBoxWidget("Id", 3, checked=self.query.msgid)
         self.chkBody = CheckBoxWidget("Тело", 4, checked=self.query.body)
         self.chkSubj = CheckBoxWidget("Тема", 5, checked=self.query.subj)
@@ -1010,6 +1057,7 @@ class FindQueryWindow:
                                       checked=not self.query.orig)
         self.lblProgress = LabelWidget("")
 
+        inpErrLen = len(THEME.input[0] + THEME.input[1] + THEME.error[0])
         self.layout = GridLayout(
             (GridLayout(
                 (LabelWidget("Искать: "), ""),
@@ -1018,17 +1066,24 @@ class FindQueryWindow:
                 (LabelWidget("И НЕ: "), "hAlign right"),
                 (self.inpQueryNot, "fillX growX wrap"),
             ), "w 100% h 2 fillX growX wrap"),
-            (LabelWidget("В:"), "wrap"),
             #
             (GridLayout(
-                (self.chkMsgid, "w 50% wrap"),
+                (LabelWidget("В:"), "w 50%"),
+                (LabelWidget("Дата с: "), "hAlign right"),
+                (self.inpDtFr, f"hAlign left wPref {11 + inpErrLen} growX wrap"),
+
+                (self.chkMsgid, "w 50% pad 1 0"),
+                (LabelWidget("Дата по: "), "hAlign right"),
+                (self.inpDtTo, f"hAlign left wPref {11 + inpErrLen} growX wrap")
+            ), "w 100% h 2 fillX wrap"),
+            (GridLayout(
                 (SeparatorHWidget(), "colSpan 2 fillX wrap"),
                 (self.chkBody, "w 50%"), (self.chkRegex, "wrap"),
                 (self.chkSubj, "w 50%"), (self.chkCase, "wrap"),
                 (self.chkFrom, "w 50%"), (self.chkWord, "wrap"),
                 (self.chkTo, "growY"), (self.chkOrig, "wrap"),
                 (SeparatorHWidget(), "colSpan 2 fillX wrap"),
-            ), "pad 1 0 w 100% h 7 fillX wrap"),
+            ), "pad 1 0 w 100% h 6 fillX wrap"),
             #
             (GridLayout((self.chkEcho, CC(w=self.chkEcho.w + 2, pad="1 0")),
                         (self.inpEcho, "fillX wrap"),
@@ -1065,7 +1120,7 @@ class FindQueryWindow:
 
     @staticmethod
     def initWin(win=None):
-        w = max(len(LABEL_FIND) + 2, min(80, int(WIDTH * 0.75)))
+        w = max(len(LABEL_FIND) + 2, min(80, int(WIDTH)))
         h = min(HEIGHT, 16)
         w = min(WIDTH, w)
         y = max(0, int((HEIGHT - h) / 2))
@@ -1137,7 +1192,7 @@ class FindQueryWindow:
             else:
                 return False  # close win
         elif ks in Qs.APPLY and not self.findInProgress:
-            if self.inpQuery.regexOn and self.inpQuery.err:
+            if self.inpQuery.err or self.inpDtFr.err or self.inpDtTo.err:
                 self.refreshCursor()
                 return True  #
             curses.curs_set(0)
@@ -1194,6 +1249,8 @@ class FindQueryWindow:
 
         self.query.query = self.inpQuery.txt
         self.query.queryNot = self.inpQueryNot.txt
+        self.query.dtFr = self.inpDtFr.getDate()
+        self.query.dtTo = self.inpDtTo.getDate()
         self.query.msgid = self.chkMsgid.checked
         self.query.body = self.chkBody.checked
         self.query.subj = self.chkSubj.checked

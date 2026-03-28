@@ -1,5 +1,6 @@
 # coding=utf-8
 import sqlite3
+from datetime import datetime
 from typing import Optional, List, Callable
 
 from . import MsgMetadata, FindQuery, buildFindMatcher
@@ -244,6 +245,16 @@ def find_query_msgids(fq: FindQuery,
             where_not.append("NOT MATCH_NOT(t)")
         if where_not:
             where += " AND (" + " AND ".join(where_not) + ")"
+
+    if fq.dtFr:
+        dtFr = int(datetime.combine(fq.dtFr, datetime.min.time()).timestamp())
+        where += " AND time >= ?"
+        args.append(dtFr)
+
+    if fq.dtTo:
+        dtTo = int(datetime.combine(fq.dtTo, datetime.max.time()).timestamp())
+        where += " AND time <= ?"
+        args.append(dtTo)
 
     if progress_handler:
         con.set_progress_handler(progress_handler, 100)

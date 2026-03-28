@@ -1,6 +1,7 @@
 import base64
 import os
 import shutil
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -259,28 +260,33 @@ def test_find_query_msgids(api):
     msg2 = ["ii/ok", "test2.local", "1", "admin", "node,1", "юзер", "Re: Subj", "", "Мсг2", "Row2"]
     api.save_message([("1" * 20, msg1), ("2" * 20, msg2)], "node", ["user"])
 
+    def query(q, msgid=False, body=False, subj=False, fr=False, to=False,
+              echo=False, echoQuery=""):
+        return FindQuery(query=q,
+                         msgid=msgid, body=body, subj=subj, fr=fr, to=to,
+                         echo=echo, echoQuery=echoQuery)
     # msgid exact
-    data = api.find_query_msgids(FindQuery("1" * 20, "", True, False, False, True, False, False))
+    data = api.find_query_msgids(query("1" * 20, True, False, False, True, False, False))
     assert data == [MsgMetadata.from_list("1" * 20, msg1)]
-    data = api.find_query_msgids(FindQuery("1" * 19, "", True, False, False, True, False, False))
+    data = api.find_query_msgids(query("1" * 19, True, False, False, True, False, False))
     assert data == []
     # unicode body
-    data = api.find_query_msgids(FindQuery("Мсг2", "", True, True, True, True, True, False))
+    data = api.find_query_msgids(query("Мсг2", True, True, True, True, True, False))
     assert data == [MsgMetadata.from_list("2" * 20, msg2)]
     # unicode subj
-    data = api.find_query_msgids(FindQuery("Сабж", "", True, True, True, True, True, False))
+    data = api.find_query_msgids(query("Сабж", True, True, True, True, True, False))
     assert data == [MsgMetadata.from_list("1" * 20, msg1)]
     # unicode from
-    data = api.find_query_msgids(FindQuery("юзер", "", False, False, False, True, False, False))
+    data = api.find_query_msgids(query("юзер", False, False, False, True, False, False))
     assert data == [MsgMetadata.from_list("1" * 20, msg1)]
     # unicode to
-    data = api.find_query_msgids(FindQuery("юзер", "", False, False, False, False, True, False))
+    data = api.find_query_msgids(query("юзер", False, False, False, False, True, False))
     assert data == [MsgMetadata.from_list("2" * 20, msg2)]
     # unicode echo only
-    data = api.find_query_msgids(FindQuery("Row2", "", True, True, True, True, True, True, "test2.local"))
+    data = api.find_query_msgids(query("Row2", True, True, True, True, True, True, "test2.local"))
     assert data == [MsgMetadata.from_list("2" * 20, msg2)]
     # empty results
-    data = api.find_query_msgids(FindQuery("Unknown", "", True, True, True, True, True, False))
+    data = api.find_query_msgids(query("Unknown", True, True, True, True, True, False))
     assert data == []
 
 
@@ -366,6 +372,33 @@ def test_find_query_not_to(api):
     data = api.find_query_msgids(
         FindQuery("qwe", echoSkipArch=True, echoArch="test.local test2.local"))
     assert data == [MsgMetadata.from_list("3" * 20, msg3)]
+
+
+# noinspection PyTestParametrized
+@pytest.mark.parametrize("storage", ["aio", "ait", "sqlite", "txt"])
+def test_find_query_date(api):
+    now = datetime.now()
+    msg1 = ["ii/ok", "test.local", str(int((now + timedelta(days=-1)).timestamp())),
+            "u", "n,1", "t", "S", "", "", "qwe", "qwe"]
+    msg2 = ["ii/ok", "test2.local", str(int(now.timestamp())),
+            "u", "n,1", "t", "S", "", "", "qwe", "qwe"]
+    msg3 = ["ii/ok", "test3.local", str(int((now + timedelta(days=+1)).timestamp())),
+            "u", "n,1", "t", "S", "", "", " qwe", "qwe"]
+    api.save_message([("1" * 20, msg1),
+                      ("2" * 20, msg2),
+                      ("3" * 20, msg3)],
+                     "node", None)
+
+    data = api.find_query_msgids(FindQuery("qwe", dtFr=now.date()))
+    assert data == [MsgMetadata.from_list("2" * 20, msg2),
+                    MsgMetadata.from_list("3" * 20, msg3)]
+
+    data = api.find_query_msgids(FindQuery("qwe", dtTo=now.date()))
+    assert data == [MsgMetadata.from_list("1" * 20, msg1),
+                    MsgMetadata.from_list("2" * 20, msg2)]
+
+    data = api.find_query_msgids(FindQuery("qwe", dtFr=now.date(), dtTo=now.date()))
+    assert data == [MsgMetadata.from_list("2" * 20, msg2)]
 
 
 # noinspection PyTestParametrized
