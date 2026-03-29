@@ -40,8 +40,8 @@ class Echo:
         return super().__eq__(other)
 
 
-ECHO_OUT = Echo("out", "Исходящие", False)
-ECHO_DRAFTS = Echo("out", "Черновики", False)
+ECHO_OUT = Echo("outgoing", "Исходящие", False)
+ECHO_DRAFTS = Echo("drafts", "Черновики", False)
 ECHO_FAVORITES = Echo("favorites", "Избранные сообщения", False)
 ECHO_CARBON = Echo("carbonarea", "Карбонка", False)
 ECHO_FIND = Echo("<find-results>", "Результаты поиска", False)
@@ -134,6 +134,8 @@ class Config:
         for n in self.nodes:
             n.echoareas.insert(0, ECHO_FAVORITES)
             n.echoareas.insert(1, ECHO_CARBON)
+            n.echoareas.insert(2, ECHO_DRAFTS)
+            n.echoareas.insert(3, ECHO_OUT)
 
 
 #
