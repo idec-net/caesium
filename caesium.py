@@ -207,6 +207,8 @@ class Counts:
                 self.total[echo.name] = api.getEchoLength(echo.name)
         self.total[config.ECHO_CARBON.name] = len(api.getCarbonarea())
         self.total[config.ECHO_FAVORITES.name] = len(api.getFavoritesList())
+        self.total[config.ECHO_DRAFTS.name] = outgoing.getOutLength(node_, True)
+        self.total[config.ECHO_OUT.name] = outgoing.getOutLength(node_, False)
 
     def rescanCounts(self, echoareas):
         self.counts = []
@@ -943,6 +945,7 @@ class EchoReader:
         elif ks in Reader.INS and not any((self.archive, self.out, self.favorites, self.carbonarea)):
             outgoing.newMsg(self.echo.name)
             callEditor(self.curNode)
+            self.counts.getCounts(self.curNode, False)
         elif ks in Reader.SAVE and not self.out:
             saveMessageToFile(self.msgid(), self.reader.msg[1])
         elif ks in Reader.FAVORITES and not self.out:
@@ -954,6 +957,7 @@ class EchoReader:
         elif ks in Reader.QUOTE and not any((self.archive, self.out)) and self.msgs.data:
             outgoing.quoteMsg(self.msgid(), self.reader.msg, cfg.oldquote)
             callEditor(self.curNode)
+            self.counts.getCounts(self.curNode, False)
         elif ks in Reader.INFO:
             subj = textwrap.fill(self.reader.msg[6], int(ui.WIDTH * 0.75) - 8,
                                  subsequent_indent="      ")
@@ -977,6 +981,7 @@ class EchoReader:
             if ui.SelectWindow("Удалить черновик '%s'?" % self.msgid(),
                                ["Нет", "Да"]).show() == 2:
                 os.remove(outgoing.directory(self.curNode) + self.msgid())
+                self.counts.getCounts(self.curNode, False)
                 self.reloadMsgsOrQuit()
         elif ks in Reader.GETMSG and self.reader.size == 0 and self._msgid:
             try:
@@ -992,11 +997,13 @@ class EchoReader:
         elif ks in Reader.TO_OUT and self.drafts:
             draft_msg = outgoing.directory(self.curNode) + self.msgid()
             os.rename(draft_msg, draft_msg.replace(".draft", ".out"))
+            self.counts.getCounts(self.curNode, False)
             self.reloadMsgsOrQuit()
         elif ks in Reader.TO_DRAFTS and self.out and not self.drafts:
             if self.msgid().endswith(".out"):
                 out_msg = outgoing.directory(self.curNode) + self.msgid()
                 os.rename(out_msg, out_msg.replace(".out", ".draft"))
+                self.counts.getCounts(self.curNode, False)
                 self.reloadMsgsOrQuit()
             else:
                 ui.showMessageBox("Сообщение уже отправлено")
