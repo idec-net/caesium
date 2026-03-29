@@ -63,10 +63,6 @@ def getEchoLength(echo):
     return row[0]
 
 
-def getEchocount(echo):
-    return getEchoLength(echo)
-
-
 # noinspection PyUnusedLocal
 def saveToFavorites(msgid, msg):
     favorites = c.execute("SELECT COUNT(1) FROM msg WHERE msgid = ? AND favorites = 1",

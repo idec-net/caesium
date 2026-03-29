@@ -36,10 +36,6 @@ def getEchoLength(echo):
     return echo_length
 
 
-def getEchocount(echoarea):
-    return len(open(storage + "echo/" + echoarea, "r").read().split("\n")) - 1
-
-
 # noinspection PyUnusedLocal
 def saveToFavorites(msgid, msg):
     favorites = []
