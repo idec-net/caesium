@@ -1022,25 +1022,32 @@ class EchoReader:
     def signMsg(self):
         if (not self.msgid().endswith(".out")
                 and not self.msgid().endswith(".draft")):
-            ui.showMessageBox("Сообщение уже отправлено")
+            ui.showMessageBox("Подпись невозможна."
+                              " Сообщение уже отправлено")
+            return  #
+
+        if not parser.gpg:
+            ui.showMessageBox("Подпись невозможна."
+                              " Не установлен пакет python-gnupg")
             return  #
 
         privateKeys = parser.gpg.list_keys(secret=True)
-        if privateKeys:
-            items = []
-            for k in privateKeys:
-                user = k['uids'][0]
-                items.append((k['keyid'], "%s (%s)" % (user, k['keyid'])))
-            selected = ui.SelectWindow("Подписать ключом",
-                                       [it[1] for it in items]).show()
-            if selected > 0:
-                signMsg(self.curNode, self.msgid(), items[selected - 1][0])
-                self.readCurMsg()
-                self.reader.prerender()
-        else:
+        if not privateKeys:
             ui.showMessageBox("Не удалось подписать сообщение.\n"
                               "Нет приватных ключей в хранилище:\n%s"
                               % os.path.abspath(parser.gpg.gnupghome))
+            return  #
+
+        items = []
+        for k in privateKeys:
+            user = k['uids'][0]
+            items.append((k['keyid'], "%s (%s)" % (user, k['keyid'])))
+        selected = ui.SelectWindow("Подписать ключом",
+                                   [it[1] for it in items]).show()
+        if selected > 0:
+            signMsg(self.curNode, self.msgid(), items[selected - 1][0])
+            self.readCurMsg()
+            self.reader.prerender()
 
 
 if sys.version_info >= (3, 11):
