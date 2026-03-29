@@ -994,7 +994,7 @@ class EchoReader:
             os.rename(draft_msg, draft_msg.replace(".draft", ".out"))
             self.reloadMsgsOrQuit()
         elif ks in Reader.TO_DRAFTS and self.out and not self.drafts:
-            if not self.msgid().endswith(".out"):
+            if self.msgid().endswith(".out"):
                 out_msg = outgoing.directory(self.curNode) + self.msgid()
                 os.rename(out_msg, out_msg.replace(".out", ".draft"))
                 self.reloadMsgsOrQuit()
