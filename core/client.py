@@ -50,7 +50,7 @@ def sendMsg(url, auth, msg_b64):  # type: (str, str, str) -> str
     return _doRequest(req)
 
 
-def get_echo_count(url, echoareas):  # type: (str, List[str]) -> dict[str, int]
+def getEchoCount(url, echoareas):  # type: (str, List[str]) -> dict[str, int]
     if not echoareas:
         return {}
     echoareas = "/".join(echoareas)

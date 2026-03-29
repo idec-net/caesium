@@ -130,7 +130,7 @@ def getMail(node_, forceFullIdx=False):  # type: (config.Node, bool) -> None
     offsets = None
     if isNodeSmart:
         oldNec = api.getNodeEchoCounts(node_.nodename)
-        newNec = client.get_echo_count(node_.url, echoareas)
+        newNec = client.getEchoCount(node_.url, echoareas)
         offsets = utils.offsetsEchoCount(oldNec or {}, newNec)
 
     fetchMsgList = []
