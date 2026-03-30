@@ -460,7 +460,7 @@ class EchoSelectorScreen:
         curEcho = self.echos.curItem()
         if curEcho.name in self.counts.lasts:
             last = self.counts.lasts[curEcho.name]
-        last = min(self.counts.total[curEcho.name], last + 1)
+        last = min(self.counts.total[curEcho.name], last)
         self.showReader(EchoReader(
             curEcho, last, self.echos.isArch(), self.counts))
         self.counts.rescanCounts(self.echos.data)
