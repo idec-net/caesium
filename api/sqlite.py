@@ -205,6 +205,15 @@ def findQueryMsgids(fq: FindQuery,
                     progressHandler: Callable = None) -> List[MsgMetadata]:
     args = []
     where = []
+    progress = 0
+
+    # noinspection PyUnusedLocal
+    def countMsg(arg):
+        nonlocal progress
+        progress += 1
+        return 1  # always TRUE
+
+    con.create_function("PROGRESS", 1, countMsg)
 
     if fq.query:
         match = buildFindMatcher(fq.query, fq)
@@ -223,9 +232,9 @@ def findQueryMsgids(fq: FindQuery,
             where.append("MATCH(t)")
 
     if where:
-        where = "(" + " OR ".join(where) + ")"
+        where = "PROGRESS(msgid) AND (" + " OR ".join(where) + ")"
     else:
-        where = "TRUE"
+        where = "PROGRESS(msgid)"
 
     if fq.queryNot:
         matchNot = buildFindMatcher(fq.queryNot, fq)
@@ -243,34 +252,57 @@ def findQueryMsgids(fq: FindQuery,
         if whereNot:
             where += " AND (" + " AND ".join(whereNot) + ")"
 
+    count_where = "TRUE"
+    count_args = []
     if fq.dtFr:
         dtFr = int(datetime.combine(fq.dtFr, datetime.min.time()).timestamp())
         where += " AND time >= ?"
         args.append(dtFr)
+        count_where += " AND time >= ?"
+        count_args.append(dtFr)
 
     if fq.dtTo:
         dtTo = int(datetime.combine(fq.dtTo, datetime.max.time()).timestamp())
         where += " AND time <= ?"
         args.append(dtTo)
-
-    if progressHandler:
-        con.set_progress_handler(progressHandler, 100)
+        count_where += " AND time <= ?"
+        count_args.append(dtTo)
 
     if fq.echo and fq.echoQuery:
         echos = list(filter(None, fq.echoQuery.split(" ")))
         where += " AND (" + " OR ".join([" echoarea LIKE ? "] * len(echos)) + ")"
         for e in echos:
             args.append("%" + e + "%")
+        count_where += " AND (" + " OR ".join([" echoarea LIKE ? "] * len(echos)) + ")"
+        for e in echos:
+            count_args.append("%" + e + "%")
     if fq.echo and fq.echoQueryNot:
         echos = list(filter(None, fq.echoQueryNot.split(" ")))
         where += " AND " + " AND ".join(["echoarea NOT LIKE ?"] * len(echos))
         for e in echos:
             args.append("%" + e + "%")
+        count_where += " AND " + " AND ".join(["echoarea NOT LIKE ?"] * len(echos))
+        for e in echos:
+            count_args.append("%" + e + "%")
     if fq.echoSkipArch and fq.echoArch:
         echos = list(filter(None, fq.echoArch.split(" ")))
         where += " AND " + " AND ".join(["echoarea <> ?"] * len(echos))
         args.extend(echos)
+        count_where += " AND " + " AND ".join(["echoarea <> ?"] * len(echos))
+        count_args.extend(echos)
     try:
+        if progressHandler:
+            total = c.execute(
+                "SELECT COUNT(DISTINCT msgid)"
+                " FROM msg"
+                " WHERE %s;" % count_where,
+                count_args).fetchone()[0]
+
+            def progressHandlerWrapper():
+                progressHandler((0, 0, 0, 0, progress, 0, total))
+
+            con.set_progress_handler(progressHandlerWrapper, 100)
+
         rows = c.execute(
             "SELECT DISTINCT msgid, tags, echoarea, time, fr, addr, t, subject"
             " FROM msg"
@@ -284,6 +316,7 @@ def findQueryMsgids(fq: FindQuery,
             return []  #
         raise ex
     finally:
+        con.create_function("PROGRESS", 1, None)
         con.create_function("MATCH", 1, None)
         con.create_function("MATCH_NOT", 1, None)
         con.set_progress_handler(None, 1)

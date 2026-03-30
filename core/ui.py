@@ -1302,12 +1302,14 @@ class FindQueryWindow:
         if (now - self.findTick) < 0.250:  # ms
             return api.FIND_OK
         self.findTick = now
-        progress = " Поиск... " + next(self.findProgressBar)
+        progress = f" Поиск{THEME.ellipsis} " + next(self.findProgressBar)
         if param:
-            progress += (f" Found: {param[5]}"
-                         f" TMsg: {param[4]}"
-                         f" E: {param[0]}/{param[1]}"
-                         f" EMsg: {param[2]}/{param[3]}")
+            progress += (
+                    f" Found: {param[5]}"
+                    f" TMsg: {param[4]}" + (f"/{param[6]}" if len(param) > 6 else "") +
+                    (f" E: {param[0]}/{param[1]}" if param[0] or param[1] else "") +
+                    (f" EMsg: {param[2]}/{param[3]}" if param[2] or param[3] else "")
+            )
         self.lblProgress.setTxt(progress)
         self._show()
         return api.FIND_OK
