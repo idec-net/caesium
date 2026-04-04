@@ -18,8 +18,8 @@ from shutil import copyfile
 from typing import Optional, List, Tuple, TypeVar, Generic, Union
 
 import api.ait as api
-from api import MsgMetadata, FindQuery, txt as api
-from core import __version__, parser, utils, keystroke, config, outgoing, client
+from api import MsgMetadata, FindQuery
+from core import __version__, parser, utils, keystroke, config, mailer, client
 from core.cmd import Common, Reader, Selector, Qs, Out
 from core.config import (
     getColor, loadColors, Config, Echo, CFG, TOKEN2UI, ECHO_FIND,
@@ -1620,16 +1620,16 @@ def callEditor(node, out=''):
     initializeCurses()
     if h != hashlib.sha1(str.encode(open("temp", "r", ).read())).hexdigest():
         if not out:
-            filepath = outgoing.outcount(node) + ".draft"
+            filepath = mailer.outcount(node) + ".draft"
         else:
-            filepath = outgoing.directory(node) + out
-        outgoing.saveOut(filepath)
+            filepath = mailer.directory(node) + out
+        mailer.saveOut(filepath)
     else:
         os.remove("temp")
 
 
 def signMsg(node, out, keyId):
-    nodeDir = outgoing.directory(node)
+    nodeDir = mailer.directory(node)
     with open(nodeDir + out, "r") as f:
         msg = f.read().split("\n")
     if msg[4].startswith("@repto"):
@@ -1746,7 +1746,7 @@ class EchoReaderScreen:
 
     def getMsgsMetadata(self):
         if self.out:
-            return outgoing.getOutMsgsMetadata(CFG.node(), self.drafts)
+            return mailer.getOutMsgsMetadata(CFG.node(), self.drafts)
         elif self.echo == config.ECHO_FIND:
             return self.msgs.data  #
         else:
@@ -1755,7 +1755,7 @@ class EchoReaderScreen:
     def readCurMsg(self):  # type: () -> (List[str], int)
         self._msgid = None
         if self.out and "." in self.msgid():  # .out, .outmsg, .draft
-            self.reader.setMsg(*outgoing.readOutMsg(self.msgid(), CFG.node()))
+            self.reader.setMsg(*mailer.readOutMsg(self.msgid(), CFG.node()))
         else:
             m = self.msgs.curItem()
             if not m and self.msgs.data:
@@ -2057,7 +2057,7 @@ class EchoReaderScreen:
             reader.prerender()
 
         elif ks in Reader.INS and not any((self.archive, self.out, self.favorites, self.carbonarea)):
-            outgoing.newMsg(self.echo.name)
+            mailer.newMsg(self.echo.name)
             callEditor(CFG.node())
             self.counts.getCounts(CFG.node(), False)
 
@@ -2072,7 +2072,7 @@ class EchoReaderScreen:
                            "Сообщение уже есть в избранных")
 
         elif ks in Reader.QUOTE and not any((self.archive, self.out)) and msgs.data:
-            outgoing.quoteMsg(self.msgid(), reader.msg, CFG.oldquote)
+            mailer.quoteMsg(self.msgid(), reader.msg, CFG.oldquote)
             callEditor(CFG.node())
             self.counts.getCounts(CFG.node(), False)
 
@@ -2084,7 +2084,7 @@ class EchoReaderScreen:
 
         elif ks in Out.EDIT and self.out:
             if self.msgid().endswith(".out") or self.msgid().endswith(".draft"):
-                copyfile(outgoing.directory(CFG.node()) + self.msgid(), "temp")
+                copyfile(mailer.directory(CFG.node()) + self.msgid(), "temp")
                 callEditor(CFG.node(), self.msgid())
                 self.reloadMsgsOrQuit()
             else:
@@ -2102,7 +2102,7 @@ class EchoReaderScreen:
         elif ks in Out.DEL and self.drafts and msgs.data:
             if SelectWindow("Удалить черновик '%s'?" % self.msgid(),
                             ["Нет", "Да"]).show() == 2:
-                os.remove(outgoing.directory(CFG.node()) + self.msgid())
+                os.remove(mailer.directory(CFG.node()) + self.msgid())
                 self.counts.getCounts(CFG.node(), False)
                 self.reloadMsgsOrQuit()
 
@@ -2120,14 +2120,14 @@ class EchoReaderScreen:
             self.showOpenLinkDialog(reader.tokens)
 
         elif ks in Reader.TO_OUT and self.drafts:
-            draft = outgoing.directory(CFG.node()) + self.msgid()
+            draft = mailer.directory(CFG.node()) + self.msgid()
             os.rename(draft, draft.replace(".draft", ".out"))
             self.counts.getCounts(CFG.node(), False)
             self.reloadMsgsOrQuit()
 
         elif ks in Reader.TO_DRAFTS and self.out and not self.drafts:
             if self.msgid().endswith(".out"):
-                out = outgoing.directory(CFG.node()) + self.msgid()
+                out = mailer.directory(CFG.node()) + self.msgid()
                 os.rename(out, out.replace(".out", ".draft"))
                 self.counts.getCounts(CFG.node(), False)
                 self.reloadMsgsOrQuit()

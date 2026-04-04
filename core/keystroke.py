@@ -201,8 +201,6 @@ def getWch(scr: curses.window, initCh=-1) -> Union[int, str]:
     # npyscreen - wgwidget._get_ch
     # https://github.com/npcole/npyscreen/blob/master/npyscreen/wgwidget.py#L475
 
-    # For now, disable all attempt to use get_wch()
-    # but everything that follows could be in the except clause above.
     # Try to read utf-8 if possible.
     _storedBytes = []
     if initCh == -1:
