@@ -60,6 +60,7 @@ class Node:
 
 @dataclasses.dataclass
 class Config:
+    _node: int = 0
     nodes: List[Node] = dataclasses.field(default_factory=list)
     browser = webbrowser
     editor = "nano"
@@ -70,6 +71,22 @@ class Config:
     db = "ait"
     keys = "default"
     twit: List[str] = dataclasses.field(default_factory=list)
+
+    def node(self) -> Node:
+        return self.nodes[self._node]
+
+    def resetNode(self):
+        self._node = 0
+
+    def nextNode(self):
+        self._node += 1
+        if self._node == len(self.nodes):
+            self._node = 0
+
+    def prevNode(self):
+        self._node -= 1
+        if self._node < 0:
+            self._node = len(self.nodes) - 1
 
     def load(self):
         self.nodes.clear()
@@ -138,6 +155,7 @@ class Config:
             n.echoareas.insert(3, ECHO_OUT)
 
 
+CFG = Config()
 #
 # Theme
 #
