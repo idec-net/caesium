@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
 # coding=utf-8
-import base64
-import codecs
 import curses
-import itertools
 import locale
 import os
 import pickle
 import subprocess
 import sys
-import traceback
 from typing import List, Optional
 
 from core import (
-    __version__, parser, client, config, ui, utils, outgoing, keystroke,
-    FEAT_X_C, FEAT_U_E
+    __version__, config, mailer, ui, keystroke
 )
 from core.cmd import Common, Reader, Selector, Qs
 from core.config import (
@@ -27,12 +22,6 @@ from core.config import (
 # socks.set_default_proxy(socks.SOCKS5, '127.0.0.1', 8081)
 # socket.socket = socks.socksocket
 
-blacklist = []
-if os.path.exists("blacklist.txt"):
-    with open("blacklist.txt", "r") as bl:
-        blacklist = list(filter(None, map(lambda it: it.strip(),
-                                          bl.readlines())))
-
 splash = ["▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
           "████████ ████████ ████████ ████████ ███ ███  ███ ██████████",
           "███           ███ ███  ███ ███          ███  ███ ███ ██ ███",
@@ -43,136 +32,6 @@ splash = ["▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
           "           ncurses ii/idec client        v" + __version__,
           "           Andrew Lobanov             28.03.2026",
           "           Cthulhu Fhtagn"]
-
-
-# region Mailer
-def makeToss(node):  # type: (config.Node) -> None
-    nodeDir = outgoing.directory(node)
-    lst = [x for x in os.listdir(nodeDir)
-           if x.endswith(".out")]
-    for msg in lst:
-        with codecs.open(nodeDir + "%s" % msg, "r", "utf-8") as f:
-            text_raw = f.read()
-        txtB64 = base64.b64encode(text_raw.encode("utf-8")).decode("utf-8")
-        with codecs.open(nodeDir + "%s.toss" % msg, "w", "utf-8") as f:
-            f.write(txtB64)
-        os.rename(nodeDir + "%s" % msg,
-                  nodeDir + "%s%s" % (msg, "msg"))
-
-
-def sendMail(node):  # type: (config.Node) -> None
-    nodeDir = outgoing.directory(node)
-    lst = [x for x in sorted(os.listdir(nodeDir))
-           if x.endswith(".toss")]
-    total = str(len(lst))
-    try:
-        for n, msg in enumerate(lst, start=1):
-            print("\rОтправка сообщения: " + str(n) + "/" + total, end="")
-            msgToss = nodeDir + msg
-            with codecs.open(msgToss, "r", "utf-8") as f:
-                text = f.read()
-            #
-            result = client.sendMsg(node.url, node.auth, text)
-            #
-            if result.startswith("msg ok"):
-                os.remove(msgToss)
-            elif result == "msg big!":
-                print("\nERROR: very big message (limit 64K)!")
-            elif result == "auth error!":
-                print("\nERROR: unknown auth!")
-            else:
-                print("\nERROR: unknown error!")
-        if len(lst) > 0:
-            print()
-    except Exception as ex:
-        print("\nОшибка: не удаётся связаться с нодой. " + str(ex))
-
-
-def debundle(bundle, getList=None):
-    messages = []
-    for msg in filter(None, bundle):
-        m = msg.split(":")
-        msgid = m[0]
-        if len(msgid) == 20 and m[1]:
-            msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8").split("\n")
-            if getList and msgid not in getList:
-                print(f"\nWARNING:"
-                      f" msgid: {msgid} received but not requested: [{', '.join(getList)}]."
-                      f" Skipped. Please report to node sysop.")
-            else:
-                messages.append([msgid, msgbody])
-    if messages:
-        api.saveMessage(messages, CFG.node(), CFG.node().to)
-
-
-def getMail(node_, forceFullIdx=False):  # type: (config.Node, bool) -> None
-    features = api.getNodeFeatures(node_.nodename)
-    if features is None:
-        print("Запрос x/features...")
-        features = client.getFeatures(node_.url)
-        api.saveNodeFeatures(node_.nodename, features)
-        print("  x/features: " + ", ".join(features))
-    isNodeSmart = FEAT_X_C in features and FEAT_U_E in features
-    #
-    echoareas = list(map(lambda e: e.name, filter(lambda e: e.sync,
-                                                  node_.echoareas)))
-    oldNec = None
-    newNec = None
-    offsets = None
-    if isNodeSmart:
-        oldNec = api.getNodeEchoCounts(node_.nodename)
-        newNec = client.getEchoCount(node_.url, echoareas)
-        offsets = utils.offsetsEchoCount(oldNec or {}, newNec)
-
-    fetchMsgList = []
-    if isNodeSmart and oldNec and not forceFullIdx:
-        print("Получение свежего индекса от ноды...")
-        remoteMsgList = []
-        grouped = {offset: [ec[0] for ec in ec]
-                   for offset, ec in itertools.groupby(offsets.items(),
-                                                       lambda ec: ec[1])}
-        for offset, echoareas in grouped.items():
-            print("  offset %s: %s" % (str(offset), ", ".join(echoareas)))
-            remoteMsgList += client.getMsgList(node_.url, echoareas, offset)
-    else:
-        print("Получение полного индекса от ноды...")
-        remoteMsgList = client.getMsgList(node_.url, echoareas)
-
-    print("Построение разностного индекса...")
-    localIndex = None
-    for line in remoteMsgList:
-        if parser.echoTemplate.match(line):
-            localIndex = api.getEchoMsgids(line)
-        elif len(line) == 20 and line not in localIndex and line not in blacklist:
-            fetchMsgList.append(line)
-    if fetchMsgList:
-        total = str(len(fetchMsgList))
-        count = 0
-        for getList in utils.separate(fetchMsgList):
-            count += len(getList)
-            print("\rПолучение сообщений: " + str(count) + "/" + total, end="")
-            debundle(client.getBundle(node_.url, "/".join(getList)), getList)
-    else:
-        print("Новых сообщений не обнаружено.", end="")
-    if isNodeSmart:
-        api.saveNodeEchoCounts(node_.nodename, newNec)
-    print()
-
-
-def fetchMail(node_, forceFullIdx=False):  # type: (config.Node, bool) -> None
-    print("Работа с " + node_.url)
-    try:
-        if node_.auth:
-            makeToss(node_)
-            sendMail(node_)
-        getMail(node_, forceFullIdx)
-    except KeyboardInterrupt:
-        print("\nПрервано пользователем")
-    except Exception as ex:
-        print("\nОШИБКА: " + str(ex))
-        print(traceback.format_exc())
-    input("Нажмите Enter для продолжения.")
-# endregion Mailer
 
 
 class Counts:
@@ -187,17 +46,17 @@ class Counts:
             with open("lasts.lst", "rb") as f:
                 self.lasts = pickle.load(f)
 
-    def getCounts(self, node_, new=False):
-        for echo in node_.echoareas:  # type: config.Echo
+    def getCounts(self, node, new=False):
+        for echo in node.echoareas:  # type: config.Echo
             if new or echo.name not in self.total:
-                self.total[echo.name] = api.getEchoLength(echo.name)
-        for echo in node_.archive:  # type: config.Echo
+                self.total[echo.name] = API.getEchoLength(echo.name)
+        for echo in node.archive:  # type: config.Echo
             if echo.name not in self.total:
-                self.total[echo.name] = api.getEchoLength(echo.name)
-        self.total[config.ECHO_CARBON.name] = len(api.getCarbonarea())
-        self.total[config.ECHO_FAVORITES.name] = len(api.getFavoritesList())
-        self.total[config.ECHO_DRAFTS.name] = outgoing.getOutLength(node_, True)
-        self.total[config.ECHO_OUT.name] = outgoing.getOutLength(node_, False)
+                self.total[echo.name] = API.getEchoLength(echo.name)
+        self.total[config.ECHO_CARBON.name] = len(API.getCarbonarea())
+        self.total[config.ECHO_FAVORITES.name] = len(API.getFavoritesList())
+        self.total[config.ECHO_DRAFTS.name] = mailer.getOutLength(node, True)
+        self.total[config.ECHO_OUT.name] = mailer.getOutLength(node, False)
 
     def rescanCounts(self, echoareas):
         self.counts = []
@@ -412,6 +271,7 @@ class EchoSelectorScreen:
         elif ks in Selector.CONFIG:
             editConfig()
             ui.loadTheme(CFG)
+            loadApi()
             loadKeys()
             CFG.resetNode()
             self.reloadEchoareas()
@@ -429,7 +289,7 @@ class EchoSelectorScreen:
     def fetchMail(self, force_full_idx):
         ui.terminateCurses()
         os.system('cls' if os.name == 'nt' else 'clear')
-        fetchMail(CFG.node(), force_full_idx)
+        mailer.fetchMail(CFG.node(), force_full_idx)
         ui.initializeCurses()
         ui.drawMessageBox("Подождите", False)
         self.counts.getCounts(CFG.node(), True)
@@ -463,13 +323,13 @@ class EchoSelectorScreen:
             self.nextEcho = False
 
     def readOutgoing(self):
-        outLength = outgoing.getOutLength(CFG.node(), drafts=False)
+        outLength = mailer.getOutLength(CFG.node(), drafts=False)
         if outLength:
             self.showReader(ui.EchoReaderScreen(
                 config.ECHO_OUT, outLength, self.echos.isArch(), self.counts))
 
     def readDrafts(self):
-        outLength = outgoing.getOutLength(CFG.node(), drafts=True)
+        outLength = mailer.getOutLength(CFG.node(), drafts=True)
         if outLength:
             self.showReader(ui.EchoReaderScreen(
                 config.ECHO_DRAFTS, 0, self.echos.isArch(), self.counts))
@@ -497,22 +357,30 @@ locale.setlocale(locale.LC_ALL, loc[0] + "." + loc[1])
 
 config.ensureExists()
 CFG.load()
-if CFG.db == "txt":
-    import api.txt as api
-elif CFG.db == "aio":
-    import api.aio as api
-elif CFG.db == "ait":
-    import api.ait as api
-elif CFG.db == "sqlite":
-    import api.sqlite as api
-else:
-    raise Exception("Unsupported DB API :: " + CFG.db)
-# create directories
-api.init()
-ui.api = api
+
+
+def loadApi():
+    if CFG.db == "txt":
+        import api.txt as api
+    elif CFG.db == "aio":
+        import api.aio as api
+    elif CFG.db == "ait":
+        import api.ait as api
+    elif CFG.db == "sqlite":
+        import api.sqlite as api
+    else:
+        raise Exception("Unsupported DB API :: " + CFG.db)
+    # create directories
+    api.init()
+    ui.api = api
+    mailer.api = api
+    return api
+
+
+API = loadApi()
 if not os.path.exists("downloads"):
     os.mkdir("downloads")
-outgoing.init(CFG)
+mailer.init(CFG)
 
 
 def loadKeys():
