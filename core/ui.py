@@ -1,5 +1,11 @@
+import base64
 import curses
+import hashlib
+import json
+import os
+import pickle
 import re
+import subprocess
 import textwrap
 import time
 import sys
@@ -8,14 +14,15 @@ from collections import deque
 from datetime import datetime, date
 from enum import Enum
 from itertools import cycle
+from shutil import copyfile
 from typing import Optional, List, Tuple, TypeVar, Generic, Union
 
 import api.ait as api
-from api import MsgMetadata, FindQuery
-from core import __version__, parser, utils, keystroke, config
-from core.cmd import Common, Reader, Selector, Qs
+from api import MsgMetadata, FindQuery, txt as api
+from core import __version__, parser, utils, keystroke, config, outgoing, client
+from core.cmd import Common, Reader, Selector, Qs, Out
 from core.config import (
-    getColor, loadColors, Config, Echo, TOKEN2UI, ECHO_FIND,
+    getColor, loadColors, Config, Echo, CFG, TOKEN2UI, ECHO_FIND,
     UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT,
 )
 from core.layout import GridLayout, CC
@@ -1604,3 +1611,576 @@ class ReaderWidget(Widget):
         else:
             self.scroll.ensureVisible(self.t2l[tidx].start + off)
     # endregion QuickSearch
+
+
+def callEditor(node, out=''):
+    terminateCurses()
+    h = hashlib.sha1(str.encode(open("temp", "r", ).read())).hexdigest()
+    subprocess.Popen(CFG.editor + " ./temp", shell=True).wait()
+    initializeCurses()
+    if h != hashlib.sha1(str.encode(open("temp", "r", ).read())).hexdigest():
+        if not out:
+            filepath = outgoing.outcount(node) + ".draft"
+        else:
+            filepath = outgoing.directory(node) + out
+        outgoing.saveOut(filepath)
+    else:
+        os.remove("temp")
+
+
+def signMsg(node, out, keyId):
+    nodeDir = outgoing.directory(node)
+    with open(nodeDir + out, "r") as f:
+        msg = f.read().split("\n")
+    if msg[4].startswith("@repto"):
+        header = "\n".join(msg[0:5])
+        body = "\n".join(msg[5:])
+    else:
+        header = "\n".join(msg[0:4])
+        body = "\n".join(msg[4:])
+    result = parser.gpg.sign(body.encode("utf-8"), keyid=keyId, clearsign=True)
+    if result.returncode == 0:
+        signedBody = str(result.data, encoding="utf-8")
+        if len(signedBody) > len(body):
+            with open(nodeDir + out, "w") as f:
+                f.write(header)
+                f.write("\n")
+                f.write(signedBody)
+    else:
+        showMessageBox(result.stderr)
+
+
+def saveMessageToFile(msgid, echoarea):
+    msg, size = api.readMsg(msgid, echoarea)
+    filepath = "downloads/" + msgid + ".txt"
+    with open(filepath, "w") as f:
+        f.write("== " + msg[1] + " ==================== " + msgid + "\n")
+        f.write("От:   " + msg[3] + " (" + msg[4] + ")\n")
+        f.write("Кому: " + msg[5] + "\n")
+        f.write("Тема: " + msg[6] + "\n")
+        f.write("\n".join(msg[7:]))
+    showMessageBox("Сообщение сохранено в файл\n" + filepath)
+
+
+def getMsg(msgid):
+    node = CFG.node()
+    bundle = client.getBundle(node.url, msgid)
+    for msg in filter(None, bundle):
+        m = msg.split(":")
+        msgid = m[0]
+        if len(msgid) == 20 and m[1]:
+            msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8").split("\n")
+            if node.to:
+                carbonarea = api.getCarbonarea()
+                if msgbody[5] in node.to and msgid not in carbonarea:
+                    api.addToCarbonarea(msgid, msgbody)
+            api.saveMessage([(msgid, msgbody)], node, node.to)
+
+
+def saveAttachment(token):  # type: (parser.Token) -> None
+    filepath = "downloads/" + token.filename
+    with open(filepath, "wb") as attachment:
+        attachment.write(token.filedata)
+    drawMessageBox("Файл сохранён '%s'" % filepath, True)
+    stdscr.getch()
+    if token.pgpKey and parser.gpg:
+        option = SelectWindow("PGP Ключ '%s'" % token.filename,
+                              ["Отмена",
+                               "Открыть файл",
+                               "Добавить в хранилище"]).show()
+        if option == 2:
+            utils.openFile(filepath)
+        elif option == 3:
+            result = parser.gpg.import_keys_file(filepath)
+            smsg = "\n".join(map(lambda rd: json.dumps(rd, sort_keys=True, indent=2),
+                                 filter(lambda r: r['fingerprint'], result.results)))
+            showMessageBox(smsg)
+    else:
+        if SelectWindow("Открыть '%s'?" % token.filename,
+                        ["Нет", "Да"]).show() == 2:
+            utils.openFile(filepath)
+
+
+class EchoReaderScreen:
+    _msgid: Optional[str] = None  # non-current-echo message id, navigated by ii-link
+    qs: Optional[QuickSearch] = None  # quick search helper
+    reader: ReaderWidget = None
+    #
+    go: bool = True  # show reader
+    done: bool = False  # close app
+    nextEcho: Union[str, bool] = False  # jump to next echo after reader closed
+    resized: bool = False
+
+    def __init__(self, echo: config.Echo, msgn, archive, counts,
+                 mode=ReaderMode.ECHO, msgids=None):
+        self.echo = echo
+        self.msgs = MsgModeStack(mode, msgids, msgn)
+        self.archive = archive
+        self.counts = counts
+        #
+        self.out = (echo in (config.ECHO_OUT, config.ECHO_DRAFTS))
+        self.drafts = (echo == config.ECHO_DRAFTS)
+        self.favorites = (echo == config.ECHO_FAVORITES)
+        self.carbonarea = (echo == config.ECHO_CARBON)
+        #
+        self.repto = ""
+        self.stack = []
+        if not msgids:
+            self.msgs.data = self.getMsgsMetadata()
+        else:
+            self.msgs.data = msgids
+        #
+        self.reader = ReaderWidget()
+        self.reader.setRect(x=0, y=5, w=WIDTH, h=HEIGHT - 5 - 1)
+        #
+        self.msgs.idx = min(msgn, len(self.msgs.data) - 1)
+        if self.msgs.data:
+            self.readMsgSkipTwit(-1)
+            if self.msgs.idx < 0:
+                self.nextEcho = True
+        self.reader.prerender()
+
+    def msgid(self):
+        m = self.msgs.curItem()
+        return self._msgid or (m.msgid if m else "")
+
+    def getMsgsMetadata(self):
+        if self.out:
+            return outgoing.getOutMsgsMetadata(CFG.node(), self.drafts)
+        elif self.echo == config.ECHO_FIND:
+            return self.msgs.data  #
+        else:
+            return api.getEchoMsgsMetadata(self.echo.name)
+
+    def readCurMsg(self):  # type: () -> (List[str], int)
+        self._msgid = None
+        if self.out and "." in self.msgid():  # .out, .outmsg, .draft
+            self.reader.setMsg(*outgoing.readOutMsg(self.msgid(), CFG.node()))
+        else:
+            m = self.msgs.curItem()
+            if not m and self.msgs.data:
+                self.msgs.idx = 0
+                m = self.msgs.curItem()
+            if m:
+                self.reader.setMsg(*api.readMsg(self._msgid or m.msgid, m.echo))
+            else:
+                self.reader.setMsg(*api.readMsg("unknown", "unknown"))
+
+    def readMsgSkipTwit(self, increment):
+        self.readCurMsg()
+        while self.reader.msg[3] in CFG.twit or self.reader.msg[5] in CFG.twit:
+            self.msgs.idx += increment
+            if self.msgs.idx < 0 or len(self.msgs.data) <= self.msgs.idx:
+                break
+            self.readCurMsg()
+
+    def reloadMsgsOrQuit(self):
+        self.msgs.data = self.getMsgsMetadata()
+        if self.msgs.data:
+            if self.msgs.stack:
+                self.msgs.mode = self.msgs.stack[0][0]
+                self.msgs.stack.clear()
+            self.msgs.idx = min(self.msgs.idx, len(self.msgs.data) - 1)
+            self.readCurMsg()
+            self.reader.prerender()
+        else:
+            self.go = False
+
+    def showOpenLinkDialog(self, tokens):
+        links = list(filter(lambda it: it.type == parser.TT.URL, tokens))
+        if len(links) == 1:
+            self.openLink(links[0])
+        elif links:
+            win = SelectWindow("Выберите ссылку", list(map(
+                lambda it: (it.url + " " + (it.title or "")).strip(),
+                links)))
+            i = win.show()
+            if win.resized:
+                self.reader.setRect(x=0, y=5, w=WIDTH, h=HEIGHT - 5 - 1)
+                self.reader.prerender(self.reader.scroll.pos)
+            if i:
+                self.openLink(links[i - 1])
+
+    def openLink(self, token):  # type: (parser.Token) -> None
+        link = token.url
+        if token.filename:
+            if token.filedata:
+                saveAttachment(token)
+        elif link.startswith("#"):  # markdown anchor?
+            pos = parser.findAnchorPos(self.reader.tokens, token)
+            if pos != -1:
+                self.reader.scroll.pos = pos
+        elif not link.startswith("ii://"):
+            if not CFG.browser.open(link):
+                showMessageBox("Не удалось запустить Интернет-браузер")
+        else:  # ii://
+            link = link[5:]
+            link = link.rstrip("/")
+            if "/" in link:  # support ii://echo.area/msgid123
+                link = link[link.rindex("/"):]
+            if parser.echoTemplate.match(link):  # echoarea
+                if self.echo.name == link:
+                    showMessageBox("Конференция уже открыта")
+                elif (link in CFG.node().echoareas
+                      or link in CFG.node().archive
+                      or link in CFG.node().stat):
+                    self.nextEcho = link
+                    self.go = False
+                else:
+                    showMessageBox("Конференция отсутствует в БД ноды")
+            elif link:
+                idx = self.msgs.findMsgidIdx(link)
+                if idx > -1:  # msgid in same echoarea
+                    if not self.stack or self.stack[-1] != self.msgs.idx:
+                        self.stack.append(self.msgs.idx)
+                    self.msgs.idx = idx
+                    self.readCurMsg()
+                else:
+                    self.reader.setMsg(*api.findMsg(link))
+                    self._msgid = link
+                    if not self.stack or self.stack[-1] != self.msgs.idx:
+                        self.stack.append(self.msgs.idx)
+                self.reader.prerender()
+
+    @staticmethod
+    def onSearchItem(sidx, p, token):
+        # type: (int, re.Pattern, parser.Token) -> List
+        matches = []
+        for offset, line in enumerate(token.render):
+            pos = 0
+            while match := p.search(line, pos):
+                if pos >= len(line) or match.start() == match.end():
+                    break
+                matches.append((offset, match))
+                pos = match.end()
+        if matches:
+            token.searchIdx = sidx
+            token.searchMatches = matches
+        else:
+            token.searchIdx = None
+            token.searchMatches = None
+        return matches
+
+    def show(self):
+        try:
+            while self.go:
+                self._show(self.msgs, self.reader)
+        except SystemExit:
+            self.go = False
+            self.done = True
+
+        if self.msgs.mode == ReaderMode.ECHO:
+            self.counts.lasts[self.echo.name] = self.msgs.idx
+            with open("lasts.lst", "wb") as f:
+                pickle.dump(self.counts.lasts, f)
+        stdscr.clear()
+        return not self.done, self.nextEcho
+
+    def _show(self, msgs: MsgModeStack, reader: ReaderWidget):
+        stdscr.clear()
+        status = None
+        if msgs.data:
+            self.draw(stdscr, reader)
+            status = utils.msgnStatus(len(msgs.data), msgs.idx, WIDTH)
+        else:
+            drawReader(stdscr, self.echo.name, "", self.out)
+        drawStatusBar(stdscr, mode=msgs.mode, text=status)
+        if self.qs:
+            self.qs.draw(stdscr)
+        #
+        ks, key, _ = getKeystroke()
+        #
+        if key == curses.KEY_RESIZE:
+            setTermSize()
+            self.resized = True
+            reader.setRect(x=0, y=5, w=WIDTH, h=HEIGHT - 5 - 1)
+            reader.prerender(reader.scroll.pos)
+            stdscr.clear()
+            if self.qs:
+                self.qs.items = reader.tokens
+                self.qs.y = HEIGHT - 1
+                self.qs.width = WIDTH - len(version) - 13
+                tnum, _ = parser.findVisibleToken(reader.tokens,
+                                                  reader.scroll.pos)
+                self.qs.search(self.qs.txt, tnum)
+        elif self.qs:
+            self.onKeyPressedQs(ks, key)
+        elif ks in Qs.OPEN:
+            self.qs = newQuickSearch(reader.tokens, self.onSearchItem)
+        elif ks in Reader.QUIT:
+            if msgs.stack:
+                self.modeRestore()
+            else:
+                self.go = False
+                self.nextEcho = False
+        elif ks in Common.QUIT:
+            self.go = False
+            self.done = True
+        elif reader.onKeyPressed(ks, key):
+            return  #
+        else:
+            self.onKeyPressed(ks, msgs, reader)
+
+    def draw(self, scr, reader: ReaderWidget):
+        h, w = scr.getmaxyx()
+        drawReader(scr, reader.msg[1], self.msgid(), self.out)
+        if w >= 80 and self.echo == config.ECHO_FIND:
+            title = f"Найденные сообщения '{FindQueryWindow.query}'"
+            drawTitle(scr, 0, w - 2 - len(title), title)
+        elif w >= 80 and self.echo.desc:
+            drawTitle(scr, 0, w - 2 - len(self.echo.desc), self.echo.desc)
+
+        color = getColor(UI_TEXT)
+        if not self.out:
+            if w >= 80:
+                scr.addstr(1, 7, reader.msg[3] + " (" + reader.msg[4] + ")", color)
+            else:
+                scr.addstr(1, 7, reader.msg[3], color)
+            msgtime = utils.msgStrftime(reader.msg[2], w)
+            scr.addstr(1, w - len(msgtime) - 1, msgtime, color)
+        elif CFG.node().to:
+            scr.addstr(1, 7, CFG.node().to[0], color)
+        scr.addstr(2, 7, reader.msg[5], color)
+        scr.addstr(3, 7, reader.msg[6][:w - 8], color)
+        strSize = utils.msgStrfsize(reader.size)
+        drawTitle(scr, 4, 0, strSize)
+        tags = reader.msg[0].split("/")
+        if "repto" in tags and 36 + len(strSize) < w:
+            self.repto = tags[tags.index("repto") + 1].strip()
+            drawTitle(scr, 4, len(strSize) + 3, "Ответ на " + self.repto)
+        else:
+            self.repto = ""
+        reader.draw(scr, self.qs)
+
+    def onKeyPressedQs(self, ks, key):
+        if ks in Qs.CLOSE or ks in Qs.APPLY:
+            self.qs = None
+            curses.curs_set(0)
+            return
+        #
+        self.qs.onKeyPressedSearch(key, ks, self.reader.qsPager())
+        if self.qs.result:
+            tidx = self.qs.result[self.qs.idx]
+            off, _ = self.qs.matches[self.qs.idx]
+            self.reader.ensureVisibleOnQsKey(ks, tidx, off)
+
+    def modeRestore(self):
+        m = self.msgs.curItem()
+        msgid = m.msgid if m else ""
+        self.msgs.pop()
+        if msgid != self.msgs.curItem().msgid:
+            self.stack.clear()
+            self.readCurMsg()
+            self.reader.prerender()
+
+    def onKeyPressed(self, ks: str, msgs: MsgModeStack, reader: ReaderWidget):
+        if ks in Reader.MSUBJ:
+            if msgs.mode != ReaderMode.SUBJ:
+                data = api.findSubjMsgids(reader.msg[1], reader.msg[6])
+                msgs.modeSubjOn(data)
+                if msgs.data and msgs.idx == -1:
+                    msgs.idx = 0
+            else:
+                msgs.modeSubjOff()
+            self.stack.clear()
+            self.readCurMsg()
+            reader.prerender()
+
+        elif ks in Reader.PREV and msgs.idx > 0 and msgs.data:
+            msgs.idx -= 1
+            self.stack.clear()
+            tmp = msgs.idx
+            self.readMsgSkipTwit(-1)
+            if msgs.idx < 0:
+                msgs.idx = tmp + 1
+            reader.prerender()
+
+        elif ks in Reader.NEXT and msgs.hasNext():
+            msgs.idx += 1
+            self.stack.clear()
+            self.readMsgSkipTwit(+1)
+            if msgs.idx >= len(msgs.data):
+                if msgs.mode == ReaderMode.ECHO:
+                    self.go = False
+                    self.nextEcho = True
+                else:
+                    msgs.idx = len(msgs.data) - 1
+            reader.prerender()
+
+        elif ks in Reader.NEXT and not msgs.hasNext():
+            if msgs.mode == ReaderMode.ECHO:
+                self.go = False
+                self.nextEcho = True
+
+        elif ks in Reader.PREP and not any((self.favorites, self.carbonarea, self.out)) and self.repto:
+            idx = msgs.findMsgidIdx(self.repto)
+            if idx > -1:
+                self.stack.append(msgs.idx)
+                msgs.idx = idx
+                self.readCurMsg()
+            else:
+                reader.setMsg(*api.findMsg(self.repto))
+                self._msgid = self.repto
+                if not self.stack or self.stack[-1] != msgs.idx:
+                    self.stack.append(msgs.idx)
+            reader.prerender()
+
+        elif ks in Reader.NREP and len(self.stack) > 0:
+            msgs.idx = self.stack.pop()
+            self.readCurMsg()
+            reader.prerender()
+
+        elif ks in Reader.UKEYS:
+            if not msgs.data or reader.scroll.pos >= reader.scroll.content - reader.scroll.view:
+                if not msgs.hasNext():
+                    if msgs.mode == ReaderMode.ECHO:
+                        self.nextEcho = True
+                        self.go = False
+                else:
+                    msgs.idx += 1
+                    self.stack.clear()
+                    self.readCurMsg()
+                    reader.prerender()
+            else:
+                reader.scroll.pos += reader.scroll.view
+
+        elif ks in Reader.BEGIN and msgs.data:
+            msgs.idx = 0
+            self.stack.clear()
+            self.readCurMsg()
+            reader.prerender()
+
+        elif ks in Reader.END and msgs.data:
+            msgs.idx = len(msgs.data) - 1
+            self.stack.clear()
+            self.readCurMsg()
+            reader.prerender()
+
+        elif ks in Reader.INS and not any((self.archive, self.out, self.favorites, self.carbonarea)):
+            outgoing.newMsg(self.echo.name)
+            callEditor(CFG.node())
+            self.counts.getCounts(CFG.node(), False)
+
+        elif ks in Reader.SAVE and not self.out:
+            saveMessageToFile(self.msgid(), reader.msg[1])
+
+        elif ks in Reader.FAVORITES and not self.out:
+            saved = api.saveToFavorites(self.msgid(), reader.msg)
+            drawMessageBox("Подождите", False)
+            self.counts.getCounts(CFG.node(), False)
+            showMessageBox("Сообщение добавлено в избранные" if saved else
+                           "Сообщение уже есть в избранных")
+
+        elif ks in Reader.QUOTE and not any((self.archive, self.out)) and msgs.data:
+            outgoing.quoteMsg(self.msgid(), reader.msg, CFG.oldquote)
+            callEditor(CFG.node())
+            self.counts.getCounts(CFG.node(), False)
+
+        elif ks in Reader.INFO:
+            subj = textwrap.fill(reader.msg[6], int(WIDTH * 0.75) - 8,
+                                 subsequent_indent="      ")
+            showMessageBox("id:   %s\naddr: %s\nsubj: %s"
+                           % (self.msgid(), reader.msg[4], subj))
+
+        elif ks in Out.EDIT and self.out:
+            if self.msgid().endswith(".out") or self.msgid().endswith(".draft"):
+                copyfile(outgoing.directory(CFG.node()) + self.msgid(), "temp")
+                callEditor(CFG.node(), self.msgid())
+                self.reloadMsgsOrQuit()
+            else:
+                showMessageBox("Сообщение уже отправлено")
+
+        elif ks in Out.SIGN and self.out:
+            self.signMsg()
+
+        elif ks in Out.DEL and self.favorites and msgs.data:
+            drawMessageBox("Подождите", False)
+            api.removeFromFavorites(self.msgid())
+            self.counts.getCounts(CFG.node(), False)
+            self.reloadMsgsOrQuit()
+
+        elif ks in Out.DEL and self.drafts and msgs.data:
+            if SelectWindow("Удалить черновик '%s'?" % self.msgid(),
+                            ["Нет", "Да"]).show() == 2:
+                os.remove(outgoing.directory(CFG.node()) + self.msgid())
+                self.counts.getCounts(CFG.node(), False)
+                self.reloadMsgsOrQuit()
+
+        elif ks in Reader.GETMSG and reader.size == 0 and self._msgid:
+            try:
+                drawMessageBox("Подождите", False)
+                getMsg(self._msgid)
+                self.counts.getCounts(CFG.node(), True)
+                reader.setMsg(*api.findMsg(self._msgid))
+                reader.prerender()
+            except Exception as ex:
+                showMessageBox("Не удалось определить msgid.\n" + str(ex))
+
+        elif ks in Reader.LINKS:
+            self.showOpenLinkDialog(reader.tokens)
+
+        elif ks in Reader.TO_OUT and self.drafts:
+            draft = outgoing.directory(CFG.node()) + self.msgid()
+            os.rename(draft, draft.replace(".draft", ".out"))
+            self.counts.getCounts(CFG.node(), False)
+            self.reloadMsgsOrQuit()
+
+        elif ks in Reader.TO_DRAFTS and self.out and not self.drafts:
+            if self.msgid().endswith(".out"):
+                out = outgoing.directory(CFG.node()) + self.msgid()
+                os.rename(out, out.replace(".out", ".draft"))
+                self.counts.getCounts(CFG.node(), False)
+                self.reloadMsgsOrQuit()
+            else:
+                showMessageBox("Сообщение уже отправлено")
+
+        elif ks in Reader.LIST and msgs.data:
+            mode = msgs.mode
+            msgid = msgs.curItem().msgid
+            win = MsgListScreen(self.echo.name, self.msgs)
+            selectedMsgn = win.show()
+            msgs = win.msgs
+            self.msgs = win.msgs
+            if selectedMsgn == -1:
+                msgs.idx = msgs.findMsgidIdx(msgid)
+            if mode != msgs.mode or selectedMsgn > -1:
+                self.stack.clear()
+                self.readCurMsg()
+                reader.prerender()
+            elif win.resized:
+                reader.setRect(x=0, y=5, w=WIDTH, h=HEIGHT - 5 - 1)
+                reader.prerender(reader.scroll.pos)
+
+        elif ks in Reader.INLINES:
+            parser.INLINE_STYLE_ENABLED = not parser.INLINE_STYLE_ENABLED
+            reader.prerender(reader.scroll.pos)
+
+    def signMsg(self):
+        if (not self.msgid().endswith(".out")
+                and not self.msgid().endswith(".draft")):
+            showMessageBox("Подпись невозможна."
+                           " Сообщение уже отправлено")
+            return  #
+
+        if not parser.gpg:
+            showMessageBox("Подпись невозможна."
+                           " Не установлен пакет python-gnupg")
+            return  #
+
+        privateKeys = parser.gpg.list_keys(secret=True)
+        if not privateKeys:
+            showMessageBox("Не удалось подписать сообщение.\n"
+                           "Нет приватных ключей в хранилище:\n%s"
+                           % os.path.abspath(parser.gpg.gnupghome))
+            return  #
+
+        items = []
+        for k in privateKeys:
+            user = k['uids'][0]
+            items.append((k['keyid'], "%s (%s)" % (user, k['keyid'])))
+        selected = SelectWindow("Подписать ключом",
+                                [it[1] for it in items]).show()
+        if selected > 0:
+            signMsg(CFG.node(), self.msgid(), items[selected - 1][0])
+            self.readCurMsg()
+            self.reader.prerender()
