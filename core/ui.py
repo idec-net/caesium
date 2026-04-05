@@ -17,7 +17,7 @@ from itertools import cycle
 from shutil import copyfile
 from typing import Optional, List, Tuple, TypeVar, Generic, Union
 
-import api.ait as api
+import api.ait
 from api import MsgMetadata, FindQuery
 from core import __version__, parser, utils, keystroke, config, mailer, client
 from core.cmd import Common, Reader, Selector, Qs, Out
@@ -27,6 +27,7 @@ from core.config import (
 )
 from core.layout import GridLayout, CC
 
+API = api.ait
 LABEL_SEARCH = "<введите regex для поиска>"
 LABEL_ANY_KEY = "Нажмите любую клавишу"
 LABEL_ESC = "Esc - отмена"
@@ -634,7 +635,7 @@ class MsgListScreen:
         if ks in Reader.MSUBJ:
             if self.msgs.mode != ReaderMode.SUBJ:
                 m = self.msgs.curItem()
-                data = api.findSubjMsgids(m.echo, m.subj)
+                data = API.findSubjMsgids(m.echo, m.subj)
                 self.msgs.modeSubjOn(data)
             else:
                 self.msgs.modeSubjOff()
@@ -1297,7 +1298,7 @@ class FindQueryWindow:
                 arch += list(map(lambda e: e.name, node.archive + node.stat))
             self.query.echoArch = " ".join(arch)
 
-        self.findResult = api.findQueryMsgids(
+        self.findResult = API.findQueryMsgids(
             self.query, progressHandler=self.findProgressHandler)
         self.findInProgress = False
 
@@ -1305,9 +1306,9 @@ class FindQueryWindow:
         now = time.time()
         self._keys()
         if self.findCancel:
-            return api.FIND_CANCEL
+            return API.FIND_CANCEL
         if (now - self.findTick) < 0.250:  # ms
-            return api.FIND_OK
+            return API.FIND_OK
         self.findTick = now
         progress = f" Поиск{THEME.ellipsis} " + next(self.findProgressBar)
         if param:
@@ -1319,7 +1320,7 @@ class FindQueryWindow:
             )
         self.lblProgress.setTxt(progress)
         self._show()
-        return api.FIND_OK
+        return API.FIND_OK
 
 
 class Pager:
@@ -1651,7 +1652,7 @@ def signMsg(node, out, keyId):
 
 
 def saveMessageToFile(msgid, echoarea):
-    msg, size = api.readMsg(msgid, echoarea)
+    msg, size = API.readMsg(msgid, echoarea)
     filepath = "downloads/" + msgid + ".txt"
     with open(filepath, "w") as f:
         f.write("== " + msg[1] + " ==================== " + msgid + "\n")
@@ -1671,10 +1672,10 @@ def getMsg(msgid):
         if len(msgid) == 20 and m[1]:
             msgbody = base64.b64decode(m[1].encode("ascii")).decode("utf8").split("\n")
             if node.to:
-                carbonarea = api.getCarbonarea()
+                carbonarea = API.getCarbonarea()
                 if msgbody[5] in node.to and msgid not in carbonarea:
-                    api.addToCarbonarea(msgid, msgbody)
-            api.saveMessage([(msgid, msgbody)], node, node.to)
+                    API.addToCarbonarea(msgid, msgbody)
+            API.saveMessage([(msgid, msgbody)], node, node.to)
 
 
 def saveAttachment(token):  # type: (parser.Token) -> None
@@ -1750,7 +1751,7 @@ class EchoReaderScreen:
         elif self.echo == config.ECHO_FIND:
             return self.msgs.data  #
         else:
-            return api.getEchoMsgsMetadata(self.echo.name)
+            return API.getEchoMsgsMetadata(self.echo.name)
 
     def readCurMsg(self):  # type: () -> (List[str], int)
         self._msgid = None
@@ -1762,9 +1763,9 @@ class EchoReaderScreen:
                 self.msgs.idx = 0
                 m = self.msgs.curItem()
             if m:
-                self.reader.setMsg(*api.readMsg(self._msgid or m.msgid, m.echo))
+                self.reader.setMsg(*API.readMsg(self._msgid or m.msgid, m.echo))
             else:
-                self.reader.setMsg(*api.readMsg("unknown", "unknown"))
+                self.reader.setMsg(*API.readMsg("unknown", "unknown"))
 
     def readMsgSkipTwit(self, increment):
         self.readCurMsg()
@@ -1836,7 +1837,7 @@ class EchoReaderScreen:
                     self.msgs.idx = idx
                     self.readCurMsg()
                 else:
-                    self.reader.setMsg(*api.findMsg(link))
+                    self.reader.setMsg(*API.findMsg(link))
                     self._msgid = link
                     if not self.stack or self.stack[-1] != self.msgs.idx:
                         self.stack.append(self.msgs.idx)
@@ -1976,7 +1977,7 @@ class EchoReaderScreen:
     def onKeyPressed(self, ks: str, msgs: MsgModeStack, reader: ReaderWidget):
         if ks in Reader.MSUBJ:
             if msgs.mode != ReaderMode.SUBJ:
-                data = api.findSubjMsgids(reader.msg[1], reader.msg[6])
+                data = API.findSubjMsgids(reader.msg[1], reader.msg[6])
                 msgs.modeSubjOn(data)
                 if msgs.data and msgs.idx == -1:
                     msgs.idx = 0
@@ -2019,7 +2020,7 @@ class EchoReaderScreen:
                 msgs.idx = idx
                 self.readCurMsg()
             else:
-                reader.setMsg(*api.findMsg(self.repto))
+                reader.setMsg(*API.findMsg(self.repto))
                 self._msgid = self.repto
                 if not self.stack or self.stack[-1] != msgs.idx:
                     self.stack.append(msgs.idx)
@@ -2065,7 +2066,7 @@ class EchoReaderScreen:
             saveMessageToFile(self.msgid(), reader.msg[1])
 
         elif ks in Reader.FAVORITES and not self.out:
-            saved = api.saveToFavorites(self.msgid(), reader.msg)
+            saved = API.saveToFavorites(self.msgid(), reader.msg)
             drawMessageBox("Подождите", False)
             self.counts.getCounts(CFG.node(), False)
             showMessageBox("Сообщение добавлено в избранные" if saved else
@@ -2095,7 +2096,7 @@ class EchoReaderScreen:
 
         elif ks in Out.DEL and self.favorites and msgs.data:
             drawMessageBox("Подождите", False)
-            api.removeFromFavorites(self.msgid())
+            API.removeFromFavorites(self.msgid())
             self.counts.getCounts(CFG.node(), False)
             self.reloadMsgsOrQuit()
 
@@ -2111,7 +2112,7 @@ class EchoReaderScreen:
                 drawMessageBox("Подождите", False)
                 getMsg(self._msgid)
                 self.counts.getCounts(CFG.node(), True)
-                reader.setMsg(*api.findMsg(self._msgid))
+                reader.setMsg(*API.findMsg(self._msgid))
                 reader.prerender()
             except Exception as ex:
                 showMessageBox("Не удалось определить msgid.\n" + str(ex))
