@@ -8,6 +8,7 @@ import subprocess
 import sys
 from typing import List, Optional
 
+import api.ait
 from core import (
     __version__, config, mailer, ui, keystroke
 )
@@ -22,6 +23,7 @@ from core.config import (
 # socks.set_default_proxy(socks.SOCKS5, '127.0.0.1', 8081)
 # socket.socket = socks.socksocket
 
+API = api.ait
 splash = ["▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
           "████████ ████████ ████████ ████████ ███ ███  ███ ██████████",
           "███           ███ ███  ███ ███          ███  ███ ███ ██ ███",
@@ -105,7 +107,7 @@ class EchoSelectorScreen:
         self.echos = ui.EchoModeStack(ui.SelectorMode.ECHO,
                                       CFG.node().echoareas)
         ui.drawMessageBox("Подождите", False)
-        self.counts.getCounts(CFG.node(), False)
+        self.counts.getCounts(CFG.node(), True)
         ui.stdscr.clear()
         self.updateScroll()
 
@@ -271,8 +273,8 @@ class EchoSelectorScreen:
         elif ks in Selector.CONFIG:
             editConfig()
             ui.loadTheme(CFG)
-            loadApi()
-            loadKeys()
+            loadApi(CFG)
+            loadKeys(CFG)
             CFG.resetNode()
             self.reloadEchoareas()
         elif ks in Selector.FIND:
@@ -359,46 +361,51 @@ config.ensureExists()
 CFG.load()
 
 
-def loadApi():
-    if CFG.db == "txt":
+# noinspection PyShadowingNames
+def loadApi(cfg):
+    if cfg.db == "txt":
         import api.txt as api
-    elif CFG.db == "aio":
+    elif cfg.db == "aio":
         import api.aio as api
-    elif CFG.db == "ait":
+    elif cfg.db == "ait":
         import api.ait as api
-    elif CFG.db == "sqlite":
+    elif cfg.db == "sqlite":
         import api.sqlite as api
     else:
-        raise Exception("Unsupported DB API :: " + CFG.db)
-    # create directories
+        raise Exception("Unsupported DB API :: " + cfg.db)
     api.init()
-    ui.api = api
-    mailer.api = api
-    return api
+    global API
+    API = api
+    ui.API = api
+    mailer.API = api
 
 
-API = loadApi()
+loadApi(CFG)
 if not os.path.exists("downloads"):
     os.mkdir("downloads")
 mailer.init(CFG)
 
 
-def loadKeys():
-    if CFG.keys == "default":
-        # noinspection PyUnresolvedReferences
+def loadKeys(cfg):
+    if cfg.keys == "default":
         import keys.default as keys
-    elif CFG.keys == "android":
-        # noinspection PyUnresolvedReferences
+    elif cfg.keys == "android":
         import keys.android as keys
-    elif CFG.keys == "vi":
-        # noinspection PyUnresolvedReferences
+    elif cfg.keys == "vi":
         import keys.vi as keys
     else:
         raise Exception("Unknown Keys Scheme :: " + CFG.keys)
+    if sys.version_info >= (3, 4):
+        import importlib
+        # noinspection PyTypeChecker
+        importlib.reload(keys)
+    else:
+        # noinspection PyUnresolvedReferences
+        reload(keys)
     keystroke.KsSeq.initSequences()
 
 
-loadKeys()
+loadKeys(CFG)
 try:
     ui.initializeCurses()
     ui.loadTheme(CFG)

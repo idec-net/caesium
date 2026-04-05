@@ -93,6 +93,7 @@ class Config:
         self.editor = "nano"
         self.oldquote = False
         self.db = "ait"
+        self.keys = "default"
         #
         node = None  # type: Optional[Node]
         shrink_spaces = re.compile(r"(\s\s+|\t+)")

@@ -6,11 +6,12 @@ import traceback
 from datetime import datetime
 from typing import List
 
-import api.ait as api
+import api.ait
 from api import MsgMetadata
 from core import config, parser, client, FEAT_X_C, FEAT_U_E, utils
 from core.config import CFG
 
+API = api.ait
 storage = ""
 blacklist = []
 if os.path.exists("blacklist.txt"):
@@ -215,7 +216,7 @@ def debundle(bundle, getList=None):
             else:
                 messages.append([msgid, msgbody])
     if messages:
-        api.saveMessage(messages, CFG.node(), CFG.node().to)
+        API.saveMessage(messages, CFG.node(), CFG.node().to)
 
 
 def fetchMail(node, forceFullIdx=False):  # type: (config.Node, bool) -> None
@@ -234,11 +235,11 @@ def fetchMail(node, forceFullIdx=False):  # type: (config.Node, bool) -> None
 
 
 def getMail(node, forceFullIdx=False):  # type: (config.Node, bool) -> None
-    features = api.getNodeFeatures(node.nodename)
+    features = API.getNodeFeatures(node.nodename)
     if features is None:
         print("Запрос x/features...")
         features = client.getFeatures(node.url)
-        api.saveNodeFeatures(node.nodename, features)
+        API.saveNodeFeatures(node.nodename, features)
         print("  x/features: " + ", ".join(features))
     isNodeSmart = FEAT_X_C in features and FEAT_U_E in features
     #
@@ -248,7 +249,7 @@ def getMail(node, forceFullIdx=False):  # type: (config.Node, bool) -> None
     newNec = None
     offsets = None
     if isNodeSmart:
-        oldNec = api.getNodeEchoCounts(node.nodename)
+        oldNec = API.getNodeEchoCounts(node.nodename)
         newNec = client.getEchoCount(node.url, echoareas)
         offsets = utils.offsetsEchoCount(oldNec or {}, newNec)
 
@@ -270,7 +271,7 @@ def getMail(node, forceFullIdx=False):  # type: (config.Node, bool) -> None
     localIndex = None
     for line in remoteMsgList:
         if parser.echoTemplate.match(line):
-            localIndex = api.getEchoMsgids(line)
+            localIndex = API.getEchoMsgids(line)
         elif len(line) == 20 and line not in localIndex and line not in blacklist:
             fetchMsgList.append(line)
     if fetchMsgList:
@@ -283,5 +284,5 @@ def getMail(node, forceFullIdx=False):  # type: (config.Node, bool) -> None
     else:
         print("Новых сообщений не обнаружено.", end="")
     if isNodeSmart:
-        api.saveNodeEchoCounts(node.nodename, newNec)
+        API.saveNodeEchoCounts(node.nodename, newNec)
     print()
