@@ -662,22 +662,22 @@ class MsgListScreen:
     @staticmethod
     def onSearchItem(sidx, pattern, it):
         # type: (int, re.Pattern, MsgMetadata) -> Optional[List[Tuple[List[re.Match], List[re.Match]]]]
-        result_name = []
-        result_subj = []
+        resultName = []
+        resultSubj = []
         p = 0
         while match := pattern.search(it.fr, p):
             if p >= len(it.fr) or match.start() == match.end():
                 break
-            result_name.append(match)
+            resultName.append(match)
             p = match.end()
         p = 0
         while match := pattern.search(it.subj, p):
             if p >= len(it.subj) or match.start() == match.end():
                 break
-            result_subj.append(match)
+            resultSubj.append(match)
             p = match.end()
-        if result_name or result_subj:
-            return [(result_name, result_subj)]
+        if resultName or resultSubj:
+            return [(resultName, resultSubj)]
         return None
 
 
@@ -1952,7 +1952,7 @@ class EchoSelectorScreen:
         result = []
         p = 0
         while match := pattern.search(echo.name, p):
-            if p >= len(echo.name):
+            if p >= len(echo.name) or match.start() == match.end():
                 break
             result.append(match)
             p = match.end()
