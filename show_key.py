@@ -28,7 +28,8 @@ def show_key():
         (lbl("Press Ctrl+C to exit.", UI_TEXT), "h 2 wrap"),
         (lblKs, "growY"),
     )
-    layout.pack(2, 2, height=ui.HEIGHT - 4, width=ui.WIDTH - 4)
+    h, w = ui.stdscr.getmaxyx()
+    layout.pack(2, 2, height=h - 4, width=w - 4)
     while True:
         for wid, _ in layout.widgets:  # type: (Widget, CC)
             wid.draw(ui.stdscr)
@@ -36,8 +37,8 @@ def show_key():
         ks, key, _ = ui.getKeystroke()
         #
         if key == curses.KEY_RESIZE:
-            ui.setTermSize()
-            layout.pack(2, 2, height=ui.HEIGHT - 4, width=ui.WIDTH - 4)
+            h, w = ui.stdscr.getmaxyx()
+            layout.pack(2, 2, height=h - 4, width=w - 4)
         ui.stdscr.addstr(lblKs.y, lblKs.x, " " * lblKs.w)
         lblKs.setTxt(f"{ks} ({key})")
 

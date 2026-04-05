@@ -104,6 +104,6 @@ try:
         ui.drawSplash(ui.stdscr, splash)
         curses.napms(2000)
         ui.stdscr.clear()
-    ui.EchoSelectorScreen(onEditCfg=editCfg).show()
+    ui.EchoSelectorScreen(ui.stdscr, onEditCfg=editCfg).show()
 finally:
     ui.terminateCurses()

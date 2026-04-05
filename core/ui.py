@@ -29,7 +29,7 @@ from lwtui import keystroke, theme
 from lwtui.layout import GridLayout, CC
 from lwtui.widget import (
     Widget, LabelWidget, SeparatorHWidget, CheckBoxWidget,
-    InputWidget, InputRegexWidget, InputDateWidget
+    InputWidget, InputRegexWidget, InputDateWidget, Window
 )
 
 THEME = theme.THEME
@@ -38,8 +38,6 @@ LABEL_SEARCH = "<введите regex для поиска>"
 LABEL_ANY_KEY = "Нажмите любую клавишу"
 LABEL_ESC = "Esc - отмена"
 LABEL_FIND = "Поиск "  # extra space for wide unicode icon (use wcwidth)
-HEIGHT = 0
-WIDTH = 0
 
 stdscr = None  # type: Optional[curses.window]
 version = "Caesium/%s │" % __version__
@@ -93,11 +91,6 @@ class SelectorMode(Enum):
     SEARCH = 'Q'  # Quick Search results
 
 
-def setTermSize():
-    global HEIGHT, WIDTH, stdscr
-    HEIGHT, WIDTH = stdscr.getmaxyx()
-
-
 def initializeCurses():
     global stdscr
     stdscr = curses.initscr()
@@ -108,7 +101,6 @@ def initializeCurses():
     curses.curs_set(0)
     curses.raw()
     stdscr.keypad(True)
-    setTermSize()
 
 
 def terminateCurses():
@@ -179,30 +171,31 @@ def drawMessageBox(smsg, wait):
     msg = smsg.split("\n")
     if wait:
         msg.extend(LABEL_ANY_KEY)
-    max_width = int(WIDTH * 0.75) if WIDTH > 80 else WIDTH - 2
-    max_width = min(max_width, max(map(lambda x: len(x), msg))) + 2
-    msg = list(map(lambda p: textwrap.fill(p, max_width - 2),
+    height, width = stdscr.getmaxyx()
+    boxW = int(width * 0.75) if width > 80 else width - 2
+    boxW = min(boxW, max(map(lambda x: len(x), msg))) + 2
+    msg = list(map(lambda p: textwrap.fill(p, boxW - 2),
                    smsg.split("\n")))
     msg = "\n".join(msg).split("\n")  # re-split after textwrap.fill added \n
-    box_height = len(msg) + 2  # len + border
+    boxH = len(msg) + 2  # len + border
     if wait:
-        box_height += 2  # + new line + LABEL_ANY_KEY
-    win = curses.newwin(box_height, max_width,
-                        int((HEIGHT - box_height) / 2),
-                        int((WIDTH - max_width) / 2))
+        boxH += 2  # + new line + LABEL_ANY_KEY
+    win = curses.newwin(boxH, boxW,
+                        int((height - boxH) / 2),
+                        int((width - boxW) / 2))
     win.bkgd(' ', curses.color_pair(config.COLOR_PAIRS[UI_TEXT][0]))
     win.attrset(getColor(UI_BORDER))
     win.border()
 
     color = getColor(UI_TEXT)
     for i, line in enumerate(msg, start=1):
-        if i >= HEIGHT - 1:
+        if i >= height - 1:
             break
         win.addstr(i, 1, line, color)
 
     color = getColor(UI_TITLES)
     if wait:
-        win.addstr(len(msg) + 2, int((max_width - len(LABEL_ANY_KEY)) / 2),
+        win.addstr(len(msg) + 2, int((boxW - len(LABEL_ANY_KEY)) / 2),
                    LABEL_ANY_KEY, color)
     win.refresh()
 
@@ -218,7 +211,7 @@ def drawScrollBarV(scr, y, x, scroll):
     color = getColor(UI_SCROLL)
     for i in range(y, y + scroll.track):
         scr.addstr(i, x, "░", color)
-    for i in range(y + scroll.thumb_pos, y + scroll.thumb_pos + scroll.thumb_sz):
+    for i in range(y + scroll.thumbPos, y + scroll.thumbPos + scroll.thumbSz):
         scr.addstr(i, x, "█", color)
 
 
@@ -263,21 +256,21 @@ def drawReader(scr, echo: str, msgid, out):
 class ScrollCalc:
     content: int  # scrollable content length
     view: int  # scroll view length
-    thumb_sz: int  # thumb size
+    thumbSz: int  # thumb size
     track: int  # track length
     _pos: int = 0  # scroll position in the scrollable content
     #
-    thumb_pos: int  # calculated thumb position on the track
-    is_scrollable = False
+    thumbPos: int  # calculated thumb position on the track
+    isScrollable = False
 
     def __init__(self, content: int, view: int,
                  pos: int = 0, track: int = None):
         self.content = content
         self.view = view
-        self.thumb_sz = max(1, min(self.view, int(self.view * self.view
-                                                  / max(1, content) + 0.5)))
+        self.thumbSz = max(1, min(self.view, int(self.view * self.view
+                                                 / max(1, content) + 0.5)))
         self.track = track or view
-        self.is_scrollable = self.content > self.view
+        self.isScrollable = self.content > self.view
         self._pos = max(0, min(self.content - self.view, pos))
         self.calc()
 
@@ -296,12 +289,12 @@ class ScrollCalc:
         return max(0, min(self.pos + self.view, self.content) - 1)
 
     def calc(self):
-        available_track = self.track - self.thumb_sz
-        thumb_pos = 0
-        if self.is_scrollable:
-            thumb_pos = int((self.pos / (self.content - self.view))
-                            * available_track + 0.5)
-        self.thumb_pos = max(0, min(available_track, thumb_pos))
+        availableTrack = self.track - self.thumbSz
+        thumbPos = 0
+        if self.isScrollable:
+            thumbPos = int((self.pos / (self.content - self.view))
+                           * availableTrack + 0.5)
+        self.thumbPos = max(0, min(availableTrack, thumbPos))
 
     def ensureVisible(self, pos, center=False):
         if pos < self.pos:
@@ -335,11 +328,12 @@ class SelectWindow:
     def initWin(self, items, title, win=None):
         testWidth = items + [LABEL_ESC + THEME.title[0] + THEME.title[1],
                              title + THEME.title[0] + THEME.title[1]]
+        height, width = stdscr.getmaxyx()
         w = 0 if not items else max(map(lambda it: len(it), testWidth))
-        h = min(HEIGHT - 2, len(items))
-        w = min(WIDTH - 2, w)
-        y = max(0, int(HEIGHT / 2 - h / 2 - 1))
-        x = max(0, int(WIDTH / 2 - w / 2 - 1))
+        h = min(height - 2, len(items))
+        w = min(width - 2, w)
+        y = max(0, int(height / 2 - h / 2 - 1))
+        x = max(0, int(width / 2 - w / 2 - 1))
         if win:
             win.resize(h + 2, w + 2)
             win.mvwin(y, x)
@@ -369,7 +363,6 @@ class SelectWindow:
             ks, key, _ = getKeystroke()
             #
             if key == curses.KEY_RESIZE:
-                setTermSize()
                 stdscr.clear()
                 stdscr.refresh()
                 self.win = self.initWin(self.items, self.title, self.win)
@@ -396,7 +389,7 @@ class SelectWindow:
             win.addstr(i + 1, 1, " " * (w - 2), color)
             win.addstr(i + 1, 1, item[:w - 2], color)
 
-        if scroll.is_scrollable:
+        if scroll.isScrollable:
             drawScrollBarV(win, 1, w - 1, scroll)
 
     def onKeyPressed(self, ks, scroll):  # type: (str, ScrollCalc) -> None
@@ -523,36 +516,32 @@ class EchoModeStack(ModeStackABC[SelectorMode, Echo]):
         return -1
 
 
-class MsgListScreen:
+class MsgListScreen(Window):
     msgs: MsgModeStack = None
     scroll: ScrollCalc = None
 
-    def __init__(self, echo: str, msgs: MsgModeStack):
+    def __init__(self, scr, echo: str, msgs: MsgModeStack):
+        super().__init__(scr)
         self.echo = echo
         self.msgs = msgs
-        self.scroll = ScrollCalc(len(msgs.data), HEIGHT - 2)
+        self.scroll = ScrollCalc(len(msgs.data), self.h - 2)
         self.scroll.ensureVisible(msgs.idx, center=True)
         self.resized = False
         self.qs = None  # type: Optional[QuickSearch]
 
     def show(self):  # type: () -> int
-        stdscr.clear()
-        self.draw_title(stdscr, self.echo)
+        self.scr.clear()
+        self.drawTitle(self.scr, self.echo)
         while True:
             self.scroll.ensureVisible(self.msgs.idx)
-            self.draw(stdscr, self.msgs.data, self.msgs.idx, self.scroll)
+            self.draw(self.scr)
             if self.qs:
-                self.qs.draw(stdscr)
+                self.qs.draw(self.scr)
             #
             ks, key, _ = getKeystroke()
             #
             if key == curses.KEY_RESIZE:
-                setTermSize()
-                self.scroll = ScrollCalc(len(self.msgs.data), HEIGHT - 2)
-                self.resized = True
-                if self.qs:
-                    self.qs.y = HEIGHT - 1
-                    self.qs.width = WIDTH - len(version) - 12
+                self.onResize()
             elif self.qs:
                 if ks in Qs.CLOSE:
                     self.qs = None
@@ -579,59 +568,59 @@ class MsgListScreen:
             else:
                 self.onKeyPressed(ks, self.scroll)
 
-    @staticmethod
-    def draw_title(win, echo):
-        _, w = win.getmaxyx()
+    def drawTitle(self, win, echo):
         color = getColor(UI_BORDER)
-        win.addstr(0, 0, "─" * w, color)
+        win.addstr(0, 0, "─" * self.w, color)
         if echo == ECHO_FIND:
-            if w >= 80:
+            if self.w >= 80:
                 drawTitle(win, 0, 0, f"Найденные сообщения"
                                      f" '{FindQueryWindow.query}'")
             else:
                 drawTitle(win, 0, 0, f"'{FindQueryWindow.query}'")
         else:
-            if w >= 80:
+            if self.w >= 80:
                 drawTitle(win, 0, 0, "Список сообщений в конференции " + echo)
             else:
                 drawTitle(win, 0, 0, echo)
 
-    def draw(self, win, data, cursor, scroll):
+    def draw(self, win):
+        self._draw(win, self.msgs.data, self.msgs.idx, self.scroll)
+
+    def _draw(self, win, data, cursor, scroll):
         # type: (curses.window, List[MsgMetadata], int, ScrollCalc) -> None
-        h, w = win.getmaxyx()
-        for i in range(1, h - 1):
+        for i in range(1, self.h - 1):
             color = getColor(UI_TEXT if scroll.pos + i - 1 != cursor else
                              UI_CURSOR)
-            win.addstr(i, 0, " " * w, color)
+            win.addstr(i, 0, " " * self.w, color)
             pos = scroll.pos + i - 1
             if pos >= scroll.content:
                 continue  #
             #
             msg = data[pos]
             win.addstr(i, 0, msg.fr, color)
-            win.addstr(i, 16, msg.subj[:w - 27], color)
-            win.addstr(i, w - 11, msg.strtime(), color)
+            win.addstr(i, 16, msg.subj[:self.w - 27], color)
+            win.addstr(i, self.w - 11, msg.strtime(), color)
             #
             if self.qs and pos in self.qs.result:
                 idx = self.qs.result.index(pos)
-                m_name, m_subj = self.qs.matches[idx]  # type: List[re.Match], List[re.Match]
-                for m in m_name:
+                mName, mSubj = self.qs.matches[idx]  # type: List[re.Match], List[re.Match]
+                for m in mName:
                     win.addstr(i, 0 + m.start(), msg.fr[m.start():m.end()],
                                color | curses.A_REVERSE)
-                for m in m_subj:
-                    end = min(w - 27, m.end())
-                    if m.start() + 16 > w - 12:
+                for m in mSubj:
+                    end = min(self.w - 27, m.end())
+                    if m.start() + 16 > self.w - 12:
                         continue
                     win.addstr(i, 16 + m.start(), msg.subj[m.start():end],
                                color | curses.A_REVERSE)
         #
-        if scroll.is_scrollable:
-            drawScrollBarV(win, 1, w - 1, scroll)
+        if scroll.isScrollable:
+            drawScrollBarV(win, 1, self.w - 1, scroll)
         drawStatusBar(win, mode=self.msgs.mode,
-                      text=utils.msgnStatus(len(data), cursor, w))
+                      text=utils.msgnStatus(len(data), cursor, self.w))
 
     def updateScroll(self):
-        self.scroll = ScrollCalc(len(self.msgs.data), HEIGHT - 2)
+        self.scroll = ScrollCalc(len(self.msgs.data), self.h - 2)
         self.scroll.ensureVisible(self.msgs.idx, center=True)
 
     def onKeyPressed(self, ks, scroll):
@@ -665,8 +654,8 @@ class MsgListScreen:
 
     # noinspection PyUnusedLocal
     @staticmethod
-    def onSearchItem(sidx, pattern, it):
-        # type: (int, re.Pattern, MsgMetadata) -> Optional[List[Tuple[List[re.Match], List[re.Match]]]]
+    def onSearchItem(sidx: int, pattern: re.Pattern, it: MsgMetadata
+                     ) -> Optional[List[Tuple[List[re.Match], List[re.Match]]]]:
         resultName = []
         resultSubj = []
         p = 0
@@ -684,6 +673,14 @@ class MsgListScreen:
         if resultName or resultSubj:
             return [(resultName, resultSubj)]
         return None
+
+    def onResize(self):
+        self.h, self.w = self.scr.getmaxyx()
+        self.scroll = ScrollCalc(len(self.msgs.data), self.h - 2)
+        self.resized = True
+        if self.qs:
+            self.qs.y = self.h - 1
+            self.qs.onResize(self.w - len(version) - 13)
 
 
 class FindQueryWindow:
@@ -808,11 +805,12 @@ class FindQueryWindow:
 
     @staticmethod
     def initWin(win=None):
-        w = max(len(LABEL_FIND) + 2, min(80, int(WIDTH)))
-        h = min(HEIGHT, 16)
-        w = min(WIDTH, w)
-        y = max(0, int((HEIGHT - h) / 2))
-        x = max(0, int((WIDTH - w) / 2))
+        height, width = stdscr.getmaxyx()
+        w = max(len(LABEL_FIND) + 2, min(80, int(width)))
+        h = min(height, 16)
+        w = min(width, w)
+        y = max(0, int((height - h) / 2))
+        x = max(0, int((width - w) / 2))
         if win:
             win.resize(h, w)
             win.mvwin(y, x)
@@ -863,7 +861,6 @@ class FindQueryWindow:
 
     def onKeyPressed(self, ks, key):
         if key == curses.KEY_RESIZE:
-            setTermSize()
             stdscr.clear()
             stdscr.refresh()
             self.win = self.initWin(self.win)
@@ -1019,11 +1016,12 @@ class Pager:
 
 
 def newQuickSearch(items, matcher):
-    stdscr.move(HEIGHT - 1, len(version) + 2)
+    h, w = stdscr.getmaxyx()
+    stdscr.move(h - 1, len(version) + 2)
     curses.curs_set(1)
     return QuickSearch(items, matcher,
-                       y=HEIGHT - 1, x=len(version) + 2,
-                       w=WIDTH - len(version) - 13)
+                       y=h - 1, x=len(version) + 2,
+                       w=w - len(version) - 13)
 
 
 class QuickSearch(InputRegexWidget):
@@ -1150,6 +1148,10 @@ class QuickSearch(InputRegexWidget):
             scroll.ensureVisible(cursor)
         return cursor
 
+    def onResize(self, w):
+        self.w = w
+        self.statPos = self.w - len(self.statTxt) - len(THEME.input.right)
+
 
 class ReaderWidget(Widget):
     tokens: List[parser.Token]  # message bode tokens
@@ -1184,7 +1186,7 @@ class ReaderWidget(Widget):
 
     def draw(self, scr, qs=None):
         self.renderBody(scr, self.tokens, self.scroll.pos, qs)
-        if self.scroll.is_scrollable:
+        if self.scroll.isScrollable:
             drawScrollBarV(scr, self.y, self.x + self.w - 1, self.scroll)
 
     def renderBody(self, scr, tokens, scroll, qs=None):
@@ -1386,7 +1388,7 @@ def saveAttachment(token):  # type: (parser.Token) -> None
             utils.openFile(filepath)
 
 
-class EchoReaderScreen:
+class EchoReaderScreen(Window):
     _msgid: Optional[str] = None  # non-current-echo message id, navigated by ii-link
     qs: Optional[QuickSearch] = None  # quick search helper
     reader: ReaderWidget = None
@@ -1396,8 +1398,10 @@ class EchoReaderScreen:
     nextEcho: Union[str, bool] = False  # jump to next echo after reader closed
     resized: bool = False
 
-    def __init__(self, echo: config.Echo, msgn, archive, counts,
+    def __init__(self, scr: curses.window,
+                 echo: config.Echo, msgn, archive, counts,
                  mode=ReaderMode.ECHO, msgids=None):
+        super().__init__(scr)
         self.echo = echo
         self.msgs = MsgModeStack(mode, msgids, msgn)
         self.archive = archive
@@ -1416,7 +1420,7 @@ class EchoReaderScreen:
             self.msgs.data = msgids
         #
         self.reader = ReaderWidget()
-        self.reader.setRect(x=0, y=5, w=WIDTH, h=HEIGHT - 5 - 1)
+        self.reader.setRect(x=0, y=5, w=self.w, h=self.h - 5 - 1)
         #
         self.msgs.idx = min(msgn, len(self.msgs.data) - 1)
         if self.msgs.data:
@@ -1481,8 +1485,7 @@ class EchoReaderScreen:
                 links)))
             i = win.show()
             if win.resized:
-                self.reader.setRect(x=0, y=5, w=WIDTH, h=HEIGHT - 5 - 1)
-                self.reader.prerender(self.reader.scroll.pos)
+                self.onResize()
             if i:
                 self.openLink(links[i - 1])
 
@@ -1558,36 +1561,25 @@ class EchoReaderScreen:
             self.counts.lasts[self.echo.name] = self.msgs.idx
             with open("lasts.lst", "wb") as f:
                 pickle.dump(self.counts.lasts, f)
-        stdscr.clear()
+        self.scr.clear()
         return not self.done, self.nextEcho
 
     def _show(self, msgs: MsgModeStack, reader: ReaderWidget):
-        stdscr.clear()
+        self.scr.clear()
         status = None
         if msgs.data:
-            self.draw(stdscr, reader)
-            status = utils.msgnStatus(len(msgs.data), msgs.idx, WIDTH)
+            self.draw(self.scr)
+            status = utils.msgnStatus(len(msgs.data), msgs.idx, self.w)
         else:
-            drawReader(stdscr, self.echo.name, "", self.out)
-        drawStatusBar(stdscr, mode=msgs.mode, text=status)
+            drawReader(self.scr, self.echo.name, "", self.out)
+        drawStatusBar(self.scr, mode=msgs.mode, text=status)
         if self.qs:
-            self.qs.draw(stdscr)
+            self.qs.draw(self.scr)
         #
         ks, key, _ = getKeystroke()
         #
         if key == curses.KEY_RESIZE:
-            setTermSize()
-            self.resized = True
-            reader.setRect(x=0, y=5, w=WIDTH, h=HEIGHT - 5 - 1)
-            reader.prerender(reader.scroll.pos)
-            stdscr.clear()
-            if self.qs:
-                self.qs.items = reader.tokens
-                self.qs.y = HEIGHT - 1
-                self.qs.width = WIDTH - len(version) - 13
-                tnum, _ = parser.findVisibleToken(reader.tokens,
-                                                  reader.scroll.pos)
-                self.qs.search(self.qs.txt, tnum)
+            self.onResize()
         elif self.qs:
             self.onKeyPressedQs(ks, key)
         elif ks in Qs.OPEN:
@@ -1604,10 +1596,12 @@ class EchoReaderScreen:
         elif reader.onKeyPressed(ks, key):
             return  #
         else:
-            self.onKeyPressed(ks, msgs, reader)
+            self.onKeyPressed(ks, key)
 
-    def draw(self, scr, reader: ReaderWidget):
-        h, w = scr.getmaxyx()
+    def draw(self, scr):
+        self._draw(scr, self.w, self.reader)
+
+    def _draw(self, scr, w, reader):
         drawReader(scr, reader.msg[1], self.msgid(), self.out)
         if w >= 80 and self.echo == config.ECHO_FIND:
             title = f"Найденные сообщения '{FindQueryWindow.query}'"
@@ -1658,7 +1652,10 @@ class EchoReaderScreen:
             self.readCurMsg()
             self.reader.prerender()
 
-    def onKeyPressed(self, ks: str, msgs: MsgModeStack, reader: ReaderWidget):
+    def onKeyPressed(self, ks: str, key: int):
+        self._onKeyPressed(ks, self.msgs, self.reader)
+
+    def _onKeyPressed(self, ks, msgs: MsgModeStack, reader: ReaderWidget):
         if ks in Reader.MSUBJ:
             if msgs.mode != ReaderMode.SUBJ:
                 data = API.findSubjMsgids(reader.msg[1], reader.msg[6])
@@ -1762,7 +1759,7 @@ class EchoReaderScreen:
             self.counts.getCounts(CFG.node(), False)
 
         elif ks in Reader.INFO:
-            subj = textwrap.fill(reader.msg[6], int(WIDTH * 0.75) - 8,
+            subj = textwrap.fill(reader.msg[6], int(self.w * 0.75) - 8,
                                  subsequent_indent="      ")
             showMessageBox("id:   %s\naddr: %s\nsubj: %s"
                            % (self.msgid(), reader.msg[4], subj))
@@ -1822,7 +1819,7 @@ class EchoReaderScreen:
         elif ks in Reader.LIST and msgs.data:
             mode = msgs.mode
             msgid = msgs.curItem().msgid
-            win = MsgListScreen(self.echo.name, self.msgs)
+            win = MsgListScreen(self.scr, self.echo.name, self.msgs)
             selectedMsgn = win.show()
             msgs = win.msgs
             self.msgs = win.msgs
@@ -1833,12 +1830,25 @@ class EchoReaderScreen:
                 self.readCurMsg()
                 reader.prerender()
             elif win.resized:
-                reader.setRect(x=0, y=5, w=WIDTH, h=HEIGHT - 5 - 1)
-                reader.prerender(reader.scroll.pos)
+                self.onResize()
 
         elif ks in Reader.INLINES:
             parser.INLINE_STYLE_ENABLED = not parser.INLINE_STYLE_ENABLED
             reader.prerender(reader.scroll.pos)
+
+    def onResize(self):
+        self.resized = True
+        self.h, self.w = self.scr.getmaxyx()
+        self.reader.setRect(x=0, y=5, w=self.w, h=self.h - 5 - 1)
+        self.reader.prerender(self.reader.scroll.pos)
+        self.scr.clear()
+        if self.qs:
+            self.qs.items = self.reader.tokens
+            self.qs.y = self.h - 1
+            self.qs.onResize(self.w - len(version) - 13)
+            tnum, _ = parser.findVisibleToken(self.reader.tokens,
+                                              self.reader.scroll.pos)
+            self.qs.search(self.qs.txt, tnum)
 
     def signMsg(self):
         if (not self.msgid().endswith(".out")
@@ -1914,7 +1924,7 @@ class Counts:
         return cursor
 
 
-class EchoSelectorScreen:
+class EchoSelectorScreen(Window):
     echoCursor: int = 0
     archiveCursor: int = 0
     nextEcho: bool = False
@@ -1923,7 +1933,8 @@ class EchoSelectorScreen:
     qs: Optional[QuickSearch] = None
     go: bool = True
 
-    def __init__(self, onEditCfg: Callable):
+    def __init__(self, scr: curses.window, onEditCfg: Callable):
+        super().__init__(scr)
         self.counts = Counts()
         self.reloadEchoareas()
         self.onEditCfg = onEditCfg
@@ -1935,11 +1946,11 @@ class EchoSelectorScreen:
                                    CFG.node().echoareas)
         drawMessageBox("Подождите", False)
         self.counts.getCounts(CFG.node(), True)
-        stdscr.clear()
+        self.scr.clear()
         self.updateScroll()
 
     def updateScroll(self):
-        self.scroll = ScrollCalc(len(self.echos.data), HEIGHT - 2)
+        self.scroll = ScrollCalc(len(self.echos.data), self.h - 2)
         self.scroll.ensureVisible(self.echos.idx, center=True)
         self.counts.rescanCounts(self.echos.data)
 
@@ -1952,7 +1963,7 @@ class EchoSelectorScreen:
             self.archiveCursor = self.echos.idx
             self.echos.modeArchOff()
             self.echos.idx = self.echoCursor
-        stdscr.clear()
+        self.scr.clear()
         self.updateScroll()
 
     # noinspection PyUnusedLocal
@@ -1970,12 +1981,11 @@ class EchoSelectorScreen:
     def show(self):
         while self.go:
             self.scroll.ensureVisible(self.echos.idx)
-            self.draw(stdscr, self.echos.idx, self.scroll, self.qs)
+            self.draw(self.scr)
             #
             ks, key, _ = getKeystroke()
             #
             if key == curses.KEY_RESIZE:
-                setTermSize()
                 self.onResize()
             elif self.qs:
                 if ks in Qs.CLOSE or ks in Qs.APPLY:
@@ -1996,46 +2006,45 @@ class EchoSelectorScreen:
             elif ks in Common.QUIT:
                 self.go = False
             else:
-                self.onKeyPressed(ks)
+                self.onKeyPressed(ks, key)
 
-    def draw(self, win, cursor, scroll, qs):
-        h, w = win.getmaxyx()
-        self.drawEchoSelector(win, scroll.pos, cursor, qs, self.counts.counts)
-        if scroll.is_scrollable:
-            drawScrollBarV(win, 1, w - 1, scroll)
-        if qs:
-            qs.draw(win)
+    def draw(self, win):
+        self.drawEchoSelector(win, self.scroll.pos, self.echos.idx,
+                              self.qs, self.counts.counts)
+        if self.scroll.isScrollable:
+            drawScrollBarV(win, 1, self.w - 1, self.scroll)
+        if self.qs:
+            self.qs.draw(win)
         win.refresh()
 
     def drawEchoSelector(self, win, start, cursor, qs, counts):
         # type: (curses.window, int, int, QuickSearch, List[List[str]]) -> None
-        h, w = win.getmaxyx()
         color = getColor(UI_BORDER)
-        win.addstr(0, 0, "─" * w, color)
+        win.addstr(0, 0, "─" * self.w, color)
         if self.echos.isArch():
             drawTitle(win, 0, 0, "Архив")
         else:
             drawTitle(win, 0, 0, "Конференция")
         #
-        m = min(w - 38, max(map(lambda e: len(e.desc), self.echos.data)))
+        m = min(self.w - 38, max(map(lambda e: len(e.desc), self.echos.data)))
         count = "Сообщений"
         unread = "Не прочитано"
         description = "Описание"
-        showDesc = (w >= 80) and m > 0
-        if w < 80 or m == 0:
+        showDesc = (self.w >= 80) and m > 0
+        if self.w < 80 or m == 0:
             m = len(unread) - 7
-        drawTitle(win, 0, w + 2 - m - len(count) - len(unread) - 1, count)
-        drawTitle(win, 0, w - 8 - m - 1, unread)
+        drawTitle(win, 0, self.w + 2 - m - len(count) - len(unread) - 1, count)
+        drawTitle(win, 0, self.w - 8 - m - 1, unread)
         if showDesc:
-            drawTitle(win, 0, w - len(description) - 2, description)
+            drawTitle(win, 0, self.w - len(description) - 2, description)
 
-        for y in range(1, h - 1):
+        for y in range(1, self.h - 1):
             echoN = y - 1 + start
             if echoN == cursor:
                 color = getColor(UI_CURSOR)
             else:
                 color = getColor(UI_TEXT)
-            win.addstr(y, 0, " " * w, color)
+            win.addstr(y, 0, " " * self.w, color)
             if echoN >= len(self.echos.data):
                 continue  #
             #
@@ -2045,11 +2054,11 @@ class EchoSelectorScreen:
             if int(unread) > 0:
                 win.addstr(y, 0, "+")
             win.addstr(y, 2, echo.name)
-            win.addstr(y, w - 10 - m - len(total), total)
-            win.addstr(y, w - 2 - m - len(unread), unread)
+            win.addstr(y, self.w - 10 - m - len(total), total)
+            win.addstr(y, self.w - 2 - m - len(unread), unread)
             if showDesc:
-                win.addstr(y, max(w - m - 1, w - 1 - len(echo.desc)),
-                           echo.desc[0:w - 38])
+                win.addstr(y, max(self.w - m - 1, self.w - 1 - len(echo.desc)),
+                           echo.desc[0:self.w - 38])
             #
             if qs and echoN in qs.result:
                 idx = qs.result.index(echoN)
@@ -2060,7 +2069,7 @@ class EchoSelectorScreen:
 
         drawStatusBar(win, mode=self.echos.mode, text=CFG.node().nodename)
 
-    def onKeyPressed(self, ks):
+    def onKeyPressed(self, ks, key):
         if ks in Selector.UP:
             self.echos.idx = max(0, self.echos.idx - 1)
         elif ks in Selector.DOWN:
@@ -2082,7 +2091,7 @@ class EchoSelectorScreen:
         elif ks in Selector.END:
             self.echos.idx = self.scroll.content - 1
         elif ks in Selector.GET or ks in Selector.FGET:
-            self.fetchMail(force_full_idx=(ks in Selector.FGET))
+            self.fetchMail(forceFullIdx=(ks in Selector.FGET))
         elif ks in Selector.ARCHIVE and len(CFG.node().archive) > 0:
             self.toggleArchive()
         elif ks in Selector.ENTER:
@@ -2108,18 +2117,18 @@ class EchoSelectorScreen:
             if findResult:
                 findResult = sorted(findResult, key=lambda m: m.time)
                 self.showReader(EchoReaderScreen(
-                    config.ECHO_FIND, 0, True, self.counts,
+                    self.scr, config.ECHO_FIND, 0, True, self.counts,
                     mode=ReaderMode.FIND, msgids=findResult))
 
-    def fetchMail(self, force_full_idx):
+    def fetchMail(self, forceFullIdx):
         terminateCurses()
         os.system('cls' if os.name == 'nt' else 'clear')
-        mailer.fetchMail(CFG.node(), force_full_idx)
+        mailer.fetchMail(CFG.node(), forceFullIdx)
         initializeCurses()
         drawMessageBox("Подождите", False)
         self.counts.getCounts(CFG.node(), True)
         self.counts.rescanCounts(self.echos.data)
-        stdscr.clear()
+        self.scr.clear()
         self.echos.idx = self.counts.findNew(0)
 
     def readEcho(self):
@@ -2130,7 +2139,7 @@ class EchoSelectorScreen:
             last = self.counts.lasts[curEcho.name]
         last = max(0, min(self.counts.total[curEcho.name], last))
         self.showReader(EchoReaderScreen(
-            curEcho, last, self.echos.isArch(), self.counts))
+            self.scr, curEcho, last, self.echos.isArch(), self.counts))
         self.counts.rescanCounts(self.echos.data)
         if self.nextEcho and isinstance(self.nextEcho, bool):
             self.echos.idx = self.counts.findNew(self.echos.idx)
@@ -2151,13 +2160,13 @@ class EchoSelectorScreen:
         outLength = mailer.getOutLength(CFG.node(), drafts=False)
         if outLength:
             self.showReader(EchoReaderScreen(
-                config.ECHO_OUT, outLength, self.echos.isArch(), self.counts))
+                self.scr, config.ECHO_OUT, outLength, self.echos.isArch(), self.counts))
 
     def readDrafts(self):
         outLength = mailer.getOutLength(CFG.node(), drafts=True)
         if outLength:
             self.showReader(EchoReaderScreen(
-                config.ECHO_DRAFTS, 0, self.echos.isArch(), self.counts))
+                self.scr, config.ECHO_DRAFTS, 0, self.echos.isArch(), self.counts))
 
     def showReader(self, reader):
         self.go, self.nextEcho = reader.show()
@@ -2165,9 +2174,10 @@ class EchoSelectorScreen:
             self.onResize()
 
     def onResize(self):
-        self.scroll = ScrollCalc(len(self.echos.data), HEIGHT - 2,
+        self.h, self.w = self.scr.getmaxyx()
+        self.scroll = ScrollCalc(len(self.echos.data), self.h - 2,
                                  self.echos.idx)
-        stdscr.clear()
+        self.scr.clear()
         if self.qs:
-            self.qs.y = HEIGHT - 1
-            self.qs.width = WIDTH - len(version) - 13
+            self.qs.y = self.h - 1
+            self.qs.onResize(self.w - len(version) - 13)
