@@ -31,40 +31,38 @@ class Widget:
 class SeparatorHWidget(Widget):
     focusable: bool = False
     h: int = 1
-    color: int = 0  # curses attribute
 
-    def __init__(self, y=0, x=0, color=0):
+    def __init__(self, y=0, x=0):
+        self.style = lwtui.theme.THEME.sepH
         self.x = x
         self.y = y
-        if color:
-            self.color = color
 
     def draw(self, win: curses.window) -> None:
-        win.addstr(self.y, self.x, "─" * self.w, self.color)
+        win.addstr(self.y, self.x, self.style.ch * self.w, self.style.color)
 
 
 class LabelWidget(Widget):
     focusable: bool = False
     h: int = 1
-    colorEnabled: int = 0
-    colorDisabled: int = 0
 
-    def __init__(self, txt="", y=0, x=0, enabled=True,
-                 colorEnabled=0, colorDisabled=0):
+    def __init__(self, txt="", y=0, x=0, enabled=True):
+        self.style = lwtui.theme.THEME.label
         self.x = x
         self.y = y
         self.w = len(txt)
         self.txt = txt
         self.enabled = enabled
-        if colorEnabled:
-            self.colorEnabled = colorEnabled
-        if colorDisabled:
-            self.colorDisabled = colorDisabled
+        self.color = self._color(self.style)
+
+    def _color(self, style):
+        return (style.cEnabled if self.enabled else
+                style.cDisabled)
 
     def setEnabled(self, enabled):
         if self.enabled == enabled:
             return
         self.enabled = enabled
+        self.color = self._color(self.style)
 
     def setTxt(self, txt):
         self.txt = txt
@@ -73,19 +71,14 @@ class LabelWidget(Widget):
     def draw(self, win: curses.window) -> None:
         if self.w <= 0:  # termux curses v6.5.20240832 crashes w zero width
             return
-        color = self.colorEnabled if self.enabled else self.colorDisabled
-        win.addstr(self.y, self.x, " " * self.w, color)
-        win.addnstr(self.y, self.x, self.txt, self.w, color)
+        win.addstr(self.y, self.x, " " * self.w, self.color)
+        win.addnstr(self.y, self.x, self.txt, self.w, self.color)
 
 
 class CheckBoxWidget(Widget):
     h: int = 1
-    colorEnabled: int = 0
-    colorFocused: int = 0
-    colorDisabled: int = 0
 
-    def __init__(self, lbl="", fOrder=0, y=0, x=0, checked=False, enabled=True,
-                 colorEnabled=0, colorFocused=0, colorDisabled=0):
+    def __init__(self, lbl="", fOrder=0, y=0, x=0, checked=False, enabled=True):
         self.style = lwtui.theme.THEME.checkbox
         self.focusOrder = fOrder
         self.x = x
@@ -95,39 +88,40 @@ class CheckBoxWidget(Widget):
         self.enabled = enabled
         self.content = self._content(checked, lbl)
         self.w = len(self.content)
-        if colorEnabled:
-            self.colorEnabled = colorEnabled
-        if colorFocused:
-            self.colorFocused = colorFocused
-        if colorDisabled:
-            self.colorDisabled = colorDisabled
+        self.color = self._color(self.style)
+
+    def _color(self, style):
+        return (style.cFocused if self.focused and self.enabled else
+                style.cEnabled if self.enabled else
+                style.cDisabled)
 
     def _content(self, checked, lbl):
-        return "%s%s" % (self.style[1 if checked else 0], lbl)
+        checkMark = self.style.checked if checked else self.style.unchecked
+        return "%s%s" % (checkMark, lbl)
 
     def setChecked(self, checked):
         if self.checked == checked:
             return
         self.checked = checked
         self.content = self._content(checked, self.lbl)
+        self.color = self._color(self.style)
 
     def setFocused(self, focused):
         if self.focused == focused:
             return
         self.focused = focused
+        self.color = self._color(self.style)
 
     def setEnabled(self, enabled):
         if self.enabled == enabled:
             return
         self.enabled = enabled
+        self.color = self._color(self.style)
 
     def draw(self, win):
         if self.w <= 0:
             return  #
-        color = (self.colorFocused if self.enabled and self.focused else
-                 self.colorEnabled if self.enabled else
-                 self.colorDisabled)
-        win.addnstr(self.y, self.x, self.content, self.w, color)
+        win.addnstr(self.y, self.x, self.content, self.w, self.color)
 
     def onKeyPressed(self, ks, key):
         if key == ord(" "):
@@ -138,13 +132,9 @@ class InputWidget(Widget):
     cursor: int = 0
     offset: int = 0
     h: int = 1
-    colorEnabled: int = 0
-    colorFocused: int = 0
-    colorDisabled: int = 0
 
     def __init__(self, txt="", fOrder: float = 0, y=0, x=0, w=0,
-                 *, placeholder="", mask=None,
-                 colorEnabled=0, colorFocused=0, colorDisabled=0):
+                 *, placeholder="", mask=None):
         self.style = lwtui.theme.THEME.input
         self.focusOrder = fOrder
         self.x = x
@@ -153,37 +143,31 @@ class InputWidget(Widget):
         self.txt = txt
         self.placeholder = placeholder
         self.mask = mask
-        if colorEnabled:
-            self.colorEnabled = colorEnabled
-        if colorFocused:
-            self.colorFocused = colorFocused
-        if colorDisabled:
-            self.colorDisabled = colorDisabled
-        self.color = self._color()
+        self.color = self._color(self.style)
 
-    def _color(self):
-        return (self.colorFocused if self.enabled and self.focused else
-                self.colorEnabled if self.enabled else
-                self.colorDisabled)
+    def _color(self, style):
+        return (style.cFocused if self.focused and self.enabled else
+                style.cEnabled if self.enabled else
+                style.cDisabled)
 
     def setFocused(self, focused):
         if self.focused == focused:
             return
         self.focused = focused
-        self.color = self._color()
+        self.color = self._color(self.style)
 
     def setEnabled(self, enabled):
         if self.enabled == enabled:
             return
         self.enabled = enabled
-        self.color = self._color()
+        self.color = self._color(self.style)
 
     def draw(self, win: curses.window) -> None:
         if self.w <= 0:
             return  #
-        left = self.style[0]
-        right = self.style[1]
-        attr = self.color | self.style[2]
+        left = self.style.left
+        right = self.style.right
+        attr = self.color | self.style.attr
         #
         if self.txt:
             txt = self.txt
@@ -201,7 +185,7 @@ class InputWidget(Widget):
 
     def _moveCursorRight(self, increment):
         self.cursor = min(len(self.txt), self.cursor + increment)
-        contentWidth = self.w - (len(self.style[0]) + len(self.style[1]))
+        contentWidth = self.w - (len(self.style.left) + len(self.style.right))
         if self.cursor - self.offset > contentWidth - 1:
             self.offset += increment
 
@@ -219,7 +203,7 @@ class InputWidget(Widget):
             self.offset = 0
         elif key == curses.KEY_END:
             self.cursor = len(self.txt)
-            contentWidth = self.w - (len(self.style[0]) + len(self.style[1]))
+            contentWidth = self.w - (len(self.style.left) + len(self.style.right))
             self.offset = max(0, self.cursor - contentWidth + 1)
         elif key == curses.KEY_LEFT:
             self._moveCursorLeft(1)
@@ -247,7 +231,7 @@ class InputWidget(Widget):
                     self._moveCursorRight(len(ks))
 
     def getWinCursorPos(self):
-        return len(self.style[0]) + self.cursor - self.offset
+        return len(self.style.left) + self.cursor - self.offset
 
 
 class ErrIndicator:
@@ -262,11 +246,11 @@ class ErrIndicator:
         if self.err == err:
             return
         self.err = err
-        self.txt = self.style[0]
+        self.txt = self.style.ch
 
     def draw(self, win, y, x, color):
         if self.err:
-            win.addstr(y, x - len(self.txt), self.txt, color | self.style[1])
+            win.addstr(y, x - self.style.len, self.txt, color | self.style.attr)
 
     def __bool__(self):
         return self.err
@@ -308,7 +292,7 @@ class InputRegexWidget(InputWidget):
 
     def draw(self, win):  # type: (curses.window) -> None
         super().draw(win)
-        self.err.draw(win, self.y, self.x + self.w - len(self.style[1]),
+        self.err.draw(win, self.y, self.x + self.w - len(self.style.right),
                       self.color)
 
 
@@ -336,5 +320,5 @@ class InputDateWidget(InputWidget):
 
     def draw(self, win: curses.window) -> None:
         super().draw(win)
-        self.err.draw(win, self.y, self.x + self.w - len(self.style[1]),
+        self.err.draw(win, self.y, self.x + self.w - len(self.style.right),
                       self.color)
