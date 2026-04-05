@@ -8,13 +8,13 @@ from typing import List, Optional
 
 from core import parser
 
-CONFIG_FILEPATH = "caesium.cfg"
+CFG_FILEPATH = "caesium.cfg"
 
 
 def ensureExists():
-    if not os.path.exists(CONFIG_FILEPATH):
+    if not os.path.exists(CFG_FILEPATH):
         with open("caesium.def.cfg", "r") as defCfg:
-            with open(CONFIG_FILEPATH, "w") as cfg:
+            with open(CFG_FILEPATH, "w") as cfg:
                 cfg.write(defCfg.read())
 
 
@@ -97,7 +97,7 @@ class Config:
         #
         node = None  # type: Optional[Node]
         shrink_spaces = re.compile(r"(\s\s+|\t+)")
-        with open(CONFIG_FILEPATH) as f:
+        with open(CFG_FILEPATH) as f:
             lines = f.read().splitlines()
         for line in lines:
             param = shrink_spaces.sub(" ", line.strip()).split(" ", maxsplit=2)
