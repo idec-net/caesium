@@ -28,6 +28,14 @@ class Widget:
         pass
 
 
+class Window(Widget):
+    scr: curses.window = None
+
+    def __init__(self, scr: curses.window):
+        self.scr = scr
+        self.h, self.w = scr.getmaxyx()
+
+
 class SeparatorHWidget(Widget):
     focusable: bool = False
     h: int = 1
