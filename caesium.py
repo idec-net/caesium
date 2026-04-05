@@ -70,7 +70,7 @@ def loadKeys(cfg: config.Config):
     else:
         # noinspection PyUnresolvedReferences
         reload(keys)
-    ui.initKsSeq()
+    ui.initKeys()
 
 
 def editCfg():

@@ -222,3 +222,20 @@ def getWch(scr: curses.window, initCh=-1) -> Union[int, str]:
 
     ch = bytes(_storedBytes).decode('utf-8', errors='strict')
     return ch
+
+
+class Keys:
+    UP = ["Up"]
+    DOWN = ["Down"]
+    LEFT = ["Left"]
+    RIGHT = ["Right"]
+
+    HOME = ["Home"]
+    END = ["End"]
+
+    BS = ["BS", "C-?", "C-h"]
+    DEL = ["Del"]
+
+    TOGGLE = ["SPC"]
+    NFOCUS = ["Tab"]
+    PFOCUS = ["S-Tab"]

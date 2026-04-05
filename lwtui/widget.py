@@ -2,7 +2,7 @@ import curses
 import re
 from datetime import date, datetime
 
-import lwtui.theme
+from lwtui import theme, keystroke
 
 
 class Widget:
@@ -33,7 +33,7 @@ class SeparatorHWidget(Widget):
     h: int = 1
 
     def __init__(self, y=0, x=0):
-        self.style = lwtui.theme.THEME.sepH
+        self.style = theme.THEME.sepH
         self.x = x
         self.y = y
 
@@ -46,7 +46,7 @@ class LabelWidget(Widget):
     h: int = 1
 
     def __init__(self, txt="", y=0, x=0, enabled=True):
-        self.style = lwtui.theme.THEME.label
+        self.style = theme.THEME.label
         self.x = x
         self.y = y
         self.w = len(txt)
@@ -79,7 +79,7 @@ class CheckBoxWidget(Widget):
     h: int = 1
 
     def __init__(self, lbl="", fOrder=0, y=0, x=0, checked=False, enabled=True):
-        self.style = lwtui.theme.THEME.checkbox
+        self.style = theme.THEME.checkbox
         self.focusOrder = fOrder
         self.x = x
         self.y = y
@@ -124,7 +124,7 @@ class CheckBoxWidget(Widget):
         win.addnstr(self.y, self.x, self.content, self.w, self.color)
 
     def onKeyPressed(self, ks, key):
-        if key == ord(" "):
+        if ks in keystroke.Keys.TOGGLE:
             self.setChecked(not self.checked)
 
 
@@ -135,7 +135,7 @@ class InputWidget(Widget):
 
     def __init__(self, txt="", fOrder: float = 0, y=0, x=0, w=0,
                  *, placeholder="", mask=None):
-        self.style = lwtui.theme.THEME.input
+        self.style = theme.THEME.input
         self.focusOrder = fOrder
         self.x = x
         self.y = y
@@ -197,28 +197,21 @@ class InputWidget(Widget):
             self.offset -= 1
 
     def onKeyPressed(self, ks, key):
-        # TODO: Common navigation commands?
-        if key == curses.KEY_HOME:
+        if ks in keystroke.Keys.HOME:
             self.cursor = 0
             self.offset = 0
-        elif key == curses.KEY_END:
+        elif ks in keystroke.Keys.END:
             self.cursor = len(self.txt)
             contentWidth = self.w - (len(self.style.left) + len(self.style.right))
             self.offset = max(0, self.cursor - contentWidth + 1)
-        elif key == curses.KEY_LEFT:
+        elif ks in keystroke.Keys.LEFT:
             self._moveCursorLeft(1)
-        elif key == curses.KEY_RIGHT:
+        elif ks in keystroke.Keys.RIGHT:
             self._moveCursorRight(1)
-        elif key in (curses.KEY_BACKSPACE, 127):
-            # 127 - Ctrl+? - Android backspace
-            txt = self.txt[0:max(0, self.cursor - 1)] + self.txt[self.cursor:]
-            if not self.mask or self.mask.match(txt):
-                self.txt = txt
-                self._moveCursorLeft(1)
-        elif key == curses.KEY_DC:  # DEL
-            txt = self.txt[0:max(0, self.cursor)] + self.txt[self.cursor + 1:]
-            if not self.mask or self.mask.match(txt):
-                self.txt = txt
+        elif ks in keystroke.Keys.BS:
+            self._delPrevChar()
+        elif ks in keystroke.Keys.DEL:
+            self._delCurrentChar()
         else:
             if key == ord(" "):
                 ks = " "
@@ -230,6 +223,17 @@ class InputWidget(Widget):
                     self.txt = txt
                     self._moveCursorRight(len(ks))
 
+    def _delPrevChar(self):
+        txt = self.txt[0:max(0, self.cursor - 1)] + self.txt[self.cursor:]
+        if not self.mask or self.mask.match(txt):
+            self.txt = txt
+            self._moveCursorLeft(1)
+
+    def _delCurrentChar(self):
+        txt = self.txt[0:max(0, self.cursor)] + self.txt[self.cursor + 1:]
+        if not self.mask or self.mask.match(txt):
+            self.txt = txt
+
     def getWinCursorPos(self):
         return len(self.style.left) + self.cursor - self.offset
 
@@ -240,7 +244,7 @@ class ErrIndicator:
     txt: str = ""
 
     def __init__(self):
-        self.style = lwtui.theme.THEME.error
+        self.style = theme.THEME.error
 
     def setErr(self, err):
         if self.err == err:
