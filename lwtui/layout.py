@@ -4,7 +4,7 @@ from itertools import takewhile
 from typing import TYPE_CHECKING, Tuple, List, Optional, Collection, Union
 
 if TYPE_CHECKING:
-    from ui import Widget
+    from lwtui.widget import Widget
 
 
 @dataclass(slots=True, frozen=True)
@@ -309,7 +309,7 @@ class Layout:
     def add(self, wid, constraint=None):
         ...
 
-    def pack(self, offset_y=0, offset_x=0, height=0, width=0):
+    def pack(self, offsetY=0, offsetX=0, height=0, width=0):
         ...
 
 
@@ -373,7 +373,7 @@ class GridLayout(Layout):
                     rSpan_offset += 1
                 colN += 1
 
-    def pack(self, offset_y=0, offset_x=0, height=0, width=0):
+    def pack(self, offsetY=0, offsetX=0, height=0, width=0):
         self.h = height
         self.w = width
         if not self.rows:
@@ -422,9 +422,9 @@ class GridLayout(Layout):
         if height > 0:
             _adjustSize(growY, list(filter(lambda _: _.grow, self.rows)) or self.rows)
 
-        x = offset_x
+        x = offsetX
         for cn, col in enumerate(self.cols):
-            y = offset_y
+            y = offsetY
             for rn, cell in enumerate(col.cells):
                 if not cell:
                     y += self.rows[rn].sz
@@ -466,8 +466,8 @@ class GridLayout(Layout):
                     wy += (wh - cell.height) // 2
                 #
                 if isinstance(cell.wid, Layout):
-                    cell.wid.pack(offset_y=wy + (cell.cc.pad.top or 0),
-                                  offset_x=wx + (cell.cc.pad.left or 0),
+                    cell.wid.pack(offsetY=wy + (cell.cc.pad.top or 0),
+                                  offsetX=wx + (cell.cc.pad.left or 0),
                                   width=cell.width - cell.cc.pad.horizontal(),
                                   height=cell.height - cell.cc.pad.vertical())
                 elif cell.wid:

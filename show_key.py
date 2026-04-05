@@ -3,8 +3,9 @@ import curses
 
 from core import ui
 from core.config import UI_HEADER, UI_TEXT, UI_CODE
-from core.keystroke import KsSeq
-from core.layout import GridLayout
+from lwtui.keystroke import KsSeq
+from lwtui.layout import GridLayout, CC
+from lwtui.widget import Widget
 
 
 def show_key():
@@ -24,7 +25,7 @@ def show_key():
     )
     layout.pack(2, 2, height=ui.HEIGHT - 4, width=ui.WIDTH - 4)
     while True:
-        for wid, _ in layout.widgets:  # type: (ui.Widget, ui.CC)
+        for wid, _ in layout.widgets:  # type: (Widget, CC)
             wid.draw(ui.stdscr)
         #
         ks, key, _ = ui.getKeystroke()

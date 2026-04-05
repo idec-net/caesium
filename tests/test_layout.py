@@ -1,5 +1,5 @@
-from core.layout import GridLayout, CC, parseConstraint
-from core.ui import Widget
+from lwtui.layout import GridLayout, CC, parseConstraint
+from lwtui.widget import Widget
 
 
 def test_simple():
@@ -21,7 +21,7 @@ def test_simple():
     assert (w1.y, w1.x, w1.w, w1.h) == (2, 1, 13, 1)
     assert (w2.y, w2.x, w2.w, w2.h) == (0, 15, 15, 5)
     #
-    layout.pack(offset_y=6, offset_x=5, width=100)
+    layout.pack(offsetY=6, offsetX=5, width=100)
     assert (w1.y, w1.x, w1.w, w1.h) == (8, 21, 18, 1)
     assert (w2.y, w2.x, w2.w, w2.h) == (6, 55, 20, 5)
 
@@ -79,7 +79,7 @@ def test_colspan():
     assert (w1.y, w1.x, w1.w, w1.h) == (0, 10, 30, 0)
     assert (w2.y, w2.x, w2.w, w2.h) == (0, 40, 20, 0)
     #
-    layout.pack(offset_x=5, width=60)
+    layout.pack(offsetX=5, width=60)
     assert (w1.y, w1.x, w1.w, w1.h) == (0, 15, 30, 0)
     assert (w2.y, w2.x, w2.w, w2.h) == (0, 45, 20, 0)
 
@@ -107,7 +107,7 @@ def test_rowspan():
     assert (w3.y, w3.x, w3.w, w3.h) == (20, 0, 0, 20)
     assert (w4.y, w4.x, w4.w, w4.h) == (40, 0, 0, 20)
     #
-    layout.pack(offset_y=5, height=60)
+    layout.pack(offsetY=5, height=60)
     assert (w1.y, w1.x, w1.w, w1.h) == (15, 0, 0, 30)
     assert (w2.y, w2.x, w2.w, w2.h) == (5, 0, 0, 20)
     assert (w3.y, w3.x, w3.w, w3.h) == (25, 0, 0, 20)
@@ -147,7 +147,7 @@ def test_complex():
 
         (w12 := Widget(), CC(w="100%", pad="1 0", fillX=True, wrap=True)),
     )
-    layout.pack(offset_x=1, offset_y=1, width=78, height=10)
+    layout.pack(offsetX=1, offsetY=1, width=78, height=10)
     assert (w1.y, w1.x, w1.w, w1.h) == (1, 2, 76, 0)
     assert (w2.y, w2.x, w2.w, w2.h) == (2, 2, 18, 0)  # - padding???
     assert (w3.y, w3.x, w3.w, w3.h) == (3, 2, 8, 0)  # - padding???
