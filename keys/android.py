@@ -16,7 +16,15 @@ from core.cmd import Qs as qs
 # https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-VT100-Mode
 
 # @formatter:off
-c.QUIT.ks = ["F10", "q", "S-q"]  # закрыть клиент
+c.QUIT.ks =  ["F10", "q", "S-q"]  # noqa: E222  закрыть клиент
+c.UP.ks =    ["Up"]  # noqa: E222  курсор вверх
+c.DOWN.ks =  ["Down"]  # noqa: E222  курсор вниз
+c.LEFT.ks =  ["Left"]  # noqa: E222  курсор влево
+c.RIGHT.ks = ["Right"]  # noqa: E222  курсор вправо
+c.BS.ks =    ["BS", "C-?", "C-h"]  # noqa: E222  удалить символ перед курсором
+c.DEL.ks =   ["Del"]  # noqa: E222  удалить символ под курсором
+c.HOME.ks =  ["Home"]  # noqa: E222  в начало
+c.END.ks =   ["End"]  # noqa: E222  в конец
 
 # Клавиши для экрана выбора эхоконференции
 s.UP.ks =      ["Up", "k"]  # noqa: E222  курсор вверх
@@ -73,10 +81,10 @@ o.DEL.ks = ["Del", "x", "S-x"]  # удалить черновик/исходящ
 qs.OPEN.ks =  ["s", "S-s"]  # noqa: E222  открыть текстовое поле быстрого поиска
 qs.CLOSE.ks = ["ESC"]  # noqa: E222  прервать ввод текста
 qs.APPLY.ks = ["RET"]  # noqa: E222  закрыть поиск оставив найденное (список сообщений, селектор эх)
-qs.LEFT.ks =  ["Left"]  # noqa: E222  курсор на символ влево
-qs.RIGHT.ks = ["Right"]  # noqa: E222  курсор на символ вправо
-qs.BS.ks =    ["BS"]  # noqa: E222  удалить символ перед курсором
-qs.DEL.ks =   ["Del"]  # noqa: E222  удалить символ под курсором
+qs.LEFT.ks =  []  # noqa: E222  курсор на символ влево
+qs.RIGHT.ks = []  # noqa: E222  курсор на символ вправо
+qs.BS.ks =    []  # noqa: E222  удалить символ перед курсором
+qs.DEL.ks =   []  # noqa: E222  удалить символ под курсором
 qs.HOME.ks =  ["Home"]  # noqa: E222  первое вхождение
 qs.END.ks =   ["End"]  # noqa: E222  последнее вхождение
 qs.PREV.ks =  ["Up"]  # noqa: E222  предыдущее вхождение

@@ -120,7 +120,8 @@ def terminateCurses():
     curses.endwin()
 
 
-def initKsSeq():
+def initKeys():
+    # keystroke sequences
     keystroke.KsSeq.sequences = []
     for k, group in cmd.__dict__.items():
         if not isinstance(group, type):
@@ -128,6 +129,10 @@ def initKsSeq():
         for attr, val in group.__dict__.items():
             if isinstance(val, cmd.Cmd) and val.ks:
                 keystroke.KsSeq.sequences += [_ for _ in val.ks if " " in _]
+    # common navigation keys
+    for name, val in keystroke.Keys.__dict__.items():
+        if name.isupper() and isinstance(val, list) and hasattr(cmd.Common, name):
+            setattr(keystroke.Keys, name, getattr(cmd.Common, name).ks)
 
 
 def getKeystroke(timeout=-1):
@@ -886,13 +891,13 @@ class FindQueryWindow:
                 return False  # close win
             self.updateState()
         elif key != -1:
-            if ks == "Tab" or key == curses.KEY_DOWN:
+            if ks in keystroke.Keys.NFOCUS or ks in keystroke.Keys.DOWN:
                 wid = self.nextFocus(self.focusedWid)
                 while wid and not (wid.enabled and wid.focusable):
                     wid = self.nextFocus(wid)
                 self.setFocused(wid)
 
-            elif ks == "S-Tab" or key == curses.KEY_UP:
+            elif ks in keystroke.Keys.PFOCUS or ks in keystroke.Keys.UP:
                 wid = self.prevFocus(self.focusedWid)
                 while wid and not (wid.enabled and wid.focusable):
                     wid = self.prevFocus(wid)
@@ -1080,6 +1085,10 @@ class QuickSearch(InputRegexWidget):
             self._moveCursorLeft(1)
         elif ks in Qs.RIGHT:
             self._moveCursorRight(1)
+        elif ks in Qs.BS:
+            self._delPrevChar()
+        elif ks in Qs.DEL:
+            self._delCurrentChar()
         else:
             super().onKeyPressed(ks, key)
 

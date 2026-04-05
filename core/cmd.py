@@ -28,6 +28,15 @@ class Common(metaclass=Group):
 
     QUIT = Cmd("закрыть клиент")
 
+    UP = Cmd("курсор вверх")
+    DOWN = Cmd("курсор вниз")
+    LEFT = Cmd("курсор влево")
+    RIGHT = Cmd("курсор вправо")
+    BS = Cmd("удалить символ перед курсором")
+    DEL = Cmd("удалить символ под курсором")
+    HOME = Cmd("в начало")
+    END = Cmd("в конец")
+
 
 class Selector(metaclass=Group):
     desc = "Экран выбора эхоконференции"
