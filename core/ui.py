@@ -66,18 +66,18 @@ def loadTheme(cfg: Config):
     global THEME
     THEME = theme.THEME
 
-    SeparatorHWidget.color = getColor(UI_COMMENT)
+    THEME.sepH.color = getColor(UI_COMMENT)
 
-    LabelWidget.colorEnabled = getColor(UI_TEXT)
-    LabelWidget.colorDisabled = getColor(UI_COMMENT)
+    THEME.label.cEnabled = getColor(UI_TEXT)
+    THEME.label.cDisabled = getColor(UI_COMMENT)
 
-    CheckBoxWidget.colorEnabled = getColor(UI_TEXT)
-    CheckBoxWidget.colorFocused = getColor(UI_TITLES)
-    CheckBoxWidget.colorDisabled = getColor(UI_COMMENT) | curses.A_ITALIC
+    THEME.checkbox.cEnabled = getColor(UI_TEXT)
+    THEME.checkbox.cFocused = getColor(UI_TITLES)
+    THEME.checkbox.cDisabled = getColor(UI_COMMENT) | curses.A_ITALIC
 
-    InputWidget.colorEnabled = getColor(UI_CURSOR)
-    InputWidget.colorFocused = getColor(UI_CURSOR)
-    InputWidget.colorDisabled = getColor(UI_TEXT)
+    THEME.input.cEnabled = getColor(UI_CURSOR)
+    THEME.input.cFocused = getColor(UI_CURSOR)
+    THEME.input.cDisabled = getColor(UI_TEXT)
 
 
 class ReaderMode(Enum):
@@ -328,9 +328,9 @@ class SelectWindow:
         self.resized = False
 
     def initWin(self, items, title, win=None):
-        test_width = items + [LABEL_ESC + THEME.title[0] + THEME.title[1],
-                              title + THEME.title[0] + THEME.title[1]]
-        w = 0 if not items else max(map(lambda it: len(it), test_width))
+        testWidth = items + [LABEL_ESC + THEME.title[0] + THEME.title[1],
+                             title + THEME.title[0] + THEME.title[1]]
+        w = 0 if not items else max(map(lambda it: len(it), testWidth))
         h = min(HEIGHT - 2, len(items))
         w = min(WIDTH - 2, w)
         y = max(0, int(HEIGHT / 2 - h / 2 - 1))
@@ -341,18 +341,18 @@ class SelectWindow:
         else:
             win = curses.newwin(h + 2, w + 2, y, x)
         color = getColor(UI_BORDER)
-        lbl_title = title[0:min(w - 2, len(title))]
-        lbl_esc = LABEL_ESC[0:min(w - 2, len(LABEL_ESC))]
+        lblTitle = title[0:min(w - 2, len(title))]
+        lblEsc = LABEL_ESC[0:min(w - 2, len(LABEL_ESC))]
         win.attrset(color)
         win.border()
         win.addstr(0, 1, THEME.title[0], color)
-        win.addstr(0, 2 + len(lbl_title), THEME.title[1], color)
+        win.addstr(0, 2 + len(lblTitle), THEME.title[1], color)
         win.addstr(h + 1, 1, THEME.title[0], color)
-        win.addstr(h + 1, 2 + len(lbl_esc), THEME.title[1], color)
+        win.addstr(h + 1, 2 + len(lblEsc), THEME.title[1], color)
 
         color = getColor(UI_TITLES)
-        win.addstr(0, 2, lbl_title, color)
-        win.addstr(h + 1, 2, lbl_esc, color)
+        win.addstr(0, 2, lblTitle, color)
+        win.addstr(h + 1, 2, lblEsc, color)
         self.scroll = ScrollCalc(len(items), h)
         return win
 
@@ -740,7 +740,7 @@ class FindQueryWindow:
                                       checked=not self.query.orig)
         self.lblProgress = LabelWidget("")
 
-        inpErrLen = len(THEME.input[0] + THEME.input[1] + THEME.error[0])
+        inpErrLen = len(THEME.input.left + THEME.input.right) + THEME.error.len
         self.layout = GridLayout(
             (GridLayout(
                 (LabelWidget("Искать: "), ""),
@@ -777,8 +777,8 @@ class FindQueryWindow:
             (GridLayout(
                 (self.chkSkipArch, "pad 1 0 w 50%"),
                 (LabelWidget("Лимит: "), ""),
-                (self.inpLimit, CC(wPref=(7 + len(THEME.input[0])
-                                          + len(THEME.input[1])),
+                (self.inpLimit, CC(wPref=(7 + len(THEME.input.left)
+                                          + len(THEME.input.right)),
                                    hAlign="left",
                                    growX=True))
             ), "h 1 w 100% fillX wrap"),
@@ -1089,11 +1089,11 @@ class QuickSearch(InputRegexWidget):
         if self.txt and not self.err:
             idx = self.idx + 1 if self.result else 0
             self.statTxt = "(%d/%d)" % (idx, len(self.result))
-            self.statPos = self.w - len(self.statTxt) - len(THEME.input[1])
+            self.statPos = self.w - len(self.statTxt) - len(THEME.input.right)
             if self.getWinCursorPos() + 1 >= self.statPos:
                 self.offset += self.getWinCursorPos() + 1 - self.statPos
         elif self.err:
-            errPos = self.w - len(THEME.error[0]) - len(THEME.input[1]) - 1  #
+            errPos = self.w - THEME.error.len - len(THEME.input.right)
             if self.getWinCursorPos() + 1 >= errPos:
                 self.offset += self.getWinCursorPos() + 1 - errPos
 
