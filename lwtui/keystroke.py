@@ -1,7 +1,6 @@
 import curses
 from typing import Tuple, Any, Union
 
-from core import cmd
 
 # VisiData - keys.py
 # https://github.com/saulpw/visidata/blob/develop/visidata/keys.py#L5
@@ -119,16 +118,6 @@ class KsSeq:
     def anyStartswith(ks):
         return any(filter(lambda s: s.startswith(f"{KsSeq.ks} {ks}".strip()),
                           KsSeq.sequences))
-
-    @staticmethod
-    def initSequences():
-        KsSeq.sequences = []
-        for k, group in cmd.__dict__.items():
-            if not isinstance(group, type):
-                continue  #
-            for attr, val in group.__dict__.items():
-                if isinstance(val, cmd.Cmd) and val.ks:
-                    KsSeq.sequences += [_ for _ in val.ks if " " in _]
 
 
 def getkeystroke(scr: curses.window, initCh=-1) -> Tuple[str, int, Any]:

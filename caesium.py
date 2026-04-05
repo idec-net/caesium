@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 import api.ait
-from core import __version__, config, mailer, ui, keystroke
+from core import __version__, config, mailer, ui
 from core.config import CFG, COLOR_PAIRS, UI_TEXT, CFG_FILEPATH
 
 # TODO: Add http/https/socks proxy support
@@ -70,7 +70,7 @@ def loadKeys(cfg: config.Config):
     else:
         # noinspection PyUnresolvedReferences
         reload(keys)
-    keystroke.KsSeq.initSequences()
+    ui.initKsSeq()
 
 
 def editCfg():

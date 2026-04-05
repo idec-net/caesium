@@ -19,14 +19,17 @@ from typing import Optional, List, Tuple, TypeVar, Generic, Union, Callable
 
 import api.ait
 from api import MsgMetadata, FindQuery
-from core import __version__, parser, utils, keystroke, config, mailer, client
+from core import __version__, parser, utils, config, mailer, client, cmd
 from core.cmd import Common, Reader, Selector, Qs, Out
 from core.config import (
     getColor, loadColors, Config, Echo, CFG, TOKEN2UI, ECHO_FIND,
     UI_BORDER, UI_COMMENT, UI_CURSOR, UI_STATUS, UI_SCROLL, UI_TITLES, UI_TEXT,
 )
-from core.layout import GridLayout, CC
+from lwtui import keystroke, theme
+from lwtui.layout import GridLayout, CC
+from lwtui.widget import Widget
 
+THEME = theme.THEME
 API = api.ait
 LABEL_SEARCH = "<введите regex для поиска>"
 LABEL_ANY_KEY = "Нажмите любую клавишу"
@@ -37,38 +40,6 @@ WIDTH = 0
 
 stdscr = None  # type: Optional[curses.window]
 version = "Caesium/%s │" % __version__
-
-
-# pyTermTk
-# https://github.com/ceccopierangiolieugenio/pyTermTk/blob/main/libs/pyTermTk/TermTk/TTkTheme/theme.py
-class ThemeAscii:
-    NAME = "ascii"
-    checkbox = ["[ ] ", "[x] ", "[/] "]
-    input = ["[", "]", curses.A_NORMAL]
-    spinner = r"-\|/"
-    error = ["(!)", curses.A_BOLD]
-    title = ["[", "]"]
-    ellipsis = "..."
-    findIcon = " "
-
-
-class ThemeUtf8:
-    NAME = "utf8"
-    checkbox = ["□ ", "▣ ", "◪ "]
-    input = ["", "", curses.A_UNDERLINE]
-    # TODO: Cool Android-compatible UTF-spinner
-    # Right side only braille cells (dots ⊆ 4568)
-    # incorrect in Noto except Symbols 2, on mobile only #3935
-    # https://github.com/google/fonts/issues/3935
-    spinner = ["⣄⠀", "⡆⠀", "⠇⠀", "⠋⠀", "⠉⠁", "⠈⠃", "⠀⠇", "⠀⡆", "⢀⡄", "⣀⡀"]
-    error = ["⛔", curses.A_BOLD]
-    title = ["┤", "├"]
-    ellipsis = "…"
-    findIcon = "🔍"
-
-
-THEME = ThemeAscii
-THEMES = {t.NAME: t for t in (ThemeAscii, ThemeUtf8)}
 
 
 def loadTheme(cfg: Config):
@@ -82,14 +53,15 @@ def loadTheme(cfg: Config):
                        "Будет использована схема по-умолчанию."
                        % (cfg.themeColors, str(err)))
     #
-    global THEME
-    THEME = ThemeAscii
-    if cfg.themeWidgets in THEMES:
-        THEME = THEMES[cfg.themeWidgets]
+    theme.THEME = theme.ThemeAscii
+    if cfg.themeWidgets in theme.THEMES:
+        theme.THEME = theme.THEMES[cfg.themeWidgets]
     elif cfg.themeWidgets:
         showMessageBox("Неизвестная схема виджетов %s\n"
                        "Будет использована схема по-умолчанию."
                        % cfg.themeWidgets)
+    global THEME
+    THEME = theme.THEME
 
 
 class ReaderMode(Enum):
@@ -132,6 +104,16 @@ def terminateCurses():
     curses.endwin()
 
 
+def initKsSeq():
+    keystroke.KsSeq.sequences = []
+    for k, group in cmd.__dict__.items():
+        if not isinstance(group, type):
+            continue  #
+        for attr, val in group.__dict__.items():
+            if isinstance(val, cmd.Cmd) and val.ks:
+                keystroke.KsSeq.sequences += [_ for _ in val.ks if " " in _]
+
+
 def getKeystroke(timeout=-1):
     stdscr.timeout(timeout)
     key = -1
@@ -148,8 +130,8 @@ def getKeystroke(timeout=-1):
 def drawSplash(scr, splash):  # type: (curses.window, List[str]) -> None
     scr.clear()
     h, w = scr.getmaxyx()
-    x = int((w - len(splash[1])) / 2) - 1
-    y = int((h - len(splash)) / 2)
+    x = (w - len(splash[1])) // 2 - 1
+    y = (h - len(splash)) // 2
     color = getColor(UI_TEXT)
     for i, line in enumerate(splash):
         scr.addstr(y + i, x, line, color)
@@ -683,29 +665,6 @@ class MsgListScreen:
         return None
 
 
-class Widget:
-    focused: bool = False
-    enabled: bool = True
-    focusable: bool = True
-    focusOrder: float = 0
-    x: int = 0
-    y: int = 0
-    w: int = 0
-    h: int = 0
-
-    def right(self):
-        return self.x + self.w
-
-    def setFocused(self, focused):
-        pass
-
-    def onKeyPressed(self, ks, key):
-        pass
-
-    def draw(self, win):  # type: (curses.window) -> None
-        pass
-
-
 class SeparatorHWidget(Widget):
     focusable: bool = False
     h: int = 1
@@ -1110,7 +1069,7 @@ class FindQueryWindow:
             #
             (self.lblProgress, "w 100% fill growY wrap"),
         )
-        self.layout.pack(offset_x=2, offset_y=1, width=w - 4, height=h - 2)
+        self.layout.pack(offsetX=2, offsetY=1, width=w - 4, height=h - 2)
         self.widgets = deque(sorted(list(self.layout.collectWidgets()),
                                     key=lambda _: _.focusOrder))
         #
@@ -1189,7 +1148,7 @@ class FindQueryWindow:
             self.win = self.initWin(self.win)
             self.win.clear()
             h, w = self.win.getmaxyx()
-            self.layout.pack(offset_x=2, offset_y=1, width=w - 4, height=h - 2)
+            self.layout.pack(offsetX=2, offsetY=1, width=w - 4, height=h - 2)
             #
             self.drawTitle(self.win)
             self.resized = True
