@@ -11,7 +11,7 @@ import time
 import sys
 from abc import ABC
 from collections import deque
-from datetime import datetime, date
+from datetime import datetime
 from enum import Enum
 from itertools import cycle
 from shutil import copyfile
@@ -27,7 +27,10 @@ from core.config import (
 )
 from lwtui import keystroke, theme
 from lwtui.layout import GridLayout, CC
-from lwtui.widget import Widget
+from lwtui.widget import (
+    Widget, LabelWidget, SeparatorHWidget, CheckBoxWidget,
+    InputWidget, InputRegexWidget, InputDateWidget
+)
 
 THEME = theme.THEME
 API = api.ait
@@ -62,6 +65,19 @@ def loadTheme(cfg: Config):
                        % cfg.themeWidgets)
     global THEME
     THEME = theme.THEME
+
+    SeparatorHWidget.color = getColor(UI_COMMENT)
+
+    LabelWidget.colorEnabled = getColor(UI_TEXT)
+    LabelWidget.colorDisabled = getColor(UI_COMMENT)
+
+    CheckBoxWidget.colorEnabled = getColor(UI_TEXT)
+    CheckBoxWidget.colorFocused = getColor(UI_TITLES)
+    CheckBoxWidget.colorDisabled = getColor(UI_COMMENT) | curses.A_ITALIC
+
+    InputWidget.colorEnabled = getColor(UI_CURSOR)
+    InputWidget.colorFocused = getColor(UI_CURSOR)
+    InputWidget.colorDisabled = getColor(UI_TEXT)
 
 
 class ReaderMode(Enum):
@@ -663,306 +679,6 @@ class MsgListScreen:
         if result_name or result_subj:
             return [(result_name, result_subj)]
         return None
-
-
-class SeparatorHWidget(Widget):
-    focusable: bool = False
-    h: int = 1
-
-    def __init__(self, y=0, x=0, color: str = UI_COMMENT):
-        self.x = x
-        self.y = y
-        if color:
-            self.color = getColor(color)
-
-    def draw(self, win):  # type: (curses.window) -> None
-        win.addstr(self.y, self.x, "─" * self.w, self.color)
-
-
-class LabelWidget(Widget):
-    focusable: bool = False
-    h: int = 1
-
-    def __init__(self, txt="", y=0, x=0, enabled=True, color: str = None):
-        self.x = x
-        self.y = y
-        self.w = len(txt)
-        self.txt = txt
-        self.enabled = enabled
-        if color:
-            self.color = getColor(color)
-        else:
-            self.color = self._color(self.enabled)
-
-    # noinspection PyUnusedLocal
-    @staticmethod
-    def _color(enabled):
-        if enabled:
-            return getColor(UI_TEXT)
-        return getColor(UI_COMMENT)
-
-    def setEnabled(self, enabled):
-        if self.enabled == enabled:
-            return
-        self.enabled = enabled
-        self.color = self._color(enabled)
-
-    def setTxt(self, txt):
-        self.txt = txt
-        self.w = len(txt)
-
-    def draw(self, win):  # type: (curses.window) -> None
-        _, width = win.getmaxyx()
-        w = min(width - self.x - 1, self.w)
-        if w > 0:  # android termux curses v6.5.20240832 crashes on addnstr w zero width
-            win.addstr(self.y, self.x, " " * w, self.color)
-            win.addnstr(self.y, self.x, self.txt, w, self.color)
-
-
-class CheckBoxWidget(Widget):
-    h: int = 1
-
-    def __init__(self, lbl="", fOrder=0, y=0, x=0, checked=False, enabled=True):
-        self.focusOrder = fOrder
-        self.x = x
-        self.y = y
-        self.lbl = lbl
-        self.checked = checked
-        self.enabled = enabled
-        self.content = self._content(checked, lbl)
-        self.color = self._color(self.focused, enabled)
-        self.w = len(self.content)
-
-    @staticmethod
-    def _content(checked, lbl):
-        return "%s%s" % (THEME.checkbox[1 if checked else 0], lbl)
-
-    @staticmethod
-    def _color(focused, enabled):
-        if enabled:
-            return getColor(UI_TITLES if focused else UI_TEXT)
-        return getColor(UI_COMMENT) | curses.A_ITALIC
-
-    def setChecked(self, checked):
-        if self.checked == checked:
-            return
-        self.checked = checked
-        self.content = self._content(checked, self.lbl)
-
-    def setFocused(self, focused):
-        if self.focused == focused:
-            return
-        self.focused = focused
-        self.color = self._color(focused, self.enabled)
-
-    def setEnabled(self, enabled):
-        if self.enabled == enabled:
-            return
-        self.enabled = enabled
-        self.color = self._color(self.focused, enabled)
-
-    def draw(self, win):
-        if self.w > 0:
-            win.addnstr(self.y, self.x, self.content, self.w, self.color)
-
-    def onKeyPressed(self, ks, key):
-        if key == ord(" "):
-            self.setChecked(not self.checked)
-
-
-class InputWidget(Widget):
-    cursor: int = 0
-    offset: int = 0
-    h: int = 1
-
-    def __init__(self, txt="", fOrder: float = 0, y=0, x=0, w=0,
-                 *, placeholder="", mask=None):
-        self.focusOrder = fOrder
-        self.x = x
-        self.y = y
-        self.w = w
-        self.txt = txt
-        self.placeholder = placeholder
-        self.mask = mask
-        self.color = self._color(self.focused, self.enabled)
-
-    # noinspection PyUnusedLocal
-    @staticmethod
-    def _color(focused, enabled):
-        if enabled:
-            return getColor(UI_CURSOR)
-        return getColor(UI_TEXT)
-
-    def setFocused(self, focused):
-        if self.focused == focused:
-            return
-        self.focused = focused
-        self.color = self._color(focused, self.enabled)
-
-    def setEnabled(self, enabled):
-        if self.enabled == enabled:
-            return
-        self.enabled = enabled
-        self.color = self._color(self.focused, enabled)
-
-    def draw(self, win):  # type: (curses.window) -> None
-        if self.w <= 0:
-            return
-        left = THEME.input[0]
-        right = THEME.input[1]
-        attr = self.color | THEME.input[2]
-        #
-        if self.txt:
-            txt = self.txt
-        else:
-            txt = self.placeholder
-            attr |= curses.A_ITALIC
-        #
-        win.addstr(self.y, self.x, " " * self.w, attr)
-        if left:
-            win.addnstr(self.y, self.x, left, self.w, self.color)
-        win.addnstr(self.y, self.x + len(left), txt[self.offset:],
-                    self.w - len(left), attr)
-        if right:
-            win.addstr(self.y, self.x + self.w - len(right), right, self.color)
-
-    def _moveCursorRight(self, increment):
-        self.cursor = min(len(self.txt), self.cursor + increment)
-        contentWidth = self.w - (len(THEME.input[0]) + len(THEME.input[1]))
-        if self.cursor - self.offset > contentWidth - 1:
-            self.offset += increment
-
-    def _moveCursorLeft(self, decrement):
-        self.cursor = max(0, self.cursor - decrement)
-        if self.cursor - self.offset < 0:
-            self.offset -= decrement
-        if self.offset and self.offset == self.cursor:
-            self.offset -= 1
-
-    def onKeyPressed(self, ks, key):
-        # TODO: Common navigation commands?
-        if key == curses.KEY_HOME:
-            self.cursor = 0
-            self.offset = 0
-        elif key == curses.KEY_END:
-            self.cursor = len(self.txt)
-            contentWidth = self.w - (len(THEME.input[0]) + len(THEME.input[1]))
-            self.offset = max(0, self.cursor - contentWidth + 1)
-        elif key == curses.KEY_LEFT:
-            self._moveCursorLeft(1)
-        elif key == curses.KEY_RIGHT:
-            self._moveCursorRight(1)
-        elif key in (curses.KEY_BACKSPACE, 127):
-            # 127 - Ctrl+? - Android backspace
-            txt = self.txt[0:max(0, self.cursor - 1)] + self.txt[self.cursor:]
-            if not self.mask or self.mask.match(txt):
-                self.txt = txt
-                self._moveCursorLeft(1)
-        elif key == curses.KEY_DC:  # DEL
-            txt = self.txt[0:max(0, self.cursor)] + self.txt[self.cursor + 1:]
-            if not self.mask or self.mask.match(txt):
-                self.txt = txt
-        else:
-            if key == ord(" "):
-                ks = " "
-            if len(ks) == 3 and ks.startswith("S-"):
-                ks = ks[-1].upper()
-            if len(ks) == 1:
-                txt = self.txt[0:self.cursor] + ks + self.txt[self.cursor:]
-                if not self.mask or self.mask.match(txt):
-                    self.txt = txt
-                    self._moveCursorRight(len(ks))
-
-    def getWinCursorPos(self):
-        return len(THEME.input[0]) + self.cursor - self.offset
-
-
-class ErrIndicator:
-    err: bool = False
-    w: int = 0
-    txt: str = ""
-
-    def setErr(self, err):
-        if self.err == err:
-            return
-        self.err = err
-        self.txt = THEME.error[0]
-
-    def draw(self, win, y, x, color):
-        if self.err:
-            win.addstr(y, x - len(self.txt) - 1, self.txt, color | THEME.error[1])
-
-    def __bool__(self):
-        return self.err
-
-
-class InputRegexWidget(InputWidget):
-    regexOn: bool = True
-
-    def __init__(self, txt="", fOrder=0, y=0, x=0, w=0,
-                 *, placeholder="", regexOn=False):
-        super().__init__(txt=txt, fOrder=fOrder, y=y, x=x, w=w,
-                         placeholder=placeholder)
-        self.x = x
-        self.y = y
-        self.w = w
-        self.txt = txt
-        self.err = ErrIndicator()
-        self.placeholder = placeholder
-        self.color = self._color(self.focused, self.enabled)
-        self.regexOn = regexOn
-        self.template = self._compileRegex()
-
-    def _compileRegex(self):
-        template = None
-        try:
-            if self.regexOn:
-                template = re.compile(self.txt, re.IGNORECASE)
-            self.err.setErr(False)
-        except re.error:
-            self.err.setErr(True)
-        return template
-
-    def onKeyPressed(self, ks, key):
-        super().onKeyPressed(ks, key)
-        self.template = self._compileRegex()
-
-    def setRegexOn(self, regex):
-        self.regexOn = regex
-        self.template = self._compileRegex()
-
-    def draw(self, win):  # type: (curses.window) -> None
-        super().draw(win)
-        self.err.draw(win, self.y, self.x + self.w - len(THEME.input[1]),
-                      self.color)
-
-
-class InputDateWidget(InputWidget):
-    def __init__(self, fOrder: float = 0, y=0, x=0, w=0, *, dt: date = None):
-        super().__init__(fOrder=fOrder, y=y, x=x, w=w,
-                         placeholder="DD.MM.YYYY",
-                         mask=re.compile(r"^[0-9.]*$"))
-        self.err = ErrIndicator()
-        if dt:
-            self.setDate(dt)
-
-    def getDate(self):
-        try:
-            return datetime.strptime(self.txt, "%d.%m.%Y").date()
-        except ValueError:
-            return None
-
-    def setDate(self, d: date):
-        self.txt = d.strftime("%d.%m.%Y")
-
-    def onKeyPressed(self, ks, key):
-        super().onKeyPressed(ks, key)
-        self.err.setErr(bool(self.txt and not self.getDate()))
-
-    def draw(self, win):  # type: (curses.window) -> None
-        super().draw(win)
-        self.err.draw(win, self.y, self.x + self.w - len(THEME.input[1]),
-                      self.color)
 
 
 class FindQueryWindow:
