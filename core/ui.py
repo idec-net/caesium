@@ -684,6 +684,7 @@ class MsgListScreen(Window):
 
     def onResize(self):
         self.h, self.w = self.scr.getmaxyx()
+        self.drawTitle(self.scr, self.echo)
         self.scroll = ScrollCalc(len(self.msgs.data), self.h - 2)
         self.resized = True
         if self.qs:
@@ -1816,6 +1817,10 @@ class EchoReaderScreen(Window):
             if selectedMsgn == -1:
                 msgs.idx = msgs.findMsgidIdx(msgid)
             if mode != msgs.mode or selectedMsgn > -1:
+                if win.resized:
+                    self.resized = True
+                    self.h, self.w = self.scr.getmaxyx()
+                    self.reader.setRect(x=0, y=5, w=self.w, h=self.h - 5 - 1)
                 self.stack.clear()
                 self.readCurMsg()
                 reader.prerender()
