@@ -23,6 +23,7 @@ class Echo:
     name: str
     desc: str
     sync: bool
+    title: str = None
 
     def __gt__(self, other):
         if other:
@@ -40,10 +41,10 @@ class Echo:
         return super().__eq__(other)
 
 
-ECHO_OUT = Echo("outgoing", "Исходящие", False)
-ECHO_DRAFTS = Echo("drafts", "Черновики", False)
-ECHO_FAVORITES = Echo("favorites", "Избранные сообщения", False)
-ECHO_CARBON = Echo("carbonarea", "Карбонка", False)
+ECHO_OUT = Echo("outgoing", "Исходящие", False, "Исходящие")
+ECHO_DRAFTS = Echo("drafts", "Черновики", False, "Черновики")
+ECHO_FAVORITES = Echo("favorites", "Избранные сообщения", False, "Избранные")
+ECHO_CARBON = Echo("carbonarea", "Карбонка", False, "Карбонка")
 ECHO_FIND = Echo("<find-results>", "Результаты поиска", False)
 
 
@@ -62,14 +63,14 @@ class Node:
 class Config:
     _node: int = 0
     nodes: List[Node] = dataclasses.field(default_factory=list)
-    browser = webbrowser
-    editor = "nano"
-    oldquote = False
-    splash = True
-    themeColors = "default"
-    themeWidgets = ""
-    db = "ait"
-    keys = "default"
+    browser: webbrowser.GenericBrowser = webbrowser
+    editor: str = "nano"
+    oldquote: bool = False
+    splash: bool = True
+    themeColors: str = "default"
+    themeWidgets: str = ""
+    db: str = "ait"
+    keys: str = "default"
     twit: List[str] = dataclasses.field(default_factory=list)
 
     def node(self) -> Node:
