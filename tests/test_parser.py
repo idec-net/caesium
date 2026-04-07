@@ -66,6 +66,8 @@ def test_urlTemplate():
     assert match.string[match.span()[1] - 1] == ")"
 
     assert parser.urlMdTemplate.match("[title](http://url)")
+    assert not parser.urlMdTemplate.match("[title] (http://url)")
+    assert parser.urlMdTemplate.search("[qwe] [title](http://url)").start() == 6
     assert parser.urlMdTemplate.match("[qwe.qwe](ii://qwe)")
     assert not parser.urlMdTemplate.match("title [http://url]")
 
