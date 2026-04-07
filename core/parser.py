@@ -55,7 +55,7 @@ urlSimpleTemplate = re.compile(r"((https?|ftp|file|ii|magnet|gemini):/?"
                                r"[-A-Za-zА-Яа-яЁё0-9+&@#/%?=~_|!:,.;()]+"
                                r"[-A-Za-zА-Яа-яЁё0-9+&@#/%=~_|()])")
 urlGeminiTemplate = re.compile(r"^=>\s*(?P<url>[^\s]+)(?P<title>\s.+)*")
-urlMdTemplate = re.compile(r"\[(?P<title>.*?)]\((?P<url>.*?)\)")
+urlMdTemplate = re.compile(r"\[(?P<title>[^[]*?)]\((?P<url>.*?)\)")
 headerTemplate = re.compile(r"^(={1,3}\s)|(#{1,3}\s)")
 psTemplate = re.compile(r"(^\s*)(P+S|(P\.)+S|ps|З+Ы|(З\.)+Ы|//|#)")
 quoteTemplate = re.compile(r"^\s*[a-zA-Zа-яА-Я0-9_\-.()]{0,20}>{1,20}")
