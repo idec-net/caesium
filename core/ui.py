@@ -1545,7 +1545,6 @@ class EchoReaderScreen(Window):
             while self.go:
                 self._show(self.msgs, self.reader)
         except SystemExit:
-            self.go = False
             self.done = True
 
         if self.msgs.mode == ReaderMode.ECHO:
@@ -1905,6 +1904,12 @@ class Counts:
             with open("lasts.lst", "rb") as f:
                 self.lasts = pickle.load(f)
 
+    def getLast(self, echo):
+        last = 0
+        if echo.name in self.lasts:
+            last = self.lasts[echo.name]
+        return max(0, min(self.total[echo.name], last))
+
     def getCounts(self, node, new=False):
         for echo in node.echoareas:  # type: config.Echo
             if new or echo.name not in self.total:
@@ -1980,7 +1985,7 @@ class EchoSelectorScreen(Window):
 
     # noinspection PyUnusedLocal
     @staticmethod
-    def onSearchItem(sidx, pattern, echo):
+    def onSearchItem(sidx, pattern: re.Pattern, echo: config.Echo):
         result = []
         p = 0
         while match := pattern.search(echo.name, p):
@@ -2065,7 +2070,7 @@ class EchoSelectorScreen(Window):
             total, unread = counts[echoN]
             if int(unread) > 0:
                 win.addstr(y, 0, "+")
-            win.addstr(y, 2, echo.name)
+            win.addstr(y, 2, echo.title or echo.name)
             win.addstr(y, self.w - 10 - m - len(total), total)
             win.addstr(y, self.w - 2 - m - len(unread), unread)
             if showDesc:
@@ -2107,11 +2112,11 @@ class EchoSelectorScreen(Window):
         elif ks in Selector.ARCHIVE and len(CFG.node().archive) > 0:
             self.toggleArchive()
         elif ks in Selector.ENTER:
-            self.readEcho()
+            self.readEcho(self.echos.curItem())
         elif ks in Selector.OUT:
-            self.readOutgoing()
+            self.readEcho(config.ECHO_OUT)
         elif ks in Selector.DRAFTS:
-            self.readDrafts()
+            self.readEcho(config.ECHO_DRAFTS)
         elif ks in Selector.NNODE:
             CFG.nextNode()
             self.reloadEchoareas()
@@ -2143,15 +2148,12 @@ class EchoSelectorScreen(Window):
         self.scr.clear()
         self.echos.idx = self.counts.findNew(0)
 
-    def readEcho(self):
+    def readEcho(self, echo):
         drawMessageBox("Подождите", False)
-        last = 0
-        curEcho = self.echos.curItem()
-        if curEcho.name in self.counts.lasts:
-            last = self.counts.lasts[curEcho.name]
-        last = max(0, min(self.counts.total[curEcho.name], last))
+        last = self.counts.getLast(echo)
         self.showReader(EchoReaderScreen(
-            self.scr, curEcho, last, self.echos.isArch(), self.counts))
+            self.scr, echo, last, self.echos.isArch(), self.counts))
+        #
         self.counts.rescanCounts(self.echos.data)
         if self.nextEcho and isinstance(self.nextEcho, bool):
             self.echos.idx = self.counts.findNew(self.echos.idx)
@@ -2167,18 +2169,6 @@ class EchoSelectorScreen(Window):
             if self.echos.idx == -1:
                 self.echos.idx = 0
             self.nextEcho = False
-
-    def readOutgoing(self):
-        outLength = mailer.getOutLength(CFG.node(), drafts=False)
-        if outLength:
-            self.showReader(EchoReaderScreen(
-                self.scr, config.ECHO_OUT, outLength, self.echos.isArch(), self.counts))
-
-    def readDrafts(self):
-        outLength = mailer.getOutLength(CFG.node(), drafts=True)
-        if outLength:
-            self.showReader(EchoReaderScreen(
-                self.scr, config.ECHO_DRAFTS, 0, self.echos.isArch(), self.counts))
 
     def showReader(self, reader):
         self.go, self.nextEcho = reader.show()
