@@ -233,6 +233,24 @@ def test_urlGemMd():
                          ""]
 
 
+def test_urlMdHint():
+    parser.INLINE_STYLE_ENABLED = True
+    tokens = parser.tokenize(["[url title](http://inline-url \"ignored\")"])
+    assert tokens[0] == Token(TT.URL, "[url title](http://inline-url \"ignored\")", 0,
+                              url="http://inline-url", title="url title")
+    assert len(tokens) == 1
+    #
+    tokens = parser.tokenize(["[](http://inline-url \"hint\")"])
+    assert tokens[0] == Token(TT.URL, "[](http://inline-url \"hint\")", 0,
+                              url="http://inline-url", title="hint")
+    assert len(tokens) == 1
+    #
+    tokens = parser.tokenize(["![  ](http://inline-url  \"\"  )"])
+    assert tokens[0] == Token(TT.URL, "![  ](http://inline-url  \"\"  )", 0,
+                              url="http://inline-url", title="")
+    assert len(tokens) == 1
+
+
 SOFT_WRAP = """==     long-long-long-long-header
 New line with many words.
 

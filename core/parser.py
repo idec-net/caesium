@@ -55,7 +55,8 @@ urlSimpleTemplate = re.compile(r"((https?|ftp|file|ii|magnet|gemini):/?"
                                r"[-A-Za-zА-Яа-яЁё0-9+&@#/%?=~_|!:,.;()]+"
                                r"[-A-Za-zА-Яа-яЁё0-9+&@#/%=~_|()])")
 urlGeminiTemplate = re.compile(r"^=>\s*(?P<url>[^\s]+)(?P<title>\s.+)*")
-urlMdTemplate = re.compile(r"\[(?P<title>[^[]*?)]\((?P<url>.*?)\)")
+urlMdTemplate = re.compile(r"!?\[(?P<title>[^[]*?)]\((?P<url>.*?)\)")
+urlMdHintTemplate = re.compile(r"\s+\".*\"")
 headerTemplate = re.compile(r"^(={1,3}\s)|(#{1,3}\s)")
 psTemplate = re.compile(r"(^\s*)(P+S|(P\.)+S|ps|З+Ы|(З\.)+Ы|//|#)")
 quoteTemplate = re.compile(r"^\s*[a-zA-Zа-яА-Я0-9_\-.()]{0,20}>{1,20}")
@@ -300,12 +301,24 @@ def _inline(text: str, lineNum: int, token: Token) -> List[Token]:
                 # TODO: Inline styles in URL titles???
                 if match[0] == matchGemUrl:
                     tokens.append(Token(TT.TEXT, "=> ", lineNum))
-                # gemini/markdown titled url
-                if match[0] in (matchGemUrl, matchMdUrl):
+                # gemini url
+                if match[0] == matchGemUrl:
                     tokens.append(Token.URL(
                         text[match[0].start():match[0].end()], lineNum,
                         url=match[0].group("url").strip(),
                         title=(match[0].group("title") or "").strip()))
+                # markdown titled url
+                elif match[0] == matchMdUrl:
+                    url = match[0].group("url").strip()
+                    hint = urlMdHintTemplate.search(url)
+                    if hint:
+                        start, end = hint.regs[0]
+                        hint = url[start:end].strip()[1:-1]
+                        url = url[0:start].strip()
+                    tokens.append(Token.URL(
+                        text[match[0].start():match[0].end()], lineNum,
+                        url=url,
+                        title=(match[0].group("title") or hint or "").strip()))
                 # simple inline url
                 else:
                     if subStr.endswith(")") and "(" not in subStr:
