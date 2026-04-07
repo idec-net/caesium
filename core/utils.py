@@ -1,5 +1,6 @@
 import os
 import platform
+import re
 import subprocess
 import time
 from typing import List
@@ -52,3 +53,14 @@ def offsetsEchoCount(old, new):
         elif old[echo] < count:
             offsets[echo] = old[echo]
     return offsets
+
+
+def quickSearch(pattern, content) -> List[re.Match]:
+    result = []
+    pos = 0
+    while match := pattern.search(content, pos):
+        if pos >= len(content) or match.start() == match.end():
+            break
+        result.append(match)
+        pos = match.end()
+    return result

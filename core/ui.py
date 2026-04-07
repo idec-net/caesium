@@ -664,20 +664,8 @@ class MsgListScreen(Window):
     @staticmethod
     def onSearchItem(sidx: int, pattern: re.Pattern, it: MsgMetadata
                      ) -> Optional[List[Tuple[List[re.Match], List[re.Match]]]]:
-        resultName = []
-        resultSubj = []
-        p = 0
-        while match := pattern.search(it.fr, p):
-            if p >= len(it.fr) or match.start() == match.end():
-                break
-            resultName.append(match)
-            p = match.end()
-        p = 0
-        while match := pattern.search(it.subj, p):
-            if p >= len(it.subj) or match.start() == match.end():
-                break
-            resultSubj.append(match)
-            p = match.end()
+        resultName = utils.quickSearch(pattern, it.fr)
+        resultSubj = utils.quickSearch(pattern, it.subj)
         if resultName or resultSubj:
             return [(resultName, resultSubj)]
         return None
@@ -1522,23 +1510,20 @@ class EchoReaderScreen(Window):
                 self.reader.prerender()
 
     @staticmethod
-    def onSearchItem(sidx, p, token):
-        # type: (int, re.Pattern, parser.Token) -> List
+    def onSearchItem(sidx: int, pattern: re.Pattern, token: parser.Token
+                     ) -> Optional[List[Tuple[int, re.Match]]]:
         matches = []
         for offset, line in enumerate(token.render):
-            pos = 0
-            while match := p.search(line, pos):
-                if pos >= len(line) or match.start() == match.end():
-                    break
-                matches.append((offset, match))
-                pos = match.end()
+            lineMatches = map(lambda m: (offset, m),
+                              utils.quickSearch(pattern, line))
+            matches.extend(lineMatches)
         if matches:
             token.searchIdx = sidx
             token.searchMatches = matches
         else:
             token.searchIdx = None
             token.searchMatches = None
-        return matches
+        return matches or None
 
     def show(self):
         try:
@@ -1985,14 +1970,12 @@ class EchoSelectorScreen(Window):
 
     # noinspection PyUnusedLocal
     @staticmethod
-    def onSearchItem(sidx, pattern: re.Pattern, echo: config.Echo):
-        result = []
-        p = 0
-        while match := pattern.search(echo.name, p):
-            if p >= len(echo.name) or match.start() == match.end():
-                break
-            result.append(match)
-            p = match.end()
+    def onSearchItem(sidx: int, pattern: re.Pattern, echo: config.Echo
+                     ) -> Optional[List[List[re.Match]]]:
+        if echo in (config.ECHO_OUT, config.ECHO_DRAFTS,
+                    config.ECHO_CARBON, config.ECHO_FAVORITES):
+            return None
+        result = utils.quickSearch(pattern, echo.name)
         return [result] if result else None
 
     def show(self):
