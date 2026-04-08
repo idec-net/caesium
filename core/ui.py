@@ -568,6 +568,7 @@ class MsgListScreen(Window):
                     self.qs = None
                     curses.curs_set(0)
                 else:
+                    # noinspection PyTypeChecker
                     self.qs.onKeyPressedSearch(key, ks, self.scroll)
                     self.msgs.idx = self.qs.ensureCursorVisible(
                         ks, self.msgs.idx, self.scroll)
@@ -1003,15 +1004,15 @@ class FindQueryWindow(Window):
 class Pager:
     pos: int = 0
 
-    def __init__(self, pos, next_page_top, prev_page_bottom):
+    def __init__(self, pos, nextPageTop, prevPageBottom):
         self.pos = pos
-        self.next_page_top = next_page_top
-        self.prev_page_bottom = prev_page_bottom
+        self.nextPageTop = nextPageTop
+        self.prevPageBottom = prevPageBottom
 
-    def next_page_top(self):
+    def nextPageTop(self):
         pass
 
-    def prev_page_bottom(self):
+    def prevPageBottom(self):
         pass
 
 
@@ -1065,7 +1066,7 @@ class QuickSearch(InputRegexWidget):
                     if self.idx == -1 and i >= pos:
                         self.idx = len(self.result) - 1
 
-    def onKeyPressedSearch(self, key, ks, pager):
+    def onKeyPressedSearch(self, key, ks, pager: Pager):
         prevTxt = self.txt
         if ks in Qs.HOME:
             self.home()
@@ -2023,6 +2024,7 @@ class EchoSelectorScreen(Window):
                     self.qs = None
                     curses.curs_set(0)
                 else:
+                    # noinspection PyTypeChecker
                     self.qs.onKeyPressedSearch(key, ks, self.scroll)
                     self.echos.idx = self.qs.ensureCursorVisible(
                         key, self.echos.idx, self.scroll)
