@@ -1226,7 +1226,7 @@ class ReaderWidget(Widget):
             txtAttr = ReaderWidget.applyAttr(token, txtAttr)
             #
             y, x = self.renderToken(scr, token, y, x, w, h, offset,
-                                    scrollH if x == self.x else 0, txtAttr, qs)
+                                    scrollH, txtAttr, qs)
             offset = 0  # required in the first partial multiline token only
 
     @staticmethod
@@ -1261,8 +1261,14 @@ class ReaderWidget(Widget):
                 return y + i, x  #
             attr = getColor(TOKEN2UI.get(token.type, UI_TEXT))
             if line:
-                scr.addstr(y + i, x, line[scrollH:scrollH + w], attr | txtAttr)
-                #
+                dx = x - self.x - scrollH
+                if x == self.x:
+                    scr.addstr(y + i, self.x, line[scrollH:scrollH + w], attr | txtAttr)
+                elif dx >= 0:
+                    scr.addstr(y + i, self.x + dx, line, attr | txtAttr)
+                elif -dx < len(line):
+                    scr.addstr(y + i, self.x, line[-dx:], attr | txtAttr)
+
                 for off, match in matches:
                     # TODO: Render partially scrolled matched result
                     if (off != offset + i
