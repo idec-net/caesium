@@ -32,12 +32,22 @@ def options():
 def test_inlineEnds(ends):
     assert parser.italicInlineTemplate.match("_italic_" + ends)
     assert parser.italicInlineTemplate.match("_i_" + ends)
+    assert parser.italicInlineTemplate.search("(_i_)" + ends).span() == (1, 4)
+    assert parser.italicInlineTemplate.search("[_i_]" + ends).span() == (1, 4)
     assert parser.italicInlineTemplate.match("*italic*" + ends)
     assert parser.italicInlineTemplate.match("*i*" + ends)
+    assert parser.italicInlineTemplate.search("(*i*)" + ends).span() == (1, 4)
+    assert parser.italicInlineTemplate.search("[*i*]" + ends).span() == (1, 4)
+
     assert parser.boldInlineTemplate.match("**bold**" + ends)
     assert parser.boldInlineTemplate.match("**b**" + ends)
+    assert parser.boldInlineTemplate.search("(**b**)" + ends).span() == (1, 6)
+    assert parser.boldInlineTemplate.search("[**b**]" + ends).span() == (1, 6)
     assert parser.boldInlineTemplate.match("__bold__" + ends)
     assert parser.boldInlineTemplate.match("__b__" + ends)
+    assert parser.boldInlineTemplate.search("(__b__)" + ends).span() == (1, 6)
+    assert parser.boldInlineTemplate.search("[__b__]" + ends).span() == (1, 6)
+
     assert parser.codeInlineTemplate.match("`code`" + ends)
 
 
@@ -47,6 +57,7 @@ def test_notInlineEnds(ends):
     assert not parser.italicInlineTemplate.search("_ qwe __i__" + ends)
     assert not parser.italicInlineTemplate.match("*italic*" + ends)
     assert not parser.italicInlineTemplate.search("* qwe **i**" + ends)
+
     assert not parser.boldInlineTemplate.match("**bold**" + ends)
     assert not parser.boldInlineTemplate.match("__bold__" + ends)
     assert not parser.codeInlineTemplate.match("`code`" + ends)
