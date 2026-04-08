@@ -1264,21 +1264,25 @@ class ReaderWidget(Widget):
             attr = getColor(TOKEN2UI.get(token.type, UI_TEXT))
             if line:
                 dx = x - self.x - scrollH
+                eol = w - (x - self.x - scrollH - dx)
                 if x == self.x:
                     scr.addstr(y + i, self.x, line[scrollH:scrollH + w], attr | txtAttr)
                 elif dx >= 0:
-                    scr.addstr(y + i, self.x + dx, line, attr | txtAttr)
+                    scr.addstr(y + i, self.x + dx, line[0:eol], attr | txtAttr)
                 elif -dx < len(line):
-                    scr.addstr(y + i, self.x, line[-dx:], attr | txtAttr)
+                    scr.addstr(y + i, self.x, line[-dx:-dx + eol], attr | txtAttr)
 
                 for off, match in matches:
-                    # TODO: Render partially scrolled matched result
                     if (off != offset + i
-                            or x + match.start() - scrollH - self.x < 0
-                            or x + match.end() - scrollH - self.x > w):
+                            or x + match.end() - scrollH - self.x < 0
+                            or x + match.start() - scrollH - self.x >= w):
                         continue  # matches
-                    scr.addstr(y + i, x + match.start() - scrollH,
-                               line[match.start():match.end()],
+                    dx = x - self.x - scrollH + match.start()
+                    if dx >= 0:
+                        txt = line[match.start():min(match.end(), match.start() - dx + eol)]
+                    else:
+                        txt = line[-dx + match.start():min(match.end(), match.start() + (-dx + eol))]
+                    scr.addstr(y + i, self.x + max(0, dx), txt,
                                attr | txtAttr | curses.A_REVERSE)
 
             if len(token.render) > 1 and i + offset < len(token.render) - 1:

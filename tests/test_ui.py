@@ -140,9 +140,9 @@ class ScrMock:
         assert attr is None or isinstance(attr, int)
         assert y >= 0
         assert y < self.height
-        assert x >= 0
-        assert x < self.width
-        assert x + len(line) <= self.width
+        assert x >= 0, f"{x=} {line=}"
+        assert x < self.width, f"{x=} {line=}"
+        assert x + len(line) <= self.width, f"{x=} {line=}"
         for i, ch in enumerate(line):
             if attr & curses.A_REVERSE:
                 self.text[y][x + i] = "_"
@@ -274,6 +274,40 @@ def test_renderHorizontalScrollableMatches():
                                  "",
                                  "67890_2345"]
     scr.clear()
+
+
+def test_renderHorizontalScrollablePartiallyMatches():
+    parser.INLINE_STYLE_ENABLED = True
+    parser.HORIZONTAL_SCROLL_ENABLED = True
+    msgCode = ["", "", "", "", "", "", "", "",
+               "====",
+               "012345678901234567890",
+               "===="]
+    scr = ScrMock(30, 10)
+    r = ui.ReaderWidget()
+    r.setRect(x=0, y=5, w=10, h=24)
+    r.setMsg(msgCode, 0)
+    r.prerender(0)
+    qs = QuickSearch(r.tokens, EchoReaderScreen.onSearchItem)
+    qs.search("12", 0)
+
+    # 0__34567890__3456789
+    assert r.tokens[1].searchMatches[0][1].span() == (1, 3)
+    assert r.tokens[1].searchMatches[1][1].span() == (11, 13)
+
+    # noinspection PyTypeChecker
+    r.renderBody(scr, r.tokens, scroll=0, scrollH=2, qs=qs)
+    assert scr.to_str()[5:8] == ["==",
+                                 "_34567890_",
+                                 "=="]
+    #
+    qs = QuickSearch(r.tokens, EchoReaderScreen.onSearchItem)
+    qs.search("01234567890123", 0)
+    # noinspection PyTypeChecker
+    r.renderBody(scr, r.tokens, scroll=0, scrollH=2, qs=qs)
+    assert scr.to_str()[5:8] == ["==",
+                                 "__________",
+                                 "=="]
 
 
 def test_renderScrollableSize():
