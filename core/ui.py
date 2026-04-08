@@ -1157,8 +1157,8 @@ class QuickSearch(InputRegexWidget):
 # region EchoReader
 class ReaderWidget(Widget):
     tokens: List[parser.Token]  # message bode tokens
-    scroll: ScrollCalc = None  # message body scroll calculator (vertical)
-    scrollHor: ScrollCalc = None  # message body scroll calculator (horizontal)
+    scrollV: ScrollCalc = None  # message body scroll calculator (vertical)
+    scrollH: ScrollCalc = None  # message body scroll calculator (horizontal)
     t2l: List[parser.RangeLines]  # tokens rendered lines range
     #
     msg: List[str] = None
@@ -1183,17 +1183,19 @@ class ReaderWidget(Widget):
 
     def prerender(self, pos=0):
         self.tokens = parser.tokenize(self.msg[8:])
-        height, width, hScroll = parser.prerender(self.tokens, self.w, self.h)
+        height, maxWidth, hScroll = parser.prerender(self.tokens, self.w, self.h)
         self.t2l = parser.tokenLineMap(self.tokens)
-        self.scroll = ScrollCalc(height, self.h - (1 if hScroll else 0), pos)
-        self.scrollHor = ScrollCalc(width, self.w - (1 if hScroll else 0), 0)
+        self.scrollV = ScrollCalc(
+            height, self.h - (1 if hScroll else 0), pos)
+        self.scrollH = ScrollCalc(
+            maxWidth, self.w - (1 if self.scrollV.isScrollable else 0), 0)
 
     def draw(self, scr, qs=None):
-        self.renderBody(scr, self.tokens, self.scroll.pos, self.scrollHor.pos, qs)
-        if self.scroll.isScrollable:
-            drawScrollBarV(scr, self.y, self.x + self.w - 1, self.scroll)
-        if self.scrollHor.isScrollable:
-            drawScrollBarH(scr, self.y + self.h - 1, 0, self.scrollHor)
+        self.renderBody(scr, self.tokens, self.scrollV.pos, self.scrollH.pos, qs)
+        if self.scrollV.isScrollable:
+            drawScrollBarV(scr, self.y, self.x + self.w - 1, self.scrollV)
+        if self.scrollH.isScrollable:
+            drawScrollBarH(scr, self.y + self.h - 1, 0, self.scrollH)
 
     def renderBody(self, scr, tokens, scroll, scrollH=0, qs=None):
         # type: (curses.window, List[parser.Token], int, int, QuickSearch) -> None
@@ -1203,9 +1205,9 @@ class ReaderWidget(Widget):
         lineNum = tokens[tnum].lineNum
         y, x = (self.y, self.x)
         h, w = (self.y + self.h, self.x + self.w)
-        if self.scrollHor and self.scrollHor.isScrollable:
+        if self.scrollH and self.scrollH.isScrollable:
             h -= 1
-        if self.scroll and self.scroll.isScrollable:
+        if self.scrollV and self.scrollV.isScrollable:
             w -= 1
         txtAttr = 0
         if parser.INLINE_STYLE_ENABLED:
@@ -1286,26 +1288,28 @@ class ReaderWidget(Widget):
         return y + (len(token.render) - 1) - offset, x  #
 
     def onKeyPressed(self, ks, key):
+        # vertical
         if ks in Reader.UP:
-            self.scroll.pos -= 1
+            self.scrollV.pos -= 1
         elif ks in Reader.DOWN:
-            self.scroll.pos += 1
-        elif ks in Reader.LEFT:
-            self.scrollHor.pos -= 1
-        elif ks in Reader.RIGHT:
-            self.scrollHor.pos += 1
+            self.scrollV.pos += 1
         elif ks in Reader.PPAGE:
-            self.scroll.pos -= self.scroll.view
+            self.scrollV.pos -= self.scrollV.view
         elif ks in Reader.NPAGE:
-            self.scroll.pos += self.scroll.view
-        elif ks in Reader.LEFTP:
-            self.scrollHor.pos -= self.scrollHor.view
-        elif ks in Reader.RIGHTP:
-            self.scrollHor.pos += self.scrollHor.view
+            self.scrollV.pos += self.scrollV.view
         elif ks in Reader.HOME:
-            self.scroll.pos = 0
+            self.scrollV.pos = 0
+        # horizontal
+        elif ks in Reader.LEFT:
+            self.scrollH.pos -= 1
+        elif ks in Reader.RIGHT:
+            self.scrollH.pos += 1
+        elif ks in Reader.LEFTP:
+            self.scrollH.pos -= self.scrollH.view
+        elif ks in Reader.RIGHTP:
+            self.scrollH.pos += self.scrollH.view
         elif ks in Reader.MEND:
-            self.scroll.pos = self.scroll.content - self.scroll.view
+            self.scrollV.pos = self.scrollV.content - self.scrollV.view
         else:
             return False  # not handled
         return True  # handled
@@ -1313,19 +1317,19 @@ class ReaderWidget(Widget):
     # region QuickSearch
     def qsPager(self):
         return Pager(
-            parser.findVisibleToken(self.tokens, self.scroll.pos)[0],
-            lambda: parser.findVisibleToken(self.tokens, self.scroll.pos + self.scroll.view)[0],
-            lambda: parser.findVisibleToken(self.tokens, self.scroll.pos)[0] - 1)
+            parser.findVisibleToken(self.tokens, self.scrollV.pos)[0],
+            lambda: parser.findVisibleToken(self.tokens, self.scrollV.pos + self.scrollV.view)[0],
+            lambda: parser.findVisibleToken(self.tokens, self.scrollV.pos)[0] - 1)
 
     def ensureVisibleOnQsKey(self, ks, tidx, off):
         if ks in Qs.HOME or ks in Qs.END:
-            self.scroll.ensureVisible(self.t2l[tidx].start + off, center=True)
+            self.scrollV.ensureVisible(self.t2l[tidx].start + off, center=True)
         elif ks in Qs.NPAGE:
-            self.scroll.ensureVisible(self.t2l[tidx].start + off + self.scroll.view - 1)
+            self.scrollV.ensureVisible(self.t2l[tidx].start + off + self.scrollV.view - 1)
         elif ks in Qs.PPAGE:
-            self.scroll.ensureVisible(self.t2l[tidx].start + off - self.scroll.view + 1)
+            self.scrollV.ensureVisible(self.t2l[tidx].start + off - self.scrollV.view + 1)
         else:
-            self.scroll.ensureVisible(self.t2l[tidx].start + off)
+            self.scrollV.ensureVisible(self.t2l[tidx].start + off)
     # endregion QuickSearch
 
 
@@ -1511,7 +1515,7 @@ class EchoReaderScreen(Window):
         elif link.startswith("#"):  # markdown anchor?
             pos = parser.findAnchorPos(self.reader.tokens, token)
             if pos != -1:
-                self.reader.scroll.pos = pos
+                self.reader.scrollV.pos = pos
         elif not link.startswith("ii://"):
             if not CFG.browser.open(link):
                 showMessageBox("Не удалось запустить Интернет-браузер")
@@ -1723,7 +1727,7 @@ class EchoReaderScreen(Window):
             reader.prerender()
 
         elif ks in Reader.UKEYS:
-            if not msgs.data or reader.scroll.pos >= reader.scroll.content - reader.scroll.view:
+            if not msgs.data or reader.scrollV.pos >= reader.scrollV.content - reader.scrollV.view:
                 if not msgs.hasNext():
                     if msgs.mode == ReaderMode.ECHO:
                         self.nextEcho = True
@@ -1734,7 +1738,7 @@ class EchoReaderScreen(Window):
                     self.readCurMsg()
                     reader.prerender()
             else:
-                reader.scroll.pos += reader.scroll.view
+                reader.scrollV.pos += reader.scrollV.view
 
         elif ks in Reader.BEGIN and msgs.data:
             msgs.idx = 0
@@ -1848,20 +1852,20 @@ class EchoReaderScreen(Window):
 
         elif ks in Reader.INLINES:
             parser.INLINE_STYLE_ENABLED = not parser.INLINE_STYLE_ENABLED
-            reader.prerender(reader.scroll.pos)
+            reader.prerender(reader.scrollV.pos)
 
     def onResize(self):
         self.resized = True
         self.h, self.w = self.scr.getmaxyx()
         self.reader.setRect(x=0, y=5, w=self.w, h=self.h - 5 - 1)
-        self.reader.prerender(self.reader.scroll.pos)
+        self.reader.prerender(self.reader.scrollV.pos)
         self.scr.clear()
         if self.qs:
             self.qs.items = self.reader.tokens
             self.qs.y = self.h - 1
             self.qs.onResize(self.w - len(version) - 13)
             tnum, _ = parser.findVisibleToken(self.reader.tokens,
-                                              self.reader.scroll.pos)
+                                              self.reader.scrollV.pos)
             self.qs.search(self.qs.txt, tnum)
 
     def signMsg(self):
