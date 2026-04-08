@@ -40,6 +40,7 @@ GPG_PUB_KEY_ALGS = {
 }
 
 INLINE_STYLE_ENABLED = False
+HORIZONTAL_SCROLL_ENABLED = False  # do not wrap wide code-blocks and use scroll
 BEGIN_PGP_KEY = "-----BEGIN PGP PUBLIC KEY BLOCK-----"
 END_PGP_KEY = "-----END PGP PUBLIC KEY BLOCK-----"
 BEGIN_PGP_SIGNED_MSG = "-----BEGIN PGP SIGNED MESSAGE-----"
@@ -106,6 +107,7 @@ class Token:
     filename: str = None
     filedata: bytes = None
     pgpKey: bool = None
+    searchMatches: any = None
 
     @staticmethod
     def URL(value, lineNum, url, title=None, filename=None, filedata=None,
@@ -582,14 +584,15 @@ def _tokenizePgpSignedMsgVerify(lines, signLineIdx, signLine, linesCount):
 # endregion _tokenizePgpSignedMsg
 
 
-def prerender(tokens, width, height=None):
-    # type: (List[Token], int, Optional[int]) -> int
-    """:return: body height lines count"""
+def prerender(tokens, width, height=None, reserveHScroll=True, hScroll=False, maxWidth=0):
+    # type: (List[Token], int, Optional[int], bool, bool, int) -> Tuple[int, int, int]
+    """:return: body height lines count, max width, hScroll"""
     if not tokens:
-        return 1  #
+        return 1, width, hScroll  #
     lineNum = tokens[0].lineNum
     x = 0
     y = 0
+    maxWidth = maxWidth or width
     inQuote = False
     for token in tokens:
         if token.lineNum > lineNum:
@@ -606,9 +609,16 @@ def prerender(tokens, width, height=None):
             token.render = []
         else:
             token.render.clear()
+        if HORIZONTAL_SCROLL_ENABLED and height and reserveHScroll and maxWidth > width:
+            # early scrollable detected, reserve scrollbar height
+            return prerender(tokens, width=width, height=height - 1,
+                             reserveHScroll=False, hScroll=True,
+                             maxWidth=maxWidth)
         if height and y + 1 > height:
             # early scrollable detected, reserve scrollbar width
-            return prerender(tokens, width=width - 1, height=None)
+            return prerender(tokens, width=width - 1, height=None,
+                             reserveHScroll=reserveHScroll, hScroll=hScroll,
+                             maxWidth=maxWidth)
         # pre-process
         value = token.value.replace("\t", "    ").rstrip("\r")
         if token.type == TT.URL and INLINE_STYLE_ENABLED:
@@ -626,6 +636,11 @@ def prerender(tokens, width, height=None):
             token.render.append(value)
             continue  # tokens
         if token.type == TT.CODE:
+            if HORIZONTAL_SCROLL_ENABLED and x == 0:
+                token.render.append(value)
+                maxWidth = max(maxWidth, len(value))
+                y += 1
+                continue  # tokens
             # do not split leading spaces
             x = renderChunks(token, "", x, width, value)
             y += len(token.render) - 1
@@ -668,10 +683,17 @@ def prerender(tokens, width, height=None):
         if line or emptyNewLine:
             token.render.append(line)
         y += len(token.render) - 1
+    if HORIZONTAL_SCROLL_ENABLED and height and reserveHScroll and maxWidth > width:
+        # early scrollable detected, reserve scrollbar height
+        return prerender(tokens, width=width, height=height - 1,
+                         reserveHScroll=False, hScroll=True,
+                         maxWidth=maxWidth)
     if height and y + 1 > height:
         # scrollable detected, reserve scrollbar width
-        return prerender(tokens, width=width - 1, height=None)
-    return y + 1  #
+        return prerender(tokens, width=width - 1, height=None,
+                         reserveHScroll=reserveHScroll, hScroll=hScroll,
+                         maxWidth=maxWidth)
+    return y + 1, maxWidth, hScroll  #
 
 
 @dataclass

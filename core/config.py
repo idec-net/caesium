@@ -147,6 +147,8 @@ class Config:
                 self.keys = param[1]
             elif param[0] == "inlinestyle":
                 parser.INLINE_STYLE_ENABLED = True
+            elif param[0] == "horizontalScroll":
+                parser.HORIZONTAL_SCROLL_ENABLED = True
 
         node.echoareas.sort()
         self.nodes.append(node)
