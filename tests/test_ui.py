@@ -126,6 +126,10 @@ class ScrMock:
         self.text = [["" for _ in range(w)]
                      for _ in range(h)]
 
+    def clear(self):
+        self.text = [["" for _ in range(self.width)]
+                     for _ in range(self.height)]
+
     def getmaxyx(self):
         return self.height, self.width
 
@@ -196,9 +200,10 @@ def test_renderTokenNewLineAtLastSpace():
 
 
 def test_renderHorizontalScrollableMatches():
+    parser.INLINE_STYLE_ENABLED = True
     parser.HORIZONTAL_SCROLL_ENABLED = True
     msgCode = ["", "", "", "", "", "", "", "",
-               "aaaa.aa aaaaaaaa",
+               "a `c` a _i_ a **b** http://u",
                "====",
                "012345678901234567890",
                "===="]
@@ -211,27 +216,61 @@ def test_renderHorizontalScrollableMatches():
     qs.search("1", 0)
 
     # 0_234567890_23456789
-    assert r.tokens[2].searchMatches[0][1].span() == (1, 2)
-    assert r.tokens[2].searchMatches[1][1].span() == (11, 12)
+    assert r.tokens[13].searchMatches[0][1].span() == (1, 2)
+    assert r.tokens[13].searchMatches[1][1].span() == (11, 12)
 
     # noinspection PyTypeChecker
     r.renderBody(scr, r.tokens, scroll=0, scrollH=0, qs=qs)
-    assert scr.to_str()[8] == "0_23456789"
+    assert scr.to_str()[5:9] == ["a c a i a ",
+                                 "b http://u",
+                                 "====",
+                                 "0_23456789"]
+    scr.clear()
+
     # noinspection PyTypeChecker
     r.renderBody(scr, r.tokens, scroll=0, scrollH=1, qs=qs)
-    assert scr.to_str()[8] == "_234567890"
+    assert scr.to_str()[5:9] == [" c a i a ",
+                                 " http://u",
+                                 "===",
+                                 "_234567890"]
+    scr.clear()
+
     # noinspection PyTypeChecker
     r.renderBody(scr, r.tokens, scroll=0, scrollH=2, qs=qs)
-    assert scr.to_str()[8] == "234567890_"
+    assert scr.to_str()[5:9] == ["c a i a ",
+                                 "http://u",
+                                 "==",
+                                 "234567890_"]
+    scr.clear()
+
     # noinspection PyTypeChecker
     r.renderBody(scr, r.tokens, scroll=0, scrollH=3, qs=qs)
-    assert scr.to_str()[8] == "34567890_2"
+    assert scr.to_str()[5:9] == [" a i a ",
+                                 "ttp://u",
+                                 "=",
+                                 "34567890_2"]
+    scr.clear()
+
     # noinspection PyTypeChecker
     r.renderBody(scr, r.tokens, scroll=0, scrollH=4, qs=qs)
-    assert scr.to_str()[8] == "4567890_23"
+    assert scr.to_str()[5:9] == ["a i a ",
+                                 "tp://u",
+                                 "",
+                                 "4567890_23"]
+    scr.clear()
+
     # noinspection PyTypeChecker
     r.renderBody(scr, r.tokens, scroll=0, scrollH=5, qs=qs)
-    assert scr.to_str()[8] == "567890_234"
+    assert scr.to_str()[5:9] == [" i a ",
+                                 "p://u",
+                                 "",
+                                 "567890_234"]
+    scr.clear()
+
     # noinspection PyTypeChecker
     r.renderBody(scr, r.tokens, scroll=0, scrollH=6, qs=qs)
-    assert scr.to_str()[8] == "67890_2345"
+    assert scr.to_str()[5:9] == ["i a ",
+                                 "://u",
+                                 "",
+                                 "67890_2345"]
+    scr.clear()
