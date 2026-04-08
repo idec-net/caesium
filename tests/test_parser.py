@@ -44,7 +44,9 @@ def test_inlineEnds(ends):
 @pytest.mark.parametrize("ends", "aA09")
 def test_notInlineEnds(ends):
     assert not parser.italicInlineTemplate.match("_italic_" + ends)
+    assert not parser.italicInlineTemplate.search("_ qwe __i__" + ends)
     assert not parser.italicInlineTemplate.match("*italic*" + ends)
+    assert not parser.italicInlineTemplate.search("* qwe **i**" + ends)
     assert not parser.boldInlineTemplate.match("**bold**" + ends)
     assert not parser.boldInlineTemplate.match("__bold__" + ends)
     assert not parser.codeInlineTemplate.match("`code`" + ends)
