@@ -609,16 +609,6 @@ def prerender(tokens, width, height=None, reserveHScroll=True, hScroll=False, ma
             token.render = []
         else:
             token.render.clear()
-        if HORIZONTAL_SCROLL_ENABLED and height and reserveHScroll and maxWidth > width:
-            # early scrollable detected, reserve scrollbar height
-            return prerender(tokens, width=width, height=height - 1,
-                             reserveHScroll=False, hScroll=True,
-                             maxWidth=maxWidth)
-        if height and y + 1 > height:
-            # early scrollable detected, reserve scrollbar width
-            return prerender(tokens, width=width - 1, height=None,
-                             reserveHScroll=reserveHScroll, hScroll=hScroll,
-                             maxWidth=maxWidth)
         # pre-process
         value = token.value.replace("\t", "    ").rstrip("\r")
         if token.type == TT.URL and INLINE_STYLE_ENABLED:
@@ -639,7 +629,6 @@ def prerender(tokens, width, height=None, reserveHScroll=True, hScroll=False, ma
             if HORIZONTAL_SCROLL_ENABLED and x == 0:
                 token.render.append(value)
                 maxWidth = max(maxWidth, len(value))
-                y += 1
                 continue  # tokens
             # do not split leading spaces
             x = renderChunks(token, "", x, width, value)
@@ -683,16 +672,18 @@ def prerender(tokens, width, height=None, reserveHScroll=True, hScroll=False, ma
         if line or emptyNewLine:
             token.render.append(line)
         y += len(token.render) - 1
-    if HORIZONTAL_SCROLL_ENABLED and height and reserveHScroll and maxWidth > width:
-        # early scrollable detected, reserve scrollbar height
-        return prerender(tokens, width=width, height=height - 1,
+    if HORIZONTAL_SCROLL_ENABLED and reserveHScroll and maxWidth > width:
+        if height:
+            height -= 1
+        # reserve scrollbar height
+        return prerender(tokens, width=width, height=height,
                          reserveHScroll=False, hScroll=True,
                          maxWidth=maxWidth)
     if height and y + 1 > height:
-        # scrollable detected, reserve scrollbar width
+        # reserve scrollbar width
         return prerender(tokens, width=width - 1, height=None,
                          reserveHScroll=reserveHScroll, hScroll=hScroll,
-                         maxWidth=maxWidth)
+                         maxWidth=maxWidth - 1)
     return y + 1, maxWidth, hScroll  #
 
 

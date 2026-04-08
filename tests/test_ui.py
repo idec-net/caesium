@@ -274,3 +274,25 @@ def test_renderHorizontalScrollableMatches():
                                  "",
                                  "67890_2345"]
     scr.clear()
+
+
+def test_renderScrollableSize():
+    parser.INLINE_STYLE_ENABLED = True
+    parser.HORIZONTAL_SCROLL_ENABLED = True
+    msgCode = ["", "", "", "", "", "", "", "",
+               "a `c` a _i_ a **b** http://u",
+               "a `c` a _i_ a **b** http://u",
+               "====",
+               "01234567890123456789",
+               "01234567890123456789",
+               "===="]
+    r = ui.ReaderWidget()
+    r.setRect(x=0, y=5, w=10, h=5)
+    r.setMsg(msgCode, 0)
+    r.prerender(0)
+    assert r.scrollV.isScrollable
+    assert r.scrollV.content == 10
+    assert r.scrollV.view == 4
+    assert r.scrollH.isScrollable
+    assert r.scrollH.content == 20
+    assert r.scrollH.view == 9
