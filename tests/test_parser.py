@@ -31,9 +31,13 @@ def options():
 @pytest.mark.parametrize("ends", " .,:;!@#%&*(){}_=+\\/?")
 def test_inlineEnds(ends):
     assert parser.italicInlineTemplate.match("_italic_" + ends)
+    assert parser.italicInlineTemplate.match("_i_" + ends)
     assert parser.italicInlineTemplate.match("*italic*" + ends)
+    assert parser.italicInlineTemplate.match("*i*" + ends)
     assert parser.boldInlineTemplate.match("**bold**" + ends)
+    assert parser.boldInlineTemplate.match("**b**" + ends)
     assert parser.boldInlineTemplate.match("__bold__" + ends)
+    assert parser.boldInlineTemplate.match("__b__" + ends)
     assert parser.codeInlineTemplate.match("`code`" + ends)
 
 
