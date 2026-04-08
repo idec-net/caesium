@@ -1,5 +1,24 @@
+import curses
+
+import pytest
+
 from api import MsgMetadata
-from core.ui import MsgModeStack, ReaderMode
+from core import parser, ui
+from core.ui import MsgModeStack, ReaderMode, QuickSearch, EchoReaderScreen
+
+# pycodestyle - Error codes
+# https://pycodestyle.pycqa.org/en/latest/intro.html#error-codes
+
+
+def _colorPairMock(num):
+    return num
+
+
+@pytest.fixture(autouse=True)
+def options():
+    parser.INLINE_STYLE_ENABLED = False
+    parser.HORIZONTAL_SCROLL_ENABLED = False
+    curses.color_pair = _colorPairMock
 
 
 def msg(msgid):
@@ -98,3 +117,121 @@ def test_modeQs():
     assert msgs.mode == ReaderMode.ECHO
     assert msgs.data == [msg("0"), msg("1")]
     assert msgs.idx == 1
+
+
+class ScrMock:
+    def __init__(self, h, w):
+        self.height = h
+        self.width = w
+        self.text = [["" for _ in range(w)]
+                     for _ in range(h)]
+
+    def getmaxyx(self):
+        return self.height, self.width
+
+    def to_str(self):
+        return list(map(lambda line: "".join(line), self.text))
+
+    def addstr(self, y, x, line, attr=None):
+        assert attr is None or isinstance(attr, int)
+        assert y >= 0
+        assert y < self.height
+        assert x >= 0
+        assert x < self.width
+        assert x + len(line) <= self.width
+        for i, ch in enumerate(line):
+            if attr & curses.A_REVERSE:
+                self.text[y][x + i] = "_"
+            else:
+                self.text[y][x + i] = ch
+
+
+def test_renderTokenRightBorderNewLine():
+    tokens = parser.tokenize([
+        "aaaaaa> aaa-aa aaaaa aaa aaaaaaaaaa https://aaaa.aaaaaaaa.aa/. ",
+        "aaaaaa> aaaaa aaaaaaaa aaaa https://aaaaaa.com/aaaaaaaaaa/aaaaaaaaaaaa-aaa",
+        "",
+    ])
+    parser.prerender(tokens, width=62, height=30)
+    scr = ScrMock(w=62, h=30)
+    reader = ui.ReaderWidget()
+    reader.setRect(x=0, y=5, w=62, h=24)
+    # noinspection PyTypeChecker
+    reader.renderBody(scr, tokens, 0)
+    text = scr.to_str()
+    assert text[6] == ". "
+
+
+def test_renderTokenBottomInlineOverlapped():
+    tokens = parser.tokenize([
+        "1234567890 234 678 http://a.",
+    ])
+    parser.prerender(tokens, width=10, height=30)
+    scr = ScrMock(8, 10)  # 8 = 5 header + 2 body + 1 status line
+    reader = ui.ReaderWidget()
+    reader.setRect(x=0, y=5, w=10, h=2)
+    # noinspection PyTypeChecker
+    reader.renderBody(scr, tokens, 0)
+    text = scr.to_str()
+    assert text[5] == "1234567890"
+    assert text[6] == "234 678 "
+    assert text[7] == ""  # status line
+
+
+def test_renderTokenNewLineAtLastSpace():
+    tokens = parser.tokenize([
+        "aaaa.aa aaaaaaaa aaaaaa aaaaa. aaaaaaaa aaa aaaaaaaaaaa a aaa: "
+        "https://aaaaaa\r"])
+
+    parser.prerender(tokens, width=62, height=30)
+    scr = ScrMock(30, 62)
+    reader = ui.ReaderWidget()
+    reader.setRect(x=0, y=5, w=62, h=24)
+    # noinspection PyTypeChecker
+    reader.renderBody(scr, tokens, 0)
+    text = scr.to_str()
+    assert text[5] == "aaaa.aa aaaaaaaa aaaaaa aaaaa. aaaaaaaa aaa aaaaaaaaaaa a aaa:"
+    assert text[6] == "https://aaaaaa"
+    assert text[7] == ""
+
+
+def test_renderHorizontalScrollableMatches():
+    parser.HORIZONTAL_SCROLL_ENABLED = True
+    msgCode = ["", "", "", "", "", "", "", "",
+               "aaaa.aa aaaaaaaa",
+               "====",
+               "012345678901234567890",
+               "===="]
+    scr = ScrMock(30, 10)
+    r = ui.ReaderWidget()
+    r.setRect(x=0, y=5, w=10, h=24)
+    r.setMsg(msgCode, 0)
+    r.prerender(0)
+    qs = QuickSearch(r.tokens, EchoReaderScreen.onSearchItem)
+    qs.search("1", 0)
+
+    # 0_234567890_23456789
+    assert r.tokens[2].searchMatches[0][1].span() == (1, 2)
+    assert r.tokens[2].searchMatches[1][1].span() == (11, 12)
+
+    # noinspection PyTypeChecker
+    r.renderBody(scr, r.tokens, scroll=0, scrollH=0, qs=qs)
+    assert scr.to_str()[8] == "0_23456789"
+    # noinspection PyTypeChecker
+    r.renderBody(scr, r.tokens, scroll=0, scrollH=1, qs=qs)
+    assert scr.to_str()[8] == "_234567890"
+    # noinspection PyTypeChecker
+    r.renderBody(scr, r.tokens, scroll=0, scrollH=2, qs=qs)
+    assert scr.to_str()[8] == "234567890_"
+    # noinspection PyTypeChecker
+    r.renderBody(scr, r.tokens, scroll=0, scrollH=3, qs=qs)
+    assert scr.to_str()[8] == "34567890_2"
+    # noinspection PyTypeChecker
+    r.renderBody(scr, r.tokens, scroll=0, scrollH=4, qs=qs)
+    assert scr.to_str()[8] == "4567890_23"
+    # noinspection PyTypeChecker
+    r.renderBody(scr, r.tokens, scroll=0, scrollH=5, qs=qs)
+    assert scr.to_str()[8] == "567890_234"
+    # noinspection PyTypeChecker
+    r.renderBody(scr, r.tokens, scroll=0, scrollH=6, qs=qs)
+    assert scr.to_str()[8] == "67890_2345"

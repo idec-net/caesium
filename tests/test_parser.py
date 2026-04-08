@@ -6,13 +6,7 @@ import pytest
 
 from core import parser, ui
 from core.parser import Token, TT
-
-
-def _colorPairMock(num):
-    return num
-
-
-curses.color_pair = _colorPairMock
+from tests.test_ui import ScrMock
 
 
 def tokenUrl(url, lineNum, title=None, filename=None, filedata=None,
@@ -21,6 +15,17 @@ def tokenUrl(url, lineNum, title=None, filename=None, filedata=None,
                      url=title or url, title=title,
                      filename=filename, filedata=filedata,
                      pgpKey=pgpKey)
+
+
+def _colorPairMock(num):
+    return num
+
+
+@pytest.fixture(autouse=True)
+def options():
+    parser.INLINE_STYLE_ENABLED = False
+    parser.HORIZONTAL_SCROLL_ENABLED = False
+    curses.color_pair = _colorPairMock
 
 
 @pytest.mark.parametrize("ends", " .,:;!@#%&*(){}_=+\\/?")
@@ -215,7 +220,7 @@ def test_urlGemMd():
     assert tokens[4] == Token(TT.URL, "=> gemini://gem-url Url with Title", 1,
                               url="gemini://gem-url", title="Url with Title")
     assert len(tokens) == 5
-    assert parser.prerender(tokens, width=25, height=10) == 2
+    assert parser.prerender(tokens, width=25, height=10) == (2, 25, False)
     scr = ScrMock(w=25, h=10)
     reader = ui.ReaderWidget()
     reader.setRect(x=0, y=5, w=25, h=4)
@@ -269,7 +274,7 @@ def test_softWrap():
     assert tokens[5] == Token(TT.TEXT, ".", 3)
     assert tokens[6] == Token(TT.HR, "----", 4)
 
-    assert parser.prerender(tokens, width=10) == 14
+    assert parser.prerender(tokens, width=10) == (14, 10, False)
     assert tokens[0].render == ["==     lon",
                                 "g-long-lon",
                                 "g-long-hea",
@@ -302,7 +307,7 @@ def test_softWrapTrailing():
     assert tokens[2] == tokenUrl("http://url", 1)
     assert tokens[3] == Token(TT.TEXT, " long-word in other line", 1)
     #
-    assert parser.prerender(tokens, width=14) == 6
+    assert parser.prerender(tokens, width=14) == (6, 14, False)
     # @formatter:off
     assert tokens[0].render == ["http://url"]
     assert tokens[1].render == [          " and",  # noqa
@@ -340,16 +345,16 @@ def test_findVisibleToken():
 
 def test_scrollableSize():
     tokens = parser.tokenize([""])
-    assert parser.prerender(tokens, width=10) == 1
+    assert parser.prerender(tokens, width=10) == (1, 10, False)
 
     tokens = parser.tokenize(["", ""])
-    assert parser.prerender(tokens, width=10) == 2
+    assert parser.prerender(tokens, width=10) == (2, 10, False)
 
     tokens = parser.tokenize(SOFT_WRAP.splitlines())
-    assert parser.prerender(tokens, width=10) == 14
+    assert parser.prerender(tokens, width=10) == (14, 10, False)
 
     tokens = parser.tokenize(SOFT_WRAP_TRAILING.splitlines())
-    assert parser.prerender(tokens, width=14) == 6
+    assert parser.prerender(tokens, width=14) == (6, 14, False)
 
 
 def test_scrollableLastToken():
@@ -376,7 +381,7 @@ def test_renderTabs():
         "\t}",
         "===="
     ])
-    b_height = parser.prerender(tokens, width=10, height=1)
+    b_height, _, _ = parser.prerender(tokens, width=10, height=1)
     assert tokens[0].render == ["===="]
     assert tokens[1].render == ["    publi",
                                 "c {"]
@@ -406,7 +411,7 @@ def test_headers():
 
 def test_quoteUrl():
     tokens = parser.tokenize([">http://in-quote"])
-    bHeight = parser.prerender(tokens, width=20)
+    bHeight, _, _ = parser.prerender(tokens, width=20)
     assert tokens[0].render == [" >"]
     assert tokens[1].render == ["http://in-quote"]
     assert bHeight == 1
@@ -722,77 +727,6 @@ def test_pgpSignInlineInCodeBlock():
     #
     assert tokens[18] == Token.CODE(parser.END_PGP_SIGNATURE + " \r", 11)
     assert tokens[19] == Token.CODE("====", 12)
-
-
-class ScrMock:
-    def __init__(self, h, w):
-        self.height = h
-        self.width = w
-        self.text = [["" for _ in range(w)]
-                     for _ in range(h)]
-
-    def getmaxyx(self):
-        return self.height, self.width
-
-    def to_str(self):
-        return list(map(lambda line: "".join(line), self.text))
-
-    def addstr(self, y, x, line, attr=None):
-        assert attr is None or isinstance(attr, int)
-        assert y < self.height
-        assert x < self.width
-        assert x + len(line) <= self.width
-        for i, ch in enumerate(line):
-            self.text[y][x + i] = ch
-
-
-def test_renderTokenRightBorderNewLine():
-    tokens = parser.tokenize([
-        "aaaaaa> aaa-aa aaaaa aaa aaaaaaaaaa https://aaaa.aaaaaaaa.aa/. ",
-        "aaaaaa> aaaaa aaaaaaaa aaaa https://aaaaaa.com/aaaaaaaaaa/aaaaaaaaaaaa-aaa",
-        "",
-    ])
-    parser.prerender(tokens, width=62, height=30)
-    scr = ScrMock(w=62, h=30)
-    reader = ui.ReaderWidget()
-    reader.setRect(x=0, y=5, w=62, h=24)
-    # noinspection PyTypeChecker
-    reader.renderBody(scr, tokens, 0)
-    text = scr.to_str()
-    assert text[6] == ". "
-
-
-def test_renderTokenBottomInlineOverlapped():
-    tokens = parser.tokenize([
-        "1234567890 234 678 http://a.",
-    ])
-    parser.prerender(tokens, width=10, height=30)
-    scr = ScrMock(8, 10)  # 8 = 5 header + 2 body + 1 status line
-    reader = ui.ReaderWidget()
-    reader.setRect(x=0, y=5, w=10, h=2)
-    # noinspection PyTypeChecker
-    reader.renderBody(scr, tokens, 0)
-    text = scr.to_str()
-    assert text[5] == "1234567890"
-    assert text[6] == "234 678 "
-    assert text[7] == ""  # status line
-
-
-def test_renderTokenNewLineAtLastSpace():
-    tokens = parser.tokenize([
-        "aaaa.aa aaaaaaaa aaaaaa aaaaa. aaaaaaaa aaa aaaaaaaaaaa a aaa: "
-        "https://aaaaaa\r"])
-
-    parser.prerender(tokens, width=62, height=30)
-    scr = ScrMock(30, 62)
-    reader = ui.ReaderWidget()
-    reader.setRect(x=0, y=5, w=62, h=24)
-    # noinspection PyTypeChecker
-    reader.renderBody(scr, tokens, 0)
-    text = scr.to_str()
-    assert text[5] == "aaaa.aa aaaaaaaa aaaaaa aaaaa. aaaaaaaa aaa aaaaaaaaaaa a aaa:"
-    assert text[6] == "https://aaaaaa"
-    assert text[7] == ""
 
 
 def test_findAnchorPos():

@@ -202,6 +202,13 @@ def drawScrollBarV(scr, y, x, scroll):
         scr.addstr(i, x, "█", color)
 
 
+def drawScrollBarH(scr, y, x, scroll):
+    # type: (curses.window, int, int, ScrollCalc) -> None
+    color = getColor(UI_SCROLL)
+    scr.addstr(y, x, "░" * scroll.track, color)
+    scr.addstr(y, x + scroll.thumbPos, "█" * scroll.thumbSz, color)
+
+
 def drawStatusBar(scr, mode=None, text=None):
     # type: (curses.window, Union[ReaderMode, SelectorMode], str) -> None
     h, w = scr.getmaxyx()
@@ -1149,7 +1156,8 @@ class QuickSearch(InputRegexWidget):
 # region EchoReader
 class ReaderWidget(Widget):
     tokens: List[parser.Token]  # message bode tokens
-    scroll: ScrollCalc  # message body scroll calculator
+    scroll: ScrollCalc = None  # message body scroll calculator (vertical)
+    scrollHor: ScrollCalc = None  # message body scroll calculator (horizontal)
     t2l: List[parser.RangeLines]  # tokens rendered lines range
     #
     msg: List[str] = None
@@ -1174,23 +1182,30 @@ class ReaderWidget(Widget):
 
     def prerender(self, pos=0):
         self.tokens = parser.tokenize(self.msg[8:])
-        height = parser.prerender(self.tokens, self.w, self.h)
+        height, width, hScroll = parser.prerender(self.tokens, self.w, self.h)
         self.t2l = parser.tokenLineMap(self.tokens)
-        self.scroll = ScrollCalc(height, self.h, pos)
+        self.scroll = ScrollCalc(height, self.h - (1 if hScroll else 0), pos)
+        self.scrollHor = ScrollCalc(width, self.w - (1 if hScroll else 0), 0)
 
     def draw(self, scr, qs=None):
-        self.renderBody(scr, self.tokens, self.scroll.pos, qs)
+        self.renderBody(scr, self.tokens, self.scroll.pos, self.scrollHor.pos, qs)
         if self.scroll.isScrollable:
             drawScrollBarV(scr, self.y, self.x + self.w - 1, self.scroll)
+        if self.scrollHor.isScrollable:
+            drawScrollBarH(scr, self.y + self.h - 1, 0, self.scrollHor)
 
-    def renderBody(self, scr, tokens, scroll, qs=None):
-        # type: (curses.window, List[parser.Token], int, QuickSearch) -> None
+    def renderBody(self, scr, tokens, scroll, scrollH=0, qs=None):
+        # type: (curses.window, List[parser.Token], int, int, QuickSearch) -> None
         if not tokens:
             return
         tnum, offset = parser.findVisibleToken(tokens, scroll)
         lineNum = tokens[tnum].lineNum
         y, x = (self.y, self.x)
         h, w = (self.y + self.h, self.x + self.w)
+        if self.scrollHor and self.scrollHor.isScrollable:
+            h -= 1
+        if self.scroll and self.scroll.isScrollable:
+            w -= 1
         txtAttr = 0
         if parser.INLINE_STYLE_ENABLED:
             # Rewind tokens from the begin of line to apply inline text attributes
@@ -1209,7 +1224,8 @@ class ReaderWidget(Widget):
             #
             txtAttr = ReaderWidget.applyAttr(token, txtAttr)
             #
-            y, x = self.renderToken(scr, token, y, x, h, offset, txtAttr, qs)
+            y, x = self.renderToken(scr, token, y, x, w, h, offset,
+                                    scrollH if x == self.x else 0, txtAttr, qs)
             offset = 0  # required in the first partial multiline token only
 
     @staticmethod
@@ -1230,7 +1246,7 @@ class ReaderWidget(Widget):
             txtAttr &= ~curses.A_BOLD
         return txtAttr
 
-    def renderToken(self, scr, token: parser.Token, y, x, h, offset, txtAttr, qs=None):
+    def renderToken(self, scr, token: parser.Token, y, x, w, h, offset, scrollH, txtAttr, qs=None):
         matches = []
         # noinspection PyUnresolvedReferences
         if (qs and qs.result
@@ -1244,13 +1260,17 @@ class ReaderWidget(Widget):
                 return y + i, x  #
             attr = getColor(TOKEN2UI.get(token.type, UI_TEXT))
             if line:
-                scr.addstr(y + i, x, line, attr | txtAttr)
+                scr.addstr(y + i, x, line[scrollH:scrollH + w], attr | txtAttr)
                 #
-                for mIdx, (off, match) in enumerate(matches):
-                    if off == offset + i:
-                        scr.addstr(y + i, x + match.start(),
-                                   line[match.start():match.end()],
-                                   attr | txtAttr | curses.A_REVERSE)
+                for off, match in matches:
+                    # TODO: Render partially scrolled matched result
+                    if (off != offset + i
+                            or x + match.start() - scrollH - self.x < 0
+                            or x + match.end() - scrollH - self.x > w):
+                        continue  # matches
+                    scr.addstr(y + i, x + match.start() - scrollH,
+                               line[match.start():match.end()],
+                               attr | txtAttr | curses.A_REVERSE)
 
             if len(token.render) > 1 and i + offset < len(token.render) - 1:
                 x = self.x  # new line in multiline token -- carriage return
@@ -1263,10 +1283,18 @@ class ReaderWidget(Widget):
             self.scroll.pos -= 1
         elif ks in Reader.DOWN:
             self.scroll.pos += 1
+        elif ks in Reader.LEFT:
+            self.scrollHor.pos -= 1
+        elif ks in Reader.RIGHT:
+            self.scrollHor.pos += 1
         elif ks in Reader.PPAGE:
             self.scroll.pos -= self.scroll.view
         elif ks in Reader.NPAGE:
             self.scroll.pos += self.scroll.view
+        elif ks in Reader.LEFTP:
+            self.scrollHor.pos -= self.scrollHor.view
+        elif ks in Reader.RIGHTP:
+            self.scrollHor.pos += self.scrollHor.view
         elif ks in Reader.HOME:
             self.scroll.pos = 0
         elif ks in Reader.MEND:
