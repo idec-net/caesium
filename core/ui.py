@@ -1771,8 +1771,12 @@ class EchoReaderScreen(Window):
             showMessageBox("Сообщение добавлено в избранные" if saved else
                            "Сообщение уже есть в избранных")
 
-        elif ks in Reader.QUOTE and not any((self.archive, self.out)) and msgs.data:
-            mailer.quoteMsg(self.msgid(), reader.msg, CFG.oldquote)
+        elif ((ks in Reader.QUOTE or ks in Reader.QUOTE_NOT)
+              and not any((self.archive, self.out)) and msgs.data):
+            mode = CFG.oldquote
+            if ks in Reader.QUOTE_NOT:
+                mode = not CFG.oldquote
+            mailer.quoteMsg(self.msgid(), reader.msg, mode)
             callEditor(CFG.node())
             self.counts.getCounts(CFG.node(), False)
 
