@@ -218,10 +218,12 @@ def drawStatusBar(scr, mode=None, text=None):
     scr.addstr(h - 1, w - 8, "│ " + datetime.now().strftime("%H:%M"), color)
     if text:
         scr.addstr(h - 1, len(version) + 2, text, color)
-    if parser.INLINE_STYLE_ENABLED:
-        scr.addstr(h - 1, w - 10, "~", color)
     if mode:
         scr.addstr(h - 1, w - 11, mode.value, color)
+    if parser.INLINE_STYLE_ENABLED:
+        scr.addstr(h - 1, w - 10, "~", color)
+    scr.addstr(h - 1, w - 9, "-" if parser.HORIZONTAL_SCROLL_ENABLED else "=",
+               color)
 
 
 def drawReader(scr, echo: str, msgid, out):
@@ -750,7 +752,7 @@ class FindQueryWindow(Window):
         inpErrLen = len(THEME.input.left + THEME.input.right) + THEME.error.len
         self.layout = GridLayout(
             (GridLayout(
-                (LabelWidget("Искать: "), ""),
+                (LabelWidget("Искать: "), "hAlign right"),
                 (self.inpQuery, "fillX growX wrap"),
 
                 (LabelWidget("И НЕ: "), "hAlign right"),
@@ -775,11 +777,12 @@ class FindQueryWindow(Window):
                 (SeparatorHWidget(), "colSpan 2 fillX wrap"),
             ), "pad 1 0 w 100% h 6 fillX wrap"),
             #
-            (GridLayout((self.chkEcho, CC(w=self.chkEcho.w + 2, pad="1 0")),
-                        (self.inpEcho, "fillX wrap"),
+            (GridLayout(
+                (self.chkEcho, f"w {self.chkEcho.w + 2} pad 1 0"),
+                (self.inpEcho, "fillX wrap"),
 
-                        (LabelWidget("И НЕ: "), "hAlign right"),
-                        (self.inpEchoNot, "fillX wrap")),
+                (LabelWidget("И НЕ: "), "hAlign right"),
+                (self.inpEchoNot, "fillX wrap")),
              "w 100% h 2 fillX wrap"),
             (GridLayout(
                 (self.chkSkipArch, "pad 1 0 w 50%"),
@@ -1860,6 +1863,10 @@ class EchoReaderScreen(Window):
 
         elif ks in Reader.INLINES:
             parser.INLINE_STYLE_ENABLED = not parser.INLINE_STYLE_ENABLED
+            reader.prerender(reader.scrollV.pos)
+
+        elif ks in Reader.HSCROLL:
+            parser.HORIZONTAL_SCROLL_ENABLED = not parser.HORIZONTAL_SCROLL_ENABLED
             reader.prerender(reader.scrollV.pos)
 
     def onResize(self):
