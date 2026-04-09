@@ -299,7 +299,7 @@ def findQueryMsgids(fq: FindQuery,
                 count_args).fetchone()[0]
 
             def progressHandlerWrapper():
-                progressHandler((0, 0, 0, 0, progress, 0, total))
+                return progressHandler((0, 0, 0, 0, progress, 0, total))
 
             con.set_progress_handler(progressHandlerWrapper, 100)
 
