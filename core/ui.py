@@ -88,6 +88,9 @@ def initializeCurses():
     curses.curs_set(0)
     curses.raw()
     stdscr.keypad(True)
+    # XTerm Control Sequences - Miscellaneous
+    # https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Miscellaneous
+    print(f'\033]2;Caesium\033\\')  # set window title
 
 
 def terminateCurses():
