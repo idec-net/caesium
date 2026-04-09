@@ -16,15 +16,16 @@ from core.cmd import Qs as qs
 # https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-VT100-Mode
 
 # @formatter:off
-c.QUIT.ks =  ["F10"]  # noqa: E222  закрыть клиент
-c.UP.ks =    ["Up"]  # noqa: E222  курсор вверх
-c.DOWN.ks =  ["Down"]  # noqa: E222  курсор вниз
-c.LEFT.ks =  ["Left"]  # noqa: E222  курсор влево
-c.RIGHT.ks = ["Right"]  # noqa: E222  курсор вправо
-c.BS.ks =    ["BS", "C-?", "C-h"]  # noqa: E222  удалить символ перед курсором
-c.DEL.ks =   ["Del"]  # noqa: E222  удалить символ под курсором
-c.HOME.ks =  ["Home"]  # noqa: E222  в начало
-c.END.ks =   ["End"]  # noqa: E222  в конец
+c.QUIT.ks =    ["F10"]  # noqa: E222  закрыть клиент
+c.UP.ks =      ["Up"]  # noqa: E222  курсор вверх
+c.DOWN.ks =    ["Down"]  # noqa: E222  курсор вниз
+c.LEFT.ks =    ["Left"]  # noqa: E222  курсор влево
+c.RIGHT.ks =   ["Right"]  # noqa: E222  курсор вправо
+c.BS.ks =      ["BS", "C-?", "C-h"]  # noqa: E222  удалить символ перед курсором
+c.DEL.ks =     ["Del"]  # noqa: E222  удалить символ под курсором
+c.HOME.ks =    ["Home"]  # noqa: E222  в начало
+c.END.ks =     ["End"]  # noqa: E222  в конец
+c.CANCEL.ks =  ["ESC"]  # noqa: E222  отмена / закрыть окно
 
 # Клавиши для экрана выбора эхоконференции
 s.UP.ks =      ["Up"]  # noqa: E222  курсор вверх

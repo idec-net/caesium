@@ -17,15 +17,16 @@ from core.cmd import Qs as qs
 
 # TODO: Emacs keystrokes
 # @formatter:off
-c.QUIT.ks =  []  # noqa: E222  закрыть клиент
-c.UP.ks =    []  # noqa: E222  курсор вверх
-c.DOWN.ks =  []  # noqa: E222  курсор вниз
-c.LEFT.ks =  []  # noqa: E222  курсор влево
-c.RIGHT.ks = []  # noqa: E222  курсор вправо
-c.BS.ks =    []  # noqa: E222  удалить символ перед курсором
-c.DEL.ks =   []  # noqa: E222  удалить символ под курсором
-c.HOME.ks =  []  # noqa: E222  в начало
-c.END.ks =   []  # noqa: E222  в конец
+c.QUIT.ks =    []  # noqa: E222  закрыть клиент
+c.UP.ks =      []  # noqa: E222  курсор вверх
+c.DOWN.ks =    []  # noqa: E222  курсор вниз
+c.LEFT.ks =    []  # noqa: E222  курсор влево
+c.RIGHT.ks =   []  # noqa: E222  курсор вправо
+c.BS.ks =      []  # noqa: E222  удалить символ перед курсором
+c.DEL.ks =     []  # noqa: E222  удалить символ под курсором
+c.HOME.ks =    []  # noqa: E222  в начало
+c.END.ks =     []  # noqa: E222  в конец
+c.CANCEL.ks =  []  # noqa: E222  отмена / закрыть окно
 
 # Клавиши для экрана выбора эхоконференции
 s.UP.ks =      []  # noqa: E222  курсор вверх

@@ -36,7 +36,6 @@ THEME = theme.THEME
 API = api.ait
 LABEL_SEARCH = "<введите regex для поиска>"
 LABEL_ANY_KEY = "Нажмите любую клавишу"
-LABEL_ESC = "Esc - отмена"
 LABEL_FIND = "Поиск "  # extra space for wide unicode icon (use wcwidth)
 
 stdscr = None  # type: Optional[curses.window]
@@ -326,7 +325,8 @@ class SelectWindow(Window):
         self.resized = False
 
     def initWin(self, items, title, win=None):
-        testWidth = items + [LABEL_ESC + THEME.title[0] + THEME.title[1],
+        lblEsc = f"{','.join(Common.CANCEL.ks)} - отмена"
+        testWidth = items + [lblEsc + THEME.title[0] + THEME.title[1],
                              title + THEME.title[0] + THEME.title[1]]
         height, width = self.scr.getmaxyx()
         w = 0 if not items else max(map(lambda it: len(it), testWidth))
@@ -341,7 +341,7 @@ class SelectWindow(Window):
             win = curses.newwin(h + 2, w + 2, y, x)
         color = getColor(UI_BORDER)
         lblTitle = title[0:min(w - 2, len(title))]
-        lblEsc = LABEL_ESC[0:min(w - 2, len(LABEL_ESC))]
+        lblEsc = lblEsc[0:min(w - 2, len(lblEsc))]
         win.attrset(color)
         win.border()
         win.addstr(0, 1, THEME.title[0], color)
@@ -370,7 +370,7 @@ class SelectWindow(Window):
                 self.resized = True
             elif ks in Selector.ENTER:
                 return self.cursor + 1  # return 1-based index
-            elif ks in Reader.QUIT:
+            elif ks in Common.CANCEL:
                 return False  #
             else:
                 self.onKeyPressed(ks, key)
@@ -581,7 +581,7 @@ class MsgListScreen(Window):
                 self.qs = newQuickSearch(self.msgs.data, self.onSearchItem)
             elif ks in Selector.ENTER and self.msgs.data:
                 return self.msgs.idx  #
-            elif ks in Reader.QUIT:
+            elif ks in Common.CANCEL:
                 if not self.msgs.stack:
                     return -1  #
                 self.msgs.pop()
@@ -877,7 +877,7 @@ class FindQueryWindow(Window):
             #
             self.drawTitle(self.win)
             self.resized = True
-        elif ks in Qs.CLOSE:
+        elif ks in Common.CANCEL:
             curses.curs_set(0)
             if self.findInProgress:
                 self.findCancel = True
@@ -2058,7 +2058,7 @@ class EchoSelectorScreen(Window):
                         key, self.echos.idx, self.scroll)
             elif ks in Qs.OPEN:
                 self.qs = newQuickSearch(self.echos.data, self.onSearchItem)
-            elif ks in Reader.QUIT and self.echos.stack:
+            elif ks in Common.CANCEL and self.echos.stack:
                 self.echos.pop()
                 self.updateScroll()
             elif ks in Common.QUIT:

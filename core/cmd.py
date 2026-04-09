@@ -36,6 +36,7 @@ class Common(metaclass=Group):
     DEL = Cmd("удалить символ под курсором")
     HOME = Cmd("в начало")
     END = Cmd("в конец")
+    CANCEL = Cmd("отмена / закрыть окно")
 
 
 class Selector(metaclass=Group):
