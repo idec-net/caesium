@@ -57,6 +57,7 @@ def loadTheme(cfg: Config):
     if cfg.themeWidgets in theme.THEMES:
         theme.THEME = theme.THEMES[cfg.themeWidgets]
     elif cfg.themeWidgets:
+        stdscr.refresh()
         showMessageBox("Неизвестная схема виджетов %s\n"
                        "Будет использована схема по-умолчанию."
                        % cfg.themeWidgets)
